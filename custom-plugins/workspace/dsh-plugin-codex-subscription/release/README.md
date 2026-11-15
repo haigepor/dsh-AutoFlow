@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.7: Report Chat image-count observations separately from Work/Codex quota, retaining last-good values after read failures. Chat observations do not change account authorization or image billing decisions. The corresponding account-page layout ships with the updated AutoFlow Desktop.
+Release 0.2.8: Image-account selectors read local account metadata without waiting for network quota refreshes. Account management and actual image admission retain their quota, authorization and spending checks. Existing accounts and tasks are retained.
 
 This independent Host-only bundle ships with AutoFlow and uses the Installed plugins section. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `codex-subscription-v<version>` tag family and `codex-subscription-update.json` asset; AFP and application releases use separate families.
 

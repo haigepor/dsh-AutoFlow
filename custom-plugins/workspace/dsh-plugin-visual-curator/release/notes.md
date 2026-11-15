@@ -1,3 +1,15 @@
+## Visual Curator 0.2.22
+
+Local, gallery and server imports confirm the selected account and model before admission. The dialog closes on submission; progress, errors and retry actions stay in the batch table. Only the latest approved and confirmed uploaded output is complete; incomplete originals can be selected again with history retained. Approved results upload together after their batch finishes. Selected image catalogs preload without waiting for unrelated providers.
+
+Included with AutoFlow Desktop 0.2.2-rc.1.20261115.3. Restart after active tasks finish to load the matching Host and Client; existing configuration and history are retained.
+
+## Visual Curator 0.2.22 更新说明
+
+本地、收藏夹和服务器原图统一确认账号与模型。提交后关闭弹窗，导入进度、错误与重试直接显示在批次表格。仅最新成品合格且确认上传后标记完成，其余原图可重新选择并保留历史；批次结束后合并上传合格成品。当前生图目录提前加载，不等待未选中的来源。
+
+随 AutoFlow Desktop 0.2.2-rc.1.20261115.3 提供；任务结束后重启以加载配套 Host 和 Client，保留现有配置和历史。
+
 ## Visual Curator 0.2.21
 
 - Preserve generated candidates during review recovery and reject contradictory skip decisions.

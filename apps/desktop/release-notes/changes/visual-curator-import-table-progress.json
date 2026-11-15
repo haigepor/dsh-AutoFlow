@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-import-table-progress",
+  "category": "fixes",
+  "text": {
+    "en": "Original import confirmation closes on submission and stays closed after a failure. Batch table rows show progress, errors and retry actions while retaining the selected originals and request identity.",
+    "zh-CN": "原图导入提交后立即关闭确认弹窗，失败时不再自动重开；导入进度、错误和重试直接显示在批次表格，保留所选原图和请求记录。"
+  }
+}

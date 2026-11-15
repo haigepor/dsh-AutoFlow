@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.7：分开展示 Chat 图片计数观测值与 Work/Codex 额度，读取失败时保留上次成功值。Chat 观测值不改变账号授权或图片计费判定；对应账号页布局随新版 AutoFlow 桌面端提供。
+0.2.8：生图账号选择读取本地账号信息，无需等待网络配额刷新；账号管理页和实际生图受理继续执行原有额度、授权及消费检查。保留现有账号和历史任务。
 
 本包是随 AutoFlow 分发的独立 Host 插件，显示在已安装插件分区，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `codex-subscription-v<version>` 标签族和 `codex-subscription-update.json` 资产；AFP 与应用使用独立版本族。
 

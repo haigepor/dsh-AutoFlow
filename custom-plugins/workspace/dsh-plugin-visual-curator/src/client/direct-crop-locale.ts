@@ -1,5 +1,7 @@
 /** Direct-original UI copy is independent of training-collection terminology. */
 export const directCropEn = {
+  directCropEditImport: 'Edit import settings', directCropDismissImport: 'Hide import notice',
+  directCropImageOptionsLoading: 'Loading image accounts and models…',
   directCropBoundaryReviewRequired: 'The saved candidate needs an independent safety-boundary review. The route or remaining review budget cannot provide it; review this candidate before further editing.',
   directCropNativeReviewRequired: 'The generated image has not passed independent review. Super-resolution is stopped; review the saved generated image first.',
   directCropDetailReady: 'Ready for editing; final review pending', directCropRetainedUnknowns: 'Retained unknowns that do not block editing', wallpaperDecisionEdgeContinuation: 'Bounded edge continuation', wallpaperDecisionUnseenDetail: 'Unseen detail kept unchanged',
@@ -10,7 +12,7 @@ export const directCropEn = {
   directCropAddImages: 'Import images', directCrop: 'Direct crop', directCropHint: 'Start from your original. Keep its appearance and apply the fixed wallpaper safety template.',
   directCropExpand: 'Expand', directCropRework: 'Review failed · Return to editing', directCropReworkStopped: 'Automatic rework stopped', directCropPreviousReview: 'Previous output review', directCropZoomIn: 'Zoom in', directCropZoomOut: 'Zoom out', directCropBack: 'Search and crop', directCropBatches: 'Crop batches', directCropImport: 'Import originals', directCropLocal: 'Local images', directCropGallery: 'Choose from favorites',
   directCropEmpty: 'Create your first direct-crop batch', directCropEmptyHint: 'Select local originals or gallery favorites. No training collection is required.',
-  directCropName: 'Batch name', directCropDefaultName: 'Direct crop', directCropSelected: 'Selected images', directCropStart: 'Save originals and start', directCropOriginalHint: 'Original bytes are retained. Gallery originals use the highest available quality; restricted sources are reported without substitution.',
+  directCropImporting: 'Saving originals and preparing the batch…', directCropName: 'Batch name', directCropDefaultName: 'Direct crop', directCropSelected: 'Selected images', directCropStart: 'Save originals and start', directCropOriginalHint: 'Original bytes are retained. Gallery originals use the highest available quality; restricted sources are reported without substitution.',
   directCropReadError: 'Could not load saved batches. Retry loading.', directCropPickError: 'Could not read the selected local images. Select them again.', directCropStartError: 'Could not start this batch. Your selected originals are retained; retry with the same selection.', directCropExportError: 'Export was not confirmed. Check the destination and retry.',
   directCropInvalidImage: 'The image could not be imported. Check that it is a readable JPEG, PNG or WebP within the import limits.', directCropPickerUnavailable: 'The local file picker is unavailable. Reopen this page in Desktop and retry.', directCropUnreadable: 'The original file is unavailable or unreadable. Select it again.', directCropBudgetError: 'The current processing budget is insufficient. Review the task budget before retrying.', directCropCancelled: 'The operation was cancelled. Your selected originals are retained.',
   directCropFileHint: 'JPEG, PNG and WebP · Up to {limit} per original · Original bytes are retained', directCropTooLarge: 'Exceeds the {limit} limit. Remove this image and select another original.', directCropEmptyFile: 'This file is empty. Remove it and select a readable original.',
@@ -24,6 +26,8 @@ export const directCropEn = {
 }
 /** Chinese copy has the same keys and retains strict processing terminology. */
 export const directCropZh: Record<keyof typeof directCropEn, string> = {
+  directCropEditImport: '修改导入设置', directCropDismissImport: '隐藏导入提示',
+  directCropImageOptionsLoading: '正在读取生图账号与模型…',
   directCropBoundaryReviewRequired: '当前通道或剩余复审额度不足以确认安全区边界，候选已保留。请先复审这张候选，再继续编辑。',
   directCropNativeReviewRequired: '生成图尚未通过独立复审，已停止超分。请先复审保存的生成图。',
   directCropDetailReady: '可进入编辑，成品仍待独立复审', directCropRetainedUnknowns: '保留的非阻塞未知', wallpaperDecisionEdgeContinuation: '受限边缘延续', wallpaperDecisionUnseenDetail: '不可见细节保留未知',
@@ -34,7 +38,7 @@ export const directCropZh: Record<keyof typeof directCropEn, string> = {
   directCropAddImages: '导入图片', directCrop: '直接裁剪', directCropHint: '从指定原图开始，保留原图外观，按固定壁纸安全区规划与制作',
   directCropExpand: '展开', directCropRework: '复审未通过 · 返回制作', directCropReworkStopped: '自动返工已停止', directCropPreviousReview: '上一版成品复审', directCropZoomIn: '放大画布', directCropZoomOut: '缩小画布', directCropBack: '找图与裁剪', directCropBatches: '裁剪批次', directCropImport: '导入原图', directCropLocal: '本地图片', directCropGallery: '从收藏夹选择',
   directCropEmpty: '开始直接裁剪', directCropEmptyHint: '选择本地原图或远程收藏夹图片，无需创建训练集',
-  directCropName: '批次名称', directCropDefaultName: '直接裁剪', directCropSelected: '已选图片', directCropStart: '保存原图并开始', directCropOriginalHint: '保留原始文件；收藏夹下载最高可用清晰度，受限来源显示原因，不自动换图',
+  directCropImporting: '正在保存原图并创建批次…', directCropName: '批次名称', directCropDefaultName: '直接裁剪', directCropSelected: '已选图片', directCropStart: '保存原图并开始', directCropOriginalHint: '保留原始文件；收藏夹下载最高可用清晰度，受限来源显示原因，不自动换图',
   directCropReadError: '暂时无法读取已保存批次，请重试加载', directCropPickError: '未能读取所选本地图片，请重新选择', directCropStartError: '批次未能启动，已保留所选原图，可直接重试', directCropExportError: '尚未确认导出完成，请检查目标文件夹后重试',
   directCropInvalidImage: '图片无法导入，请检查是否为可读取的 JPEG、PNG 或 WebP，并符合导入限制', directCropPickerUnavailable: '本地文件选择器暂不可用，请在 Desktop 中重新打开此页面后重试', directCropUnreadable: '原图不存在或无法读取，请重新选择', directCropBudgetError: '当前处理预算不足，请检查任务预算后重试', directCropCancelled: '操作已取消，所选原图仍保留',
   directCropFileHint: '支持 JPEG、PNG、WebP · 每张最多 {limit} · 保留原始文件', directCropTooLarge: '超过每张 {limit} 的导入上限，请移除此图并选择其他原图', directCropEmptyFile: '这是空文件，请移除后重新选择可读取的原图',

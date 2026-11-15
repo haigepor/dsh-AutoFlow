@@ -15,14 +15,93 @@
       "actions": [
         "打开流程",
         "核对已保存回执"
-      ]
+      ],
+      "completed": false,
+      "selectable": true
     },
     {
       "id": "69674",
       "upload": "服务器已接收",
       "actions": [
         "打开流程"
-      ]
+      ],
+      "completed": true,
+      "selectable": false
+    }
+  ],
+  "selectionStates": [
+    {
+      "id": "81",
+      "phase": "waiting"
+    },
+    {
+      "id": "82",
+      "phase": "downloading",
+      "importRunId": "active-import"
+    },
+    {
+      "id": "83",
+      "phase": "saved",
+      "runId": "saved-run"
+    },
+    {
+      "id": "84",
+      "phase": "processing",
+      "runId": "active-run"
+    },
+    {
+      "id": "85",
+      "phase": "attention",
+      "runId": "failed-run"
+    },
+    {
+      "id": "86",
+      "phase": "approved",
+      "runId": "approved-run"
+    },
+    {
+      "id": "87",
+      "phase": "approved",
+      "runId": "upload-failed",
+      "transfer": {
+        "status": "failed"
+      }
+    },
+    {
+      "id": "88",
+      "phase": "approved",
+      "runId": "uncertain",
+      "transfer": {
+        "status": "unknown"
+      }
+    },
+    {
+      "id": "89",
+      "phase": "approved",
+      "runId": "old-upload",
+      "transfer": {
+        "status": "uploaded",
+        "current": false
+      }
+    },
+    {
+      "id": "90",
+      "phase": "attention",
+      "runId": "old-pass",
+      "transfer": {
+        "status": "uploaded",
+        "current": true
+      }
+    },
+    {
+      "id": "91",
+      "phase": "approved",
+      "runId": "complete",
+      "transfer": {
+        "status": "uploaded",
+        "current": true
+      },
+      "completed": true
     }
   ]
 }

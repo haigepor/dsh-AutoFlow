@@ -93,7 +93,7 @@ export interface AccountsOptions {
 
 /** Stable integration surface shared by settings, tools and the local relay. */
 export interface AccountsFacade {
-  list(options?: { includeChatUsage?: boolean }): Promise<readonly AccountView[]>
+  list(options?: { includeChatUsage?: boolean; refreshUsage?: boolean }): Promise<readonly AccountView[]>
   getAccountStatus(accountKey: string, options?: AccountReadOptions): Promise<AccountView>
   getAccountQuota(accountKey: string, options?: AccountReadOptions): Promise<AccountUsage | undefined>
   refreshAccount(accountKey: string, signal?: AbortSignal): Promise<AccountView>

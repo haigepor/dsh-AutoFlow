@@ -1,3 +1,15 @@
+## Codex Subscription 0.2.8
+
+Image-account selectors read local account metadata without waiting for network quota refreshes. Account management and actual image admission retain their quota, authorization and spending checks. Existing accounts and tasks are retained.
+
+Included with AutoFlow Desktop 0.2.2-rc.1.20261115.3. Restart after active tasks finish to load the matching Host and Client; existing configuration and history are retained.
+
+## Codex Subscription 0.2.8 更新说明
+
+生图账号选择读取本地账号信息，无需等待网络配额刷新；账号管理页和实际生图受理继续执行原有额度、授权及消费检查。保留现有账号和历史任务。
+
+随 AutoFlow Desktop 0.2.2-rc.1.20261115.3 提供；任务结束后重启以加载配套 Host 和 Client，保留现有配置和历史。
+
 ## Codex Subscription 0.2.7
 
 Report Chat image counters separately from Work/Codex quota. Keep the last successful observation after a refused or invalid read, and label Chat image counts as unverified metering rather than available Visual Curator uses. Account authorization and spending policy remain unchanged.

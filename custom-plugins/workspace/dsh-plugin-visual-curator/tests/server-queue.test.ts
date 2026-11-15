@@ -13,10 +13,10 @@ import { serverReworkScenario } from './helpers/server-rework.ts'
 import { ServerQueue } from '../src/host/server-queue.ts'
 import { DirectCropTasks } from '../src/host/direct-crop.ts'
 import { WallpaperWorkflows } from '../src/host/wallpaper-workflow.ts'
-import { RunEngine, dataOf } from '../src/host/runtime.ts'
+import { RunEngine, dataOf, specOf } from '../src/host/runtime.ts'
 import { resolveConfig } from '../src/host/config.ts'
-import { wallpaperReviewKeys, wallpaperStateSchema } from '../src/shared/wallpaper.ts'
-import { serverQueueViewSchema } from '../src/shared/server-queue.ts'
+import { wallpaperReviewKeys, wallpaperStateSchema, wallpaperSettingsSchema } from '../src/shared/wallpaper.ts'
+import { serverImageComplete, serverQueueViewSchema } from '../src/shared/server-queue.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 import { MediaError } from '../src/media/errors.ts'
 import type { HttpClient } from '../src/media/network.ts'
@@ -25,19 +25,20 @@ import { createCuratorTransport } from '../src/client/transport.ts'
 const expected = JSON.parse(await readFile(new URL('./fixtures/server-queue.expected.json', import.meta.url), 'utf8'))
 const presented = (view: z.infer<typeof serverQueueViewSchema>) => view.items.map(item => ({ serverId: item.id, processing: item.phase, upload: item.transfer?.status ?? null }))
 
-async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview?: Promise<void>; rework?: boolean } = {}) {
+async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview?: Promise<void>; onSecondReview?(): void; onApproved?(): void; rejectCount?: number; rework?: boolean } = {}) {
   const f = await serviceFixture(); await f.service.initialize()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test', credentialRef: '' }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '' }, limits: { maxRetryAttempts: 0 } })
   const scenario = options.rework ? serverReworkScenario(f.root) : undefined
   if (scenario) { config.wallpaper.imageProvider = 'isolated-images'; config.wallpaper.imageModel = 'isolated-background'; config.wallpaper.maxReworks = 1; config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'preserve', maxRepeatedDefects: 2 }; config.vision.wallpaperPromptPreparation = wallpaperPromptPreparationPolicySchema.parse({ reasoningEffort: 'high' }) }
   const original = await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#536f53' } }).png().toBuffer()
   const md5 = createHash('md5').update(original).digest('hex'), items = Array.from({ length: count }, (_, index) => ({ id: String(index + 11), name: 'same-name.png', title: 'Untrusted article text', img_url: 'https://images.example.test/' + index, md5, size: String(original.length), update_time: '123' }))
-  let mode: 'success' | 'timeout' | 'wrong-id' | 'rejected' = 'success', badReview = false, downloads = 0, maxActive = 0, active = 0
+  let mode: 'success' | 'timeout' | 'wrong-id' | 'rejected' | 'duplicate-index' | 'partial' = 'success', badReview = false, downloads = 0, maxActive = 0, active = 0
+  const uploadBatches: string[][] = [], rejectedOriginals = new Set<string>()
   const barrier = Promise.withResolvers<void>(), uploads: { id: string; digest: string; width: number; height: number }[] = [], observations: string[] = []
   const http: HttpClient = { request: async (url, request) => {
     if (url.startsWith('https://images.example.test/')) {
       downloads++; active++; maxActive = Math.max(maxActive, active)
-      if (active === count) barrier.resolve()
+      if (active === Math.min(count, 2)) barrier.resolve()
       await barrier.promise; active--
       assert.equal(request.headers?.authorization, undefined)
       return { status: 200, headers: { 'content-type': 'image/png' }, bytes: original }
@@ -49,13 +50,19 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
     assert.match(request.headers?.['content-type'] ?? '', /^multipart\/form-data; boundary=/)
     const form = await new Request(url, { method: 'POST', headers: request.headers ?? {}, body: new Uint8Array(request.body ?? []) }).formData()
     assert.equal(form.get('token'), 'isolated-token')
-    const id = String(form.get('ids[0]')), file = form.get('images[0]')
-    assert.ok(file && typeof file !== 'string'); assert.equal(file.type, 'image/png')
-    const bytes = Buffer.from(await file.arrayBuffer()), metadata = await sharp(bytes).metadata()
-    assert.equal(metadata.format, 'png')
-    uploads.push({ id, digest: createHash('sha256').update(bytes).digest('hex'), width: metadata.width!, height: metadata.height! })
+    const ids = [...form.keys()].filter(key => /^ids\[\d+\]$/.test(key)).map((_, index) => String(form.get(`ids[${index}]`)))
+    assert(ids.length >= 1 && ids.length <= 20)
+    assert.equal([...form.keys()].filter(key => key.startsWith('images[')).length, ids.length)
+    uploadBatches.push(ids)
+    for (const [index, id] of ids.entries()) {
+      const file = form.get(`images[${index}]`)
+      assert.ok(file && typeof file !== 'string'); assert.equal(file.type, 'image/png')
+      const bytes = Buffer.from(await file.arrayBuffer()), metadata = await sharp(bytes).metadata()
+      assert.equal(metadata.format, 'png')
+      uploads.push({ id, digest: createHash('sha256').update(bytes).digest('hex'), width: metadata.width!, height: metadata.height! })
+    }
     if (mode === 'timeout') throw new MediaError('remote-timeout', 'network', true, 'Isolated post-send timeout.', 'Verify the receipt.')
-    return { status: 200, headers: {}, bytes: Buffer.from(JSON.stringify({ success: mode !== 'rejected', message: 'Isolated response', data: mode === 'rejected' ? [] : { total: 1, updated: 1, failed: 0, skipped: 0, results: [{ index: 0, id: mode === 'wrong-id' ? 999 : Number(id), status: 'updated', message: 'Isolated acknowledgement' }] } })) }
+    return { status: 200, headers: {}, bytes: Buffer.from(JSON.stringify({ success: mode !== 'rejected' && mode !== 'partial', message: 'Isolated response', data: mode === 'rejected' ? [] : { total: ids.length, updated: ids.length, failed: 0, skipped: 0, results: ids.map((id, index) => ({ index: mode === 'duplicate-index' ? 0 : index, id: mode === 'wrong-id' ? 999 : Number(id), status: 'updated', message: 'Isolated acknowledgement' })) } })) }
   } }
   const oldRequest = f.http.request.bind(f.http)
   f.http.request = async (url, request) => {
@@ -72,17 +79,20 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
     }
     const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ role: z.string(), imageVersionId: z.string() })), usage: z.unknown().optional() }) }).parse(JSON.parse(content[0]!.text!)).input
     observations.push(input.operation)
-    if (input.operation === 'wallpaper-review' && observations.filter(operation => operation === 'wallpaper-review').length === 2) await options.secondReview
+    if (input.operation === 'wallpaper-review' && observations.filter(operation => operation === 'wallpaper-review').length === 2) { options.onSecondReview?.(); await options.secondReview }
+    const originalId = input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId
+    if (input.operation === 'wallpaper-review' && originalId && rejectedOriginals.size < (options.rejectCount ?? 0)) rejectedOriginals.add(originalId)
+    const reject = badReview || originalId !== undefined && rejectedOriginals.has(originalId)
     const subjectRect = { x: 0.35, y: 0.5, width: 0.3, height: 0.2 }, detailRect = { x: 0.45, y: 0.56, width: 0.05, height: 0.04 }
     const regions = [{ name: 'Subject', ...(!scenario ? { entityId: 'subject' } : {}), role: 'subject', rect: subjectRect }, { name: 'Identity detail', ...(!scenario ? { entityId: 'detail' } : {}), role: 'critical', rect: detailRect }]
     const result = input.operation === 'wallpaper-plan' ? { version: 1, imageVersionId: input.images[0]!.imageVersionId, mode: 'single', subject: 'Isolated central subject', evidence: 'Scripted observation only.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions, ...(!scenario ? { objectRoles: [{ entityId: 'subject', name: 'Subject', role: 'primary', evidence: 'Visible focal subject.', rect: subjectRect, sourceEdges: [] }, { entityId: 'detail', name: 'Identity detail', role: 'critical-part', evidence: 'Indispensable visible identity.', rect: detailRect, sourceEdges: [] }] } : {}), reason: 'Fits without generation.', editPrompt: 'Extend only the uniform muted green background and preserve protected original pixels, illumination and texture.' } : {
-      reviewVersion: scenario ? 'wallpaper-review-source-v1' : 'wallpaper-review-source-v4', subject: 'Isolated central subject', checks: { ...Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: badReview && key === 'background' ? 'violated' : 'satisfied', reason: 'Isolated observation.' }])), clarity: { result: 'satisfied', reason: 'Isolated clarity.' } }, issues: badReview ? [{ kind: 'background', check: 'background', code: 'other', reason: 'Visible isolated background defect.', evidence: { kind: 'background-artifact', entityIds: [], imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, outputRect: { x: 0.05, y: 0.05, width: 0.1, height: 0.1 } } }] : [], styleResults: [], ...(!scenario ? { sourceRepair: { result: 'satisfied', reason: 'Complete source.' }, sourceCorrespondence: { result: 'satisfied', reason: 'Same visible subject.' }, actualLayout: { imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, regions: regions.map(region => ({ ...region, scope: 'core' })) } } : {}), subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Isolated source.', imageVersionId: input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId }, output: { extent: 'complete', reason: 'Isolated output.', imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId }, task: { result: 'satisfied', reason: 'Isolated task.' } },
+      reviewVersion: scenario ? 'wallpaper-review-source-v1' : 'wallpaper-review-source-v4', subject: 'Isolated central subject', checks: { ...Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: reject && key === 'background' ? 'violated' : 'satisfied', reason: 'Isolated observation.' }])), clarity: { result: 'satisfied', reason: 'Isolated clarity.' } }, issues: reject ? [{ kind: 'background', check: 'background', code: 'other', reason: 'Visible isolated background defect.', evidence: { kind: 'background-artifact', entityIds: [], imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, outputRect: { x: 0.05, y: 0.05, width: 0.1, height: 0.1 } } }] : [], styleResults: [], ...(!scenario ? { sourceRepair: { result: 'satisfied', reason: 'Complete source.' }, sourceCorrespondence: { result: 'satisfied', reason: 'Same visible subject.' }, actualLayout: { imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, regions: regions.map(region => ({ ...region, scope: 'core' })) } } : {}), subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Isolated source.', imageVersionId: input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId }, output: { extent: 'complete', reason: 'Isolated output.', imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId }, task: { result: 'satisfied', reason: 'Isolated task.' } },
     }
     const reply = scenario ? scenario.reply(input, result) : result
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), reply)) }, finish_reason: 'stop' }] })) }
   }
   let queue: ServerQueue
-  const engine = new RunEngine(f.repository, f.jobs), wallpaper = new WallpaperWorkflows({ domain: f.domain, files: f.files, engine, config: () => config, vision: f.providers.vision, source: f.providers.source, media: f.providers.media, skill: () => ({ id: 'isolated', content: 'Scripted fixture' }), ...(scenario ? { llm: scenario.llm, attachments: scenario.attachments } : {}), ...(options.autoDeliver ? { approved: (run, imageVersionId) => queue.deliver(run, imageVersionId) } : {}) })
+  const engine = new RunEngine(f.repository, f.jobs, undefined, undefined, options.autoDeliver ? run => queue.deliver(run) : undefined), wallpaper = new WallpaperWorkflows({ domain: f.domain, files: f.files, engine, config: () => config, vision: f.providers.vision, source: f.providers.source, media: f.providers.media, skill: () => ({ id: 'isolated', content: 'Scripted fixture' }), ...(scenario ? { llm: scenario.llm, attachments: scenario.attachments } : {}), ...(options.autoDeliver ? { approved: async (run, imageVersionId) => { await queue.deliver(run, imageVersionId); options.onApproved?.() } } : {}) })
   const direct = new DirectCropTasks({ domain: f.domain, files: f.files, engine, wallpaper, config: () => config })
   const path = join(f.root, 'postman.json'); await writeFile(path, JSON.stringify({ item: [{ request: { method: 'POST', url: { raw: 'https://api.example.test/OperateImage/receive.html' }, body: { formdata: [{ key: 'token', type: 'text', value: 'isolated-token' }] } } }, { request: { method: 'GET', url: { raw: 'https://api.example.test/OperateImage/pull.html' }, body: { mode: 'raw', raw: '{"articles":[]}' } } }] }), 'utf8')
   const deps = { domain: f.domain, files: f.files, engine, direct, credentials: f.host.credentials, config: () => config, signal: new AbortController().signal, http: () => http }
@@ -90,7 +100,7 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   await queue.configure({ baseUrl: 'https://api.example.test', auth: { kind: 'postman', path }, allowedMediaOrigins: ['https://images.example.test'] }, f.actor)
   const snapshot = await queue.pull(f.actor, deps.signal)
   const start = async () => { const result = await queue.start({ operationId: 'server-test', name: 'Isolated server batch', snapshotId: snapshot.snapshotId, ids: items.map(item => item.id) }, f.actor, deps.signal); await queue.drain(); await f.jobs.drain(); return f.domain.require('run', result.runId) }
-  return { ...f, queue, deps, direct, engine, items, uploads, original, observations, start, scenario, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
+  return { ...f, queue, deps, direct, engine, items, uploads, uploadBatches, original, observations, start, scenario, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
 }
 
 test('server originals import concurrently, retain independent IDs and upload only reviewed clean PNGs once', async () => {
@@ -101,7 +111,7 @@ test('server originals import concurrently, retain independent IDs and upload on
     const run = await f.start(); assert.equal(run.status, 'completed'); assert.equal(run.outcome, 'target-met', JSON.stringify(dataOf(run).checkpoint.wallpaper)); assert.equal(f.maxActive(), 2)
     const state = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper); assert.equal(state.items.filter(item => item.status === 'passed').length, 2)
     await f.queue.deliver(run); await f.queue.deliver(run)
-    assert.deepEqual(f.uploads.map(row => row.id), ['11', '12']); assert.ok(f.uploads.every(row => row.width === 1845 && row.height === 3280))
+    assert.deepEqual(f.uploadBatches, [['11', '12']]); assert.deepEqual(f.uploads.map(row => row.id), ['11', '12']); assert.ok(f.uploads.every(row => row.width === 1845 && row.height === 3280))
     assert.ok(serverQueueViewSchema.parse(f.queue.read(f.actor)).items.every(row => row.transfer?.status === 'uploaded'))
     assert.deepEqual(presented(f.queue.read(f.actor)), expected.accepted)
     const before = f.observations.length; await f.queue.recover(); await f.start()
@@ -109,27 +119,21 @@ test('server originals import concurrently, retain independent IDs and upload on
   } finally { await f.cleanup() }
 })
 
-test('an approved image is delivered and its receipt is visible while another review is still running', { timeout: 20000 }, async () => {
-  const release = Promise.withResolvers<void>(), sent = Promise.withResolvers<void>()
-  const f = await fixture(2, { autoDeliver: true, secondReview: release.promise }), server = f.deps.http()
-  f.deps.http = () => ({ request: async (url, request) => {
-    const response = await server.request(url, request)
-    if (request.method === 'POST') sent.resolve()
-    return response
-  } })
+test('approved outputs wait for the whole batch and use one multipart request', { timeout: 20000 }, async () => {
+  const release = Promise.withResolvers<void>(), approved = Promise.withResolvers<void>(), reviewing = Promise.withResolvers<void>()
+  const f = await fixture(2, { autoDeliver: true, secondReview: release.promise, onSecondReview: reviewing.resolve, onApproved: approved.resolve })
   const started = f.start()
   try {
-    await Promise.race([sent.promise, started.then(() => { throw new Error('Batch finished before sending an approved image') })])
-    await f.queue.drain()
-    assert.equal(f.uploads.length, 1)
-    const row = f.queue.read(f.actor).items.find(item => item.id === f.uploads[0]!.id)!
+    await Promise.all([approved.promise, reviewing.promise])
+    assert.equal(f.uploadBatches.length, 0)
+    const row = f.queue.read(f.actor).items.find(item => item.phase === 'approved')!
+    assert.equal(serverImageComplete(row), false)
     assert.equal(f.domain.require('run', row.runId!).status, 'running')
-    const page = await f.action('wallpaper-read', { sourceRunId: row.runId! })
-    assert.equal(z.object({ serverTransfers: z.record(z.string(), z.object({ status: z.string(), current: z.boolean().optional() })) }).parse(page).serverTransfers[row.imageVersionId!]!.status, 'uploaded')
     release.resolve()
     const run = await started
     await f.queue.deliver(run); await f.queue.recover()
-    assert.deepEqual(f.uploads.map(upload => upload.id).sort(), ['11', '12'])
+    assert.deepEqual(f.uploadBatches, [['11', '12']])
+    assert(f.queue.read(f.actor).items.every(serverImageComplete))
   } finally { release.resolve(); await started; await f.cleanup() }
 })
 
@@ -171,6 +175,93 @@ test('a failed independent quality check never sends an image to the server', as
   const f = await fixture()
   try { f.rejectReview(); const run = await f.start(); await f.queue.deliver(run); assert.equal(f.uploads.length, 0); assert.ok(f.observations.includes('wallpaper-review')); assert.ok(wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!.attempts.some(attempt => attempt.review?.checks.background.result === 'violated')); assert.equal(f.queue.read(f.actor).items[0]!.phase, 'attention') }
   finally { await f.cleanup() }
+})
+
+test('five selected originals upload the three approved results together and keep failures selectable', { timeout: 30000 }, async () => {
+  const f = await fixture(5, { autoDeliver: true, rejectCount: 2 })
+  try {
+    const run = await f.start(), rows = f.queue.read(f.actor).items
+    assert.equal(run.status, 'completed')
+    assert.equal(rows.filter(serverImageComplete).length, 3)
+    assert.equal(rows.filter(row => row.phase === 'attention').length, 2)
+    assert.equal(f.uploadBatches.length, 1)
+    assert.equal(f.uploadBatches[0]!.length, 3)
+    assert.deepEqual(f.uploadBatches[0], rows.filter(serverImageComplete).map(row => row.id))
+    const failed = rows.filter(row => row.phase === 'attention')
+    const retry = await f.queue.start({ operationId: 'retry-unqualified', name: 'Retry failed originals', snapshotId: f.queue.read(f.actor).snapshotId, ids: failed.map(row => row.id) }, f.actor, f.deps.signal)
+    await f.queue.drain(); await f.jobs.drain()
+    assert.notEqual(retry.runId, run.id)
+    assert.equal(f.downloads(), 5)
+    assert.equal(f.direct.list(f.actor).total, 2)
+    await assert.rejects(f.queue.start({ operationId: 'repeat-completed', name: 'Already complete', snapshotId: f.queue.read(f.actor).snapshotId, ids: [rows.find(serverImageComplete)!.id] }, f.actor, f.deps.signal), error => error instanceof CuratorError && error.code === 'constraint-conflict')
+  } finally { await f.cleanup() }
+})
+
+test('reselected originals belong to the new batch while the previous task and unselected output are retained', async () => {
+  const f = await fixture(2)
+  try {
+    const first = await f.start(), view = f.queue.read(f.actor)
+    const receipt = await f.queue.start({ operationId: 'reselect-one', name: 'Selected again', snapshotId: view.snapshotId, ids: ['11'] }, f.actor, f.deps.signal)
+    await f.queue.drain(); await f.jobs.drain()
+    assert.equal(f.queue.read(f.actor).items[0]!.runId, receipt.runId)
+    assert.equal(f.queue.read(f.actor).items[1]!.runId, first.id)
+    assert.equal(f.direct.list(f.actor).total, 2)
+    assert.equal(f.downloads(), 2)
+    await f.queue.deliver(first)
+    assert.deepEqual(f.uploadBatches, [['12']], 'The old batch cannot deliver a reselected image')
+    await f.queue.deliver(f.domain.require('run', receipt.runId))
+    assert.deepEqual(f.uploadBatches, [['12'], ['11']])
+    assert(f.queue.read(f.actor).items.every(serverImageComplete))
+    assert.equal(f.domain.require('run', first.id).status, 'completed')
+  } finally { await f.cleanup() }
+})
+
+test('an uncertain multi-image transmission remains selectable without automatically resending either image', async () => {
+  const f = await fixture(2)
+  try {
+    f.setMode('timeout'); const first = await f.start(); await f.queue.deliver(first)
+    assert.deepEqual(f.uploadBatches, [['11', '12']])
+    const restarted = new ServerQueue(f.deps); await restarted.initialize(); await restarted.recover()
+    const view = restarted.read(f.actor)
+    assert(view.items.every(row => row.transfer?.status === 'unknown' && !serverImageComplete(row)))
+    const receipt = await restarted.start({ operationId: 'reselect-unknown', name: 'Recheck quality', snapshotId: view.snapshotId, ids: ['11', '12'] }, f.actor, f.deps.signal)
+    await restarted.drain(); await f.jobs.drain()
+    f.setMode('success'); await restarted.deliver(f.domain.require('run', receipt.runId))
+    await restarted.transmission({ runId: receipt.runId, id: '12' }, f.actor, false)
+    assert.deepEqual(f.uploadBatches, [['11', '12']])
+    assert.equal(f.direct.list(f.actor).total, 2)
+    assert.equal(f.downloads(), 2)
+  } finally { await f.cleanup() }
+})
+
+for (const mode of ['duplicate-index', 'partial'] as const) test(`${mode} batch receipts cannot confirm completion or authorize a resend`, async () => {
+  const f = await fixture(2)
+  try {
+    f.setMode(mode); const run = await f.start(); await f.queue.deliver(run)
+    assert(f.queue.read(f.actor).items.every(row => row.transfer?.status === 'unknown' && !serverImageComplete(row)))
+    await f.queue.recover()
+    for (const id of ['11', '12']) {
+      await f.queue.transmission({ runId: run.id, id }, f.actor, false)
+      await assert.rejects(f.queue.transmission({ runId: run.id, id }, f.actor, true), error => error instanceof CuratorError && error.code === 'constraint-conflict')
+    }
+    assert.deepEqual(f.uploadBatches, [['11', '12']])
+  } finally { await f.cleanup() }
+})
+
+test('reselecting a processing image transfers delivery ownership before either batch can send it', { timeout: 20000 }, async () => {
+  const release = Promise.withResolvers<void>(), approved = Promise.withResolvers<void>(), reviewing = Promise.withResolvers<void>()
+  const f = await fixture(2, { autoDeliver: true, secondReview: release.promise, onSecondReview: reviewing.resolve, onApproved: approved.resolve }), started = f.start()
+  try {
+    await Promise.all([approved.promise, reviewing.promise])
+    const view = f.queue.read(f.actor), receipt = await f.queue.start({ operationId: 'reselect-live', name: 'New live selection', snapshotId: view.snapshotId, ids: ['11'] }, f.actor, f.deps.signal)
+    await f.queue.drain()
+    assert.equal(f.queue.read(f.actor).items.find(row => row.id === '11')!.runId, receipt.runId)
+    release.resolve(); await started; await f.jobs.drain(); await f.queue.drain()
+    assert.deepEqual(f.uploads.map(row => row.id).sort(), ['11', '12'])
+    assert.equal(f.uploadBatches.length, 2)
+    assert.equal(f.direct.list(f.actor).total, 2)
+    assert.equal(f.downloads(), 2)
+  } finally { release.resolve(); await started; await f.cleanup() }
 })
 
 for (const mode of ['timeout', 'wrong-id'] as const) test(`${mode} remains unknown through restart, receipt inspection and attempted retry`, async () => {
@@ -267,7 +358,8 @@ test('interrupted imports retain verified originals and resume the same batch wi
   const f = await fixture(2), originalHttp = f.deps.http()
   let failSecond = true
   f.deps.http = () => ({ request: async (url, request) => { const response = await originalHttp.request(url, request); if (failSecond && url.endsWith('/1')) throw new MediaError('remote-timeout', 'network', true, 'Isolated import timeout.', 'Retry the import.'); return response } })
-  const view = f.queue.read(f.actor), input = { operationId: 'resumable-import', name: 'Resumable originals', snapshotId: view.snapshotId, ids: f.items.map(item => item.id) }
+  const imageRoute = { imageProvider: 'autoflow-codex', imageSourceId: 'selected-server-account', imageModel: 'gpt-image-2' }
+  const view = f.queue.read(f.actor), input = { operationId: 'resumable-import', name: 'Resumable originals', snapshotId: view.snapshotId, ids: f.items.map(item => item.id), imageRoute }
   try {
     const receipt = await f.queue.start(input, f.actor, f.deps.signal); await f.queue.drain()
     assert.equal(f.queue.imports(f.actor)[0]!.status, 'failed'); assert.equal(f.queue.imports(f.actor)[0]!.saved, 1); assert.equal(f.downloads(), 2)
@@ -276,12 +368,15 @@ test('interrupted imports retain verified originals and resume the same batch wi
     const restarted = new ServerQueue(f.deps); await restarted.initialize()
     assert.equal(restarted.imports(f.actor)[0]!.status, 'interrupted'); assert.equal(restarted.imports(f.actor)[0]!.saved, 1); assert.equal(f.downloads(), 2, 'Initialization never silently resumes original downloads')
     failSecond = false
+    f.deps.config().wallpaper.imageModel = 'changed-global-model'
     const retry = await restarted.retryImport({ runId: receipt.runId }, f.actor, f.deps.signal); assert.equal(retry.runId, receipt.runId)
     await restarted.drain(); await f.jobs.drain()
     assert.equal(f.downloads(), 3, 'The verified first original is reused')
     assert.equal(f.direct.list(f.actor).batches[0]!.runId, receipt.runId); assert.equal(restarted.imports(f.actor).length, 0)
+    const route = wallpaperSettingsSchema.parse(specOf(f.domain.require('run', receipt.runId)).fixed.wallpaper)
+    assert.deepEqual({ imageProvider: route.imageProvider, imageSourceId: route.imageSourceId, imageModel: route.imageModel }, imageRoute)
     const repeated = await restarted.start({ ...input, operationId: 'another-click' }, f.actor, f.deps.signal)
-    assert.equal(repeated.runId, receipt.runId); assert.equal(f.direct.list(f.actor).total, 1); assert.equal(f.downloads(), 3)
+    assert.notEqual(repeated.runId, receipt.runId); await restarted.drain(); await f.jobs.drain(); assert.equal(f.direct.list(f.actor).total, 2); assert.equal(f.downloads(), 3)
   } finally { await f.cleanup() }
 })
 

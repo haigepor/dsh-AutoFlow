@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-image-options-loading",
+  "category": "improvements",
+  "text": {
+    "en": "Image import settings preload the selected provider and reuse its catalog when reopened. Codex account selection reads local metadata without waiting for quota checks or unrelated API catalogs.",
+    "zh-CN": "图片导入提前加载当前生图来源，重复打开复用目录；Codex 账号选择读取本地信息，无需等待配额查询或未选中 API 来源的目录。"
+  }
+}

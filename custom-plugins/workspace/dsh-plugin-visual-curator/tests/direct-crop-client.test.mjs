@@ -21,16 +21,70 @@ const { ui: primitives, createDirectCropPage, directCropVisible, directCropWorks
 const imageConfig = { wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' }, imageSources: { apiKeys: [] } }
 const imageOptions = { settings: wallpaperSettingsSchema.parse({}), models: [{ id: 'gpt-image-1.5', name: 'GPT Image' }], providers: [{ id: 'autoflow-codex', name: 'Codex', models: [{ id: 'gpt-image-1.5', name: 'GPT Image' }], sources: [] }, { id: 'visual-curator-openai', name: 'OpenAI API', models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }], sources: [{ id: 'key-one', name: 'Personal key', available: true, models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }] }] }] }
 // Decorative icons do not own form semantics in this isolated DOM check.
-const ui = { ...primitives, ...Object.fromEntries(['IconPlusOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular', 'IconChevronDownOutlineRegular', 'IconRefreshOutlineRegular', 'IconBrowseOutlineRegular', 'IconTrashOutlineRegular', 'IconSearchOutlineRegular', 'IconPinOutlineRegular', 'IconInfoOutlineRegular'].map(name => [name, () => React.createElement('span', { 'aria-hidden': true })])) }
+const ui = { ...primitives, ...Object.fromEntries(['IconPlusOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular', 'IconChevronDownOutlineRegular', 'IconRefreshOutlineRegular', 'IconBrowseOutlineRegular', 'IconTrashOutlineRegular', 'IconSearchOutlineRegular', 'IconPinOutlineRegular', 'IconInfoOutlineRegular', 'IconCloseOutlineRegular'].map(name => [name, () => React.createElement('span', { 'aria-hidden': true })])) }
+
+test('image catalogs preload, survive dialog reopening and ignore late replies after switching sources', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = [], codex = Promise.withResolvers(), api = Promise.withResolvers()
+  const configuration = { ...imageConfig, revision: 'first-config', visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  const actions = { directScope: () => 'catalog-prefetch', pickLocalReferences: async () => ({ files: [{ path: 'C:/isolated/source.png', name: 'source.png', size: 1024, readable: true }] }), directCrop: async (operation, args, signal) => {
+    if (operation === 'direct-crop-list') return { batches: [], total: 0 }
+    if (operation === 'wallpaper-options') { calls.push({ args, signal }); if (calls.length === 1) return codex.promise; if (calls.length === 2) return api.promise; if (calls.length === 3) throw new Error('Isolated catalog failure'); return imageOptions }
+    throw new Error('Unexpected operation')
+  } }
+  const button = label => [...document.querySelectorAll('button')].find(element => element.textContent === label)
+  const chooseProvider = async label => {
+    await act(async () => document.querySelector('button[aria-label="' + zh.imageGenerationSource + '"]').click())
+    await act(async () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === label).click())
+  }
+  const openImport = async () => {
+    await act(async () => button(zh.directCropAddImages).click())
+    await act(async () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === zh.directCropLocal).click())
+  }
+  const props = config => React.createElement(Page, { configuration: config, actions, t: key => zh[key], onBack() {} })
+  try {
+    await act(async () => rendered.render(props(configuration)))
+    assert.equal(calls.length, 1, 'The selected catalog starts before opening the import dialog')
+    await openImport()
+    assert(document.querySelector('[role="dialog"]').textContent.includes(expected.imageCatalog.loading))
+    await act(async () => codex.resolve(imageOptions))
+    assert.equal(document.querySelector('button[aria-label="' + zh.wallpaperImageModel + '"]').disabled, false)
+    await act(async () => button(zh.cancel).click())
+    await openImport()
+    assert.equal(calls.length, 1, 'Reopening the same route reuses its validated catalog')
+    assert.equal(button(zh.directCropStart).disabled, false)
+    await chooseProvider('OpenAI API')
+    assert.equal(calls.length, 2)
+    assert.equal(document.querySelector('button[aria-label="' + zh.imageGenerationAccount + '"]').disabled, true)
+    await chooseProvider('Codex')
+    assert.equal(calls.length, 2, 'Returning to the retained Codex catalog does not wait for the API request')
+    assert.equal(calls[1].signal.aborted, true)
+    await act(async () => api.resolve({ ...imageOptions, providers: imageOptions.providers.map(provider => provider.id === 'autoflow-codex' ? { ...provider, models: [] } : provider) }))
+    assert.equal(button(zh.directCropStart).disabled, false, 'A late result cannot erase the active catalog')
+    await act(async () => rendered.render(props({ ...configuration, revision: 'updated-config' })))
+    assert.equal(document.querySelector('[role="alert"]').textContent.replace(zh.retry, '').trim(), zh.imageGenerationLoadError)
+    assert.equal(button(zh.directCropStart).disabled, true, 'A changed configuration cannot use the old catalog')
+    await act(async () => button(zh.retry).click())
+    assert.equal(button(zh.directCropStart).disabled, false)
+    assert.deepEqual(calls.map(call => call.args.provider), expected.imageCatalog.requestedProviders)
+  } finally {
+    codex.resolve(imageOptions); api.resolve(imageOptions)
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
 
 test('direct import requires no collection, retains selection after failure and reuses the same request identity', async () => {
   const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
+  const accepted = Promise.withResolvers()
   let fail = true, pendingGallery, pickedCalls = 0
   const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 2000, deadlineMs: 60000, requestTimeoutMs: 10000, maxGalleryReferenceFiles: 1000 }, source: { unsplash: { accounts: [{ id: 'account', label: 'Gallery account' }], defaultAccountId: 'account' } } }
-  const actions = { directScope: () => 'profile-a', directCrop: async (operation, args, signal) => { signal?.throwIfAborted(); calls.push({ operation, args, signal }); if (operation === 'direct-crop-list') return { batches: [], total: 0 }; if (operation === 'wallpaper-options') return imageOptions; if (operation === 'direct-crop-start') { if (fail) throw new Error('Isolated network interruption'); return { runId: 'accepted' } } throw new Error('Unexpected operation') }, pickLocalReferences: async (_kind, signal, title) => {
+  const actions = { directScope: () => 'profile-a', directCrop: async (operation, args, signal) => { signal?.throwIfAborted(); calls.push({ operation, args, signal }); if (operation === 'direct-crop-list') return { batches: [], total: 0 }; if (operation === 'wallpaper-options') return imageOptions; if (operation === 'direct-crop-start') { if (fail) throw new Error('Isolated network interruption'); return accepted.promise } throw new Error('Unexpected operation') }, pickLocalReferences: async (_kind, signal, title) => {
     signal.throwIfAborted(); assert.equal(title, zh.directCropChoosePhotos)
     if (++pickedCalls === 1) throw { code: 'capability-unavailable', stage: 'local-reference' }
     return { files: [
@@ -68,13 +122,16 @@ test('direct import requires no collection, retains selection after failure and 
     await act(async () => menuItem('Personal key').click())
     assert.equal(button(zh.directCropStart).disabled, false)
     await act(async () => button(zh.directCropStart).click())
-    assert(document.querySelector('[role="dialog"]'), 'Failed admission keeps its original selection')
-    assert.equal(document.querySelectorAll('[role="alert"]').length, 1, 'The import error is displayed once inside its dialog')
+    assert.equal(document.querySelector('[role="dialog"]'), null, 'A failed admission stays in the table instead of reopening its dialog')
+    assert.equal(document.querySelectorAll('[role="alert"]').length, 1, 'The import error is displayed once in its table row')
     assert.equal(document.querySelector('[role="alert"]').textContent, expected.startError)
     await act(async () => button(zh.refresh).click())
     assert(document.querySelector('[role="alert"]').textContent.includes(zh.directCropStartError), 'Successful background reads cannot erase admission errors')
     fail = false
-    await act(async () => button(zh.directCropStart).click())
+    await act(async () => button(zh.retry).click())
+    assert.deepEqual({ dialogOpen: !!document.querySelector('[role="dialog"]'), label: document.querySelector('[data-import-admission] [role="status"]').textContent, selectedCountVisible: document.querySelector('[data-import-admission]').textContent.includes(zh.directCropSelected + ' 1'), inTable: !!document.querySelector('.vc-direct-batch-table [data-import-admission]'), separateCard: !!document.querySelector('.vc-direct-import-progress') }, expected.importing)
+    assert.equal(calls.filter(call => call.operation === 'direct-crop-start').at(-1).signal.aborted, false, 'Closing the confirmation must not cancel original acquisition')
+    await act(async () => accepted.resolve({ runId: 'accepted' }))
     const starts = calls.filter(call => call.operation === 'direct-crop-start')
     assert.equal(starts.length, 2); assert.equal(starts[0].args.operationId, starts[1].args.operationId)
     assert.deepEqual(starts[1].args.source, { kind: 'local', files: [{ path: 'C:/isolated/source.png', name: 'source.png' }] })
@@ -110,6 +167,76 @@ test('direct import requires no collection, retains selection after failure and 
     assert.deepEqual([...document.querySelectorAll('.vc-direct-file > span')].map(e=>e.textContent),chooserExpected.selectedTitles)
     assert.equal(calls.filter(call=>call.operation==='direct-crop-start').length,2)
     await act(async()=>button(zh.cancel).click())
+  } finally {
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
+
+test('server selection confirms generation settings before admission and shows page progress through retry', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
+  const first = Promise.withResolvers(), retry = Promise.withResolvers()
+  let accepted = false
+  const options = { ...imageOptions, providers: imageOptions.providers.map(provider => provider.id === 'autoflow-codex' ? { ...provider, sources: [{ id: 'fixture-account', name: 'Fixture account', available: true }] } : provider) }
+  const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 20, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  const actions = { directScope: () => 'server-confirmation', saveCredential: async () => {}, directCrop: async (operation, args, signal) => {
+    calls.push({ operation, args, signal })
+    if (operation === 'wallpaper-options') return options
+    if (operation === 'direct-crop-list') return { batches: [], total: 0, imports: accepted ? [{ runId: 'server-admission', name: args.name || 'Server originals', status: 'importing', saved: 0, total: 1, receivedBytes: 1024 }] : [] }
+    if (operation === 'server-queue-read') return { settings: { baseUrl: 'https://api.example', allowedMediaOrigins: ['https://images.example'] }, snapshotId: 'server-snapshot', pendingKnown: true, total: 1, items: [{ id: '69671', name: 'server-original.png', serverPending: true, imported: false, phase: 'waiting' }] }
+    if (operation === 'server-queue-start') return calls.filter(call => call.operation === operation).length === 1 ? first.promise : retry.promise
+    throw Error('Unexpected operation: ' + operation)
+  } }
+  const button = label => [...document.querySelectorAll('button')].find(element => element.textContent === label)
+  const menuItem = label => [...document.querySelectorAll('[role="menuitem"]')].find(element => element.textContent === label)
+  try {
+    await act(async () => rendered.render(React.createElement(Page, { configuration, actions, t: key => zh[key], onBack() {} })))
+    await act(async () => button(zh.directCropAddImages).click())
+    await act(async () => menuItem(zh.serverQueue).click())
+    await act(async () => document.querySelector('.vc-server-table tbody input[type="checkbox"]').click())
+    await act(async () => button(zh.directCropChooseOriginals).click())
+    assert.equal(document.querySelector('.vc-server-modal'), null)
+    assert(document.querySelector('.vc-direct-import-modal'))
+    assert.deepEqual([...document.querySelectorAll('.vc-direct-file > span')].map(item => item.textContent), expected.serverConfirmation.selectedNames)
+    assert.equal(calls.filter(call => call.operation === 'server-queue-start').length, 0)
+    await act(async () => document.querySelector('button[aria-label="' + zh.imageGenerationAccount + '"]').click())
+    await act(async () => menuItem('Fixture account').click())
+    await act(async () => document.querySelector('button[aria-label="' + zh.wallpaperImageModel + '"]').click())
+    await act(async () => menuItem('GPT Image').click())
+    await act(async () => button(zh.serverStart).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert(document.querySelector('.vc-direct-batch-table [data-import-admission]')); assert.equal(document.querySelector('.vc-direct-import-progress'), null)
+    const request = calls.find(call => call.operation === 'server-queue-start')
+    assert.deepEqual(request.args.ids, expected.serverConfirmation.ids)
+    assert.deepEqual(request.args.imageRoute, expected.serverConfirmation.imageRoute)
+    assert.equal(request.args.snapshotId, 'server-snapshot')
+    assert.equal(request.signal.aborted, false)
+    await act(async () => first.reject(new Error('Isolated admission failure')))
+    assert.equal(document.querySelector('.vc-direct-import-modal'), null)
+    assert.equal(document.querySelector('[data-import-admission] [role="alert"]').textContent, expected.startError)
+    await act(async () => button(zh.directCropEditImport).click())
+    assert(document.querySelector('.vc-direct-import-modal'))
+    await act(async () => document.querySelector('.vc-direct-import-modal button[aria-label="' + zh.close + '"]').click())
+    assert.equal(document.querySelector('.vc-direct-import-modal'), null, 'The explicit close button always dismisses the failed confirmation')
+    await act(async () => button(zh.directCropEditImport).click())
+    await act(async () => button(zh.cancel).click())
+    assert.equal(document.querySelector('.vc-direct-import-modal'), null, 'Cancel also dismisses an edited failed admission')
+    await act(async () => button(zh.refresh).click())
+    assert.equal(document.querySelector('.vc-direct-import-modal'), null)
+    await act(async () => button(zh.retry).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    const retried = calls.filter(call => call.operation === 'server-queue-start').at(-1)
+    assert.deepEqual(retried.args, request.args)
+    accepted = true
+    await act(async () => retry.resolve({ runId: 'server-admission' }))
+    assert(document.querySelector('[data-server-import="server-admission"]')); assert.equal(document.querySelector('[data-import-admission]'), null, 'The saved row replaces its temporary admission row')
+    assert.equal(document.querySelector('.vc-direct-header-progress'), null)
+    assert.equal(document.querySelector('.vc-direct-import-progress'), null)
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.equal(calls.some(call => call.operation === 'direct-crop-start'), false)
   } finally {
     await act(async () => rendered.unmount()); dom.window.close()
     for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
@@ -222,9 +349,9 @@ test('server connection opens separately and pending-list loads retain receipts 
   // React DOM loads before JSDOM in this file, so its legacy input observer needs DOM event aliases.
   dom.window.HTMLElement.prototype.attachEvent = function (name, listener) { this.addEventListener(name.slice(2), listener) }
   dom.window.HTMLElement.prototype.detachEvent = function (name, listener) { this.removeEventListener(name.slice(2), listener) }
-  const rendered = createRoot(document.getElementById('root')), Queue = createServerQueue(React, ui), calls = []
+  const rendered = createRoot(document.getElementById('root')), Queue = createServerQueue(React, ui), calls = [], selections = []
   let resolvePull, rejectPull, failConfiguration = true
-  const view = { settings: { baseUrl: 'https://api.example', auth: { kind: 'credential', ref: 'EXISTING_TOKEN' }, allowedMediaOrigins: ['https://images.example'] }, snapshotId: 'saved-list', total: 6, items: [{ id: '69670', name: 'first.jpg', imported: true, runId: 'first', phase: 'approved', transfer: { status: 'unknown' } }, { id: '69674', name: 'second.jpg', imported: true, runId: 'second', phase: 'approved', transfer: { status: 'uploaded' } }] }
+  const view = { settings: { baseUrl: 'https://api.example', auth: { kind: 'credential', ref: 'EXISTING_TOKEN' }, allowedMediaOrigins: ['https://images.example'] }, snapshotId: 'saved-list', total: 6, items: [{ id: '69670', name: 'first.jpg', imported: true, runId: 'first', phase: 'approved', transfer: { status: 'unknown' } }, { id: '69674', name: 'second.jpg', imported: true, runId: 'second', phase: 'approved', transfer: { status: 'uploaded', current: true } }] }
   const invoke = async (operation, args) => {
     calls.push({ operation, args })
     if (operation === 'server-queue-read') return view
@@ -235,7 +362,7 @@ test('server connection opens separately and pending-list loads retain receipts 
   const button = (text, root = document) => [...root.querySelectorAll('button')].find(element => element.textContent === text)
   const dialogs = () => [...document.querySelectorAll('[role="dialog"]')]
   try {
-    await act(async () => rendered.render(React.createElement(React.StrictMode, null, React.createElement(Queue, { ready: true, invoke, t: key => zh[key], pollMs: 60000, limit: 20, onClose() {}, onStarted() { throw Error('Must not start image work') } }))))
+    await act(async () => rendered.render(React.createElement(React.StrictMode, null, React.createElement(Queue, { ready: true, invoke, t: key => zh[key], pollMs: 60000, limit: 20, onClose() {}, onStarted() { throw Error('Must not start image work') }, onSelected(value) { selections.push(value) } }))))
     assert.equal(dialogs().length, 1)
     await act(async () => [...document.querySelectorAll('button[aria-pressed]')].find(element => element.textContent.trim().startsWith(zh.serverFilterAll)).click())
     await act(async () => button(zh.serverSettings).click())
@@ -264,7 +391,7 @@ test('server connection opens separately and pending-list loads retain receipts 
     await act(async () => rejectPull({ code: 'source-protocol-error' }))
     assert.equal(document.querySelector('.vc-server-table').getAttribute('aria-busy'), null)
     assert.equal(document.querySelector('.vc-server-table .vc-skeleton-fill'), null)
-    const receipts = () => [...document.querySelectorAll('.vc-server-table tbody tr')].map(row => ({ id: row.querySelector('.vc-server-file small').textContent, upload: row.cells[3].textContent, actions: [...row.querySelectorAll('button')].map(button => button.textContent) }))
+    const receipts = () => [...document.querySelectorAll('.vc-server-table tbody tr')].map(row => ({ id: row.querySelector('.vc-server-file small').textContent, upload: row.cells[3].textContent, completed: row.cells[2].textContent === zh.serverCompleted, selectable: !row.querySelector('input').disabled, actions: [...row.querySelectorAll('button')].map(button => button.textContent) }))
     assert.deepEqual(receipts(), fixture.retainedReceipts)
     await act(async () => button(zh.serverPull).click())
     assert.equal(document.querySelector('.vc-server-table').getAttribute('aria-busy'), 'true')
@@ -272,6 +399,15 @@ test('server connection opens separately and pending-list loads retain receipts 
     assert.deepEqual(receipts(), fixture.retainedReceipts)
     assert.equal(document.querySelector('[role="alert"]'), null)
     assert(calls.every(call => ['server-queue-read', 'server-queue-pull', 'server-queue-configure'].includes(call.operation)))
+    view.items = fixture.selectionStates.map(({ completed, ...row }) => ({ ...row, name: row.id + '.png', imported: true, serverPending: false }))
+    await act(async () => button(zh.serverPull).click())
+    await act(async () => resolvePull(view))
+    const rows = [...document.querySelectorAll('.vc-server-table tbody tr')]
+    assert.deepEqual(rows.map(row => row.querySelector('input').disabled), [false, false, false, false, false, false, false, false, false, false, true])
+    assert.deepEqual(rows.map(row => row.cells[2].textContent === zh.serverCompleted), [false, false, false, false, false, false, false, false, false, false, true])
+    await act(async () => document.querySelector('.vc-server-table thead input').click())
+    await act(async () => button(zh.directCropChooseOriginals).click())
+    assert.deepEqual(selections[0].photos.map(photo => photo.id), ['81', '82', '83', '84', '85', '86', '87', '88', '89', '90'])
   } finally {
     await act(async () => rendered.unmount()); dom.window.close()
     for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
@@ -344,8 +480,8 @@ test('direct page shows and polls a background import with no batches, preserves
     assert(document.querySelector('[data-server-import="background-batch"]')); assert.equal(document.querySelector('.vc-direct-empty'), null)
     assert.equal(document.querySelector('.vc-direct-import-pending'), null)
     assert(document.querySelector('.vc-direct-batch-table tbody tr[data-server-import]'))
-    assert(document.querySelector('.vc-direct-header-progress'))
-    assert.equal(document.querySelector('[data-server-import] progress'), null)
+    assert.equal(document.querySelector('.vc-direct-header-progress'), null)
+    assert.equal(document.querySelector('[data-server-import] progress').value, 0)
     await act(async () => { await polled.promise })
     assert(reads >= 2, 'The empty batch list must continue polling its pending import')
     await act(async () => button(zh.directCropAddImages).click())
@@ -355,11 +491,11 @@ test('direct page shows and polls a background import with no batches, preserves
     assert.equal(document.querySelector('[role="dialog"]'), null); assert(document.querySelector('[data-server-import="background-batch"]'))
     entry = { ...entry, status: 'interrupted', saved: 1, receivedBytes: 0 }
     await act(async () => button(zh.refresh).click())
-    assert.equal(document.querySelector('.vc-direct-header-progress progress').value, 1)
+    assert.equal(document.querySelector('[data-server-import] progress').value, 1)
     assert(document.querySelector('[data-server-import]').textContent.includes(zh.serverImportInterrupted))
     await act(async () => rendered.unmount()); rendered = createRoot(document.getElementById('root'))
     await act(async () => rendered.render(React.createElement(Page, props)))
-    assert.equal(document.querySelector('.vc-direct-header-progress progress').value, 1)
+    assert.equal(document.querySelector('[data-server-import] progress').value, 1)
     await act(async () => button(zh.serverImportResume).click())
     assert(calls.some(call => call.operation === 'server-queue-import-retry' && call.args.runId === 'background-batch'))
     assert(document.querySelector('[data-server-import]').textContent.includes(zh.serverImportPhaseRunning))

@@ -55,7 +55,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   if (typeof ctx.llm.registerImageProvider === 'function') {
     ctx.effect(() => ctx.llm.registerImageProvider('autoflow-codex', imageLlmProvider(service.images, ctx.attachments,
       async () => service.imageModels(), () => service.imageTimeoutMs,
-      async () => (await service.accounts.list()).map(account => ({ id: account.accountKey, name: account.label, available: account.enabled && account.auth.state !== 'needs-login' })))), 'Codex subscription image provider')
+      async () => (await service.accounts.list({ refreshUsage: false })).map(account => ({ id: account.accountKey, name: account.label, available: account.enabled && account.auth.state !== 'needs-login' })))), 'Codex subscription image provider')
   } else ctx.logger.warn('Update AutoFlow Desktop to expose Codex image generation to canvas workflows.')
   ctx.effect(() => ctx.llm.registerConfigurableProviders([{ provider: 'autoflow-codex', displayName: 'ChatGPT / Codex', settingsNs, settingsPath: [],
     nativeAuth: { env: [], oauth: true } }]), 'Codex subscription model directory')

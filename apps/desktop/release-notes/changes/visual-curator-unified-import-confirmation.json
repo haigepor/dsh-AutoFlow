@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-unified-import-confirmation",
+  "category": "fixes",
+  "text": {
+    "en": "Local, gallery and server originals share one import confirmation for batch name, image account and model. The selected route is retained when an interrupted import resumes.",
+    "zh-CN": "本地、收藏夹和服务器原图统一确认批次名称、生图账号与模型；中断后继续导入时保留所选生图设置。"
+  }
+}

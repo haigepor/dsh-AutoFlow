@@ -182,7 +182,7 @@ export class CuratorService {
     }, run => this.launchesValue?.presentationChanged(run))
     await this.engineValue.recover()
     this.experienceValue = new WallpaperExperienceStore({ domain: this.domain, engine: this.engine, config: () => this.config, vision: config => this.providers.vision(config), evaluate: (ctx, sample, content, variant) => this.wallpaperValue!.evaluate(ctx, sample, content, variant) })
-    this.wallpaperValue = new WallpaperWorkflows({ domain: this.domain, files: this.files, engine: this.engine, config: () => this.config, vision: config => this.providers.vision(config), source: config => this.providers.source(config), media: config => this.providers.media(config), ...(this.ctx.llm ? { llm: this.ctx.llm } : {}), ...(this.ctx.attachments ? { attachments: this.ctx.attachments } : {}), skill: () => this.experienceValue!.skill(), approved: (run, imageVersionId) => this.serverQueueValue!.deliver(run, imageVersionId) })
+    this.wallpaperValue = new WallpaperWorkflows({ domain: this.domain, files: this.files, engine: this.engine, config: () => this.config, vision: config => this.providers.vision(config), source: config => this.providers.source(config), media: config => this.providers.media(config), ...(this.ctx.llm ? { llm: this.ctx.llm } : {}), ...(this.ctx.attachments ? { attachments: this.ctx.attachments } : {}), skill: () => this.experienceValue!.skill() })
     this.launchesValue = new SearchLaunches({ domain: this.domain, files: this.files, engine: this.engine, signal: this.lifetime.signal, datasetReads: this.datasetReads,
       searchWorker: () => this.worker('search'),
       native: () => this.dependencies.nativeSessions ?? (this.ctx.get ? nativeSearchSessions({ get: this.ctx.get.bind(this.ctx) }) : undefined),
@@ -387,11 +387,13 @@ export class CuratorService {
         this.human(actor)
         const workflows = this.wallpaperValue!
         if (operation === 'wallpaper-options') {
+          const { provider } = z.object({ provider: z.enum(['autoflow-codex', 'visual-curator-openai']).optional() }).parse(args)
           const providers = await Promise.all([{ id: 'autoflow-codex', name: 'Codex subscription' }, { id: 'visual-curator-openai', name: 'OpenAI API Key' }].map(async entry => {
+            if (provider && entry.id !== provider) return { ...entry, models: [], sources: [] }
             try { return { ...entry, models: await this.ctx.llm!.listImageModels(entry.id), sources: await this.ctx.llm!.listImageSources(entry.id) } }
             catch (error) { return { ...entry, models: [], sources: [] } }
           }))
-          return toJson({ settings: this.config.wallpaper, models: providers.find(entry => entry.id === this.config.wallpaper.imageProvider)?.models ?? [], providers })
+          return toJson({ settings: this.config.wallpaper, models: providers.find(entry => entry.id === (provider ?? this.config.wallpaper.imageProvider))?.models ?? [], providers })
         }
         if (operation === 'wallpaper-experience') return toJson(this.experienceValue!.read())
         if (operation === 'wallpaper-case') {

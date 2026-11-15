@@ -55,3 +55,7 @@ export const serverQueueViewSchema = z.object({
   items: z.array(z.object({ id: serverImageIdSchema, name: z.string(), imported: z.boolean(), serverPending: z.boolean().optional(), imageVersionId: z.string().optional(), runId: z.string().optional(), importRunId: z.string().optional(), previewPath: z.string().optional(), phase: z.enum(['waiting', 'downloading', 'saved', 'processing', 'attention', 'approved']), receivedBytes: z.number().nonnegative().optional(), totalBytes: z.number().nonnegative().optional(), errorCode: z.string().optional(), warning: z.string().optional(), transfer: serverTransferViewSchema.optional() })),
 })
 export type ServerQueueView = z.infer<typeof serverQueueViewSchema>
+/** @param item Current processing result and its transmission. @returns Whether the latest approved pixels have a confirmed server receipt. */
+export function serverImageComplete(item: Pick<ServerQueueView['items'][number], 'phase' | 'transfer'>): boolean {
+  return item.phase === 'approved' && item.transfer?.status === 'uploaded' && item.transfer.current === true
+}

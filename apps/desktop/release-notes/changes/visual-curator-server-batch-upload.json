@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-server-batch-upload",
+  "category": "fixes",
+  "text": {
+    "en": "Server images complete only when the latest approved output is confirmed received. Incomplete images can be selected again with history retained, and approved results upload together after their batch finishes.",
+    "zh-CN": "服务器图片仅在最新成品合格且确认上传后标记完成；其余图片支持重新选择并保留历史，批次处理结束后合并上传合格成品。"
+  }
+}

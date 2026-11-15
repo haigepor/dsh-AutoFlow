@@ -54,6 +54,19 @@ async function fixture(network?: typeof fetch, now?: () => number) {
   return { ctx, options, accounts, seed, close: async () => { await unmount(); await ctx.fiber.dispose() } }
 }
 
+test('image account enumeration reads local metadata without quota or model requests', async () => {
+  const requests: string[] = []
+  const f = await fixture(async input => { requests.push(String(input)); return Response.json({ plan_type: 'plus', rate_limit: { primary_window: { used_percent: 12, reset_at: 2000000000 } } }) })
+  try {
+    await f.seed(['a', 'b'])
+    const accounts = await f.accounts.list({ refreshUsage: false })
+    assert.deepEqual(accounts.map(account => account.label), ['a', 'b'])
+    assert.equal(requests.length, 0)
+    await f.accounts.list()
+    assert.equal(requests.length, 2, 'The account page retains its normal quota refresh')
+  } finally { await f.close() }
+})
+
 test('Chat image counts are opt-in metadata and survive a read refusal without changing Work quota or authorization', async () => {
   let chatReads = 0, refused = false
   const requests: { method: string; body: unknown }[] = []

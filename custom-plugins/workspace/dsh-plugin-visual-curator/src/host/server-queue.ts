@@ -11,7 +11,8 @@ import { rasterMime, type AssetFiles } from '../media/assets.ts'
 import { SafeHttpClient, type HttpClient } from '../media/network.ts'
 import type { DomainActor, Json, RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { serverImageIdSchema, serverPullSchema, serverQueueApiUrl, serverQueueSettingsSchema, serverTransferStatusSchema, type ServerImage, type ServerImportView, type ServerQueueSettings, type ServerQueueView, type ServerTransferView } from '../shared/server-queue.ts'
+import { directCropStartSchema } from '../shared/direct-crop.ts'
+import { serverImageComplete, serverImageIdSchema, serverPullSchema, serverQueueApiUrl, serverQueueSettingsSchema, serverTransferStatusSchema, type ServerImage, type ServerImportView, type ServerQueueSettings, type ServerQueueView, type ServerTransferView } from '../shared/server-queue.ts'
 import type { CuratorConfig } from './config.ts'
 import { importedRecords } from './imports.ts'
 import { DirectCropTasks, isDirectCropRun } from './direct-crop.ts'
@@ -20,19 +21,22 @@ import { wallpaperAcceptsWork, wallpaperRunState } from './wallpaper-state.ts'
 
 const settingsKey = 'server-queue:settings-v1'
 const importedSchema = z.object({ version: z.literal(1), imageVersionId: z.string().optional(), previewImageVersionId: z.string().optional(), sourceDigest: z.string().optional(), errorCode: z.string().optional() })
-const transferSchema = z.object({ version: z.literal(1), status: serverTransferStatusSchema, outputDigest: z.string(), runId: z.string(), message: z.string().optional(), response: z.unknown().optional() })
+const transferSchema = z.object({ version: z.literal(1), status: serverTransferStatusSchema, outputDigest: z.string(), runId: z.string(), receiptIds: z.array(serverImageIdSchema).optional(), message: z.string().optional(), response: z.unknown().optional() })
+const ownerSchema = z.object({ version: z.literal(1), rootRunId: z.string() })
 const bindingSchema = z.object({ version: z.literal(1), environment: z.string(), rootRunId: z.string(), items: z.array(z.object({ id: serverImageIdSchema, sourceVersion: z.string(), imageVersionId: z.string(), sourceDigest: z.string() })) })
 const snapshotSchema = z.object({ version: z.literal(1), environment: z.string(), snapshotId: z.string(), total: z.number(), items: z.array(serverPullSchema.shape.data.element), pendingIds: z.array(serverImageIdSchema).optional(), changedIds: z.array(serverImageIdSchema).optional() })
-const admissionInputSchema = z.strictObject({ operationId: z.string().min(1), snapshotId: z.string(), name: z.string().trim().min(1).max(160), ids: z.array(serverImageIdSchema).min(1) })
+const admissionInputSchema = z.strictObject({ operationId: z.string().min(1), snapshotId: z.string(), name: z.string().trim().min(1).max(160), ids: z.array(serverImageIdSchema).min(1), imageRoute: directCropStartSchema.shape.imageRoute })
 const admissionSchema = z.object({ version: z.literal(1), environment: z.string(), runId: z.string(), input: admissionInputSchema, status: z.enum(['importing', 'failed', 'interrupted', 'ready']), createdAt: z.string(), errorCode: z.string().optional() })
 const sourceVersion = (item: ServerImage) => contentDigest({ id: item.id, url: item.img_url, md5: item.md5 ?? null, size: item.size ?? null, updated: item.update_time ?? null })
 const environmentOf = (settings: ServerQueueSettings) => contentDigest({ baseUrl: settings.baseUrl, auth: settings.auth })
 const sourceKey = (environment: string, item: Pick<ServerImage, 'id'>, version: string) => contentDigest({ environment, id: item.id, version }).slice(10)
 const receiptId = z.union([serverImageIdSchema, z.number().int().positive().max(Number.MAX_SAFE_INTEGER).transform(String)])
-const uploadReceiptSchema = z.object({ success: z.literal(true), data: z.object({ total: z.literal(1), updated: z.literal(1), failed: z.literal(0), skipped: z.literal(0), results: z.array(z.object({ index: z.literal(0), id: receiptId, status: z.literal('updated') })).length(1) }) })
-function acceptedReceipt(value: unknown, id: string): boolean {
+const uploadReceiptSchema = z.object({ success: z.literal(true), data: z.object({ total: z.number().int().positive(), updated: z.number().int().nonnegative(), failed: z.literal(0), skipped: z.literal(0), results: z.array(z.object({ index: z.number().int().nonnegative(), id: receiptId, status: z.literal('updated') })) }) })
+function acceptedReceipt(value: unknown, ids: readonly string[]): boolean {
   const parsed = uploadReceiptSchema.safeParse(value)
-  return parsed.success && parsed.data.data.results[0]!.id === id
+  if (!parsed.success) return false
+  const receipt = parsed.data.data
+  return receipt.total === ids.length && receipt.updated === ids.length && receipt.results.length === ids.length && new Set(receipt.results.map(row => row.index)).size === ids.length && receipt.results.every(row => ids[row.index] === row.id)
 }
 
 function savedReceipt(value: unknown, token: string, depth = 0): Json {
@@ -144,7 +148,7 @@ export class ServerQueue {
     return { settings, snapshotId: snapshot?.snapshotId ?? '', total: snapshot?.total ?? 0, pendingKnown: snapshot?.pendingIds !== undefined, imports: this.imports(actor), items: (snapshot?.items ?? []).map(item => {
       const version = sourceVersion(item), key = sourceKey(environment, item, version), rawImport = this.deps.domain.repository.manifest('server-import:' + key)?.state
       const saved = rawImport ? importedSchema.parse(rawImport) : undefined
-      const binding = bindings.find(binding => binding.items.some(row => row.id === item.id && row.sourceVersion === version))
+      const binding = this.currentBinding(environment, item.id, version, bindings)
       const latest = binding ? this.latest(binding.rootRunId) : undefined
       const currentItem = latest && wallpaperRunState(this.deps.domain, latest).items.find(row => row.imageVersionId === saved?.imageVersionId), status = currentItem?.status
       const rawTransfer = this.deps.domain.repository.manifest('server-transfer:' + key)?.state, transfer = rawTransfer ? transferSchema.parse(rawTransfer) : undefined
@@ -215,16 +219,11 @@ export class ServerQueue {
   private latest(rootRunId: string): RunRecord | undefined {
     return this.deps.domain.repository.list('run').filter(run => isDirectCropRun(run) && specOf(run).input.sourceRunId === rootRunId).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
   }
-  private existingBatch(ids: ServerImage['id'][], environment: string, requestedRoot: string): string | undefined {
-    const bindings = this.deps.domain.repository.manifests('server-binding:').map(row => bindingSchema.parse(row.state)).filter(row => row.environment === environment)
-    const existing = ids.map(id => bindings.find(binding => binding.items.some(item => item.id === id)))
-    if (!existing.some(Boolean)) return undefined
-    const roots = new Set(existing.flatMap(binding => binding ? [binding.rootRunId] : []))
-    if (!existing.every(Boolean) || roots.size !== 1) throw new CuratorError('operation-conflict', 'server-start', 'Some selected server images already belong to another batch.')
-    const root = [...roots][0]!
-    if (this.latest(root)) return root
-    if (root !== requestedRoot) throw new CuratorError('operation-conflict', 'server-start', 'Retry the original admission to recover this saved server selection.')
-    return undefined
+  private currentBinding(environment: string, id: ServerImage['id'], version: string, bindings = this.deps.domain.repository.manifests('server-binding:').map(row => bindingSchema.parse(row.state))) {
+    const raw = this.deps.domain.repository.manifest('server-owner:' + sourceKey(environment, { id }, version))?.state
+    // Released bindings had exclusive ownership before reselection was supported.
+    const root = raw ? ownerSchema.parse(raw).rootRunId : undefined
+    return bindings.find(binding => binding.environment === environment && (root === undefined || binding.rootRunId === root) && binding.items.some(item => item.id === id && item.sourceVersion === version))
   }
 
   /** Persist admission before downloading originals; browser disconnects do not cancel accepted work.
@@ -241,14 +240,18 @@ export class ServerQueue {
       if (prior && (prior.environment !== environment || contentDigest(prior.input) !== contentDigest(input))) throw new CuratorError('operation-conflict', 'server-start', 'The admission identity already belongs to another selection.')
       if (prior?.status === 'ready' || prior?.status === 'importing' && !this.admissionFailures.has(runId)) return { runId }
       const snapshot = snapshotSchema.parse(this.deps.domain.repository.manifest('server-snapshot:' + environment)?.state)
-      if (snapshot.pendingIds && input.ids.some(id => !snapshot.pendingIds!.includes(id))) throw new CuratorError('revision-conflict', 'server-start', 'Only currently pending server originals can be imported.')
       if (snapshot.snapshotId !== input.snapshotId || input.ids.length > this.deps.config().limits.maxImportFiles || new Set(input.ids).size !== input.ids.length || input.ids.some(id => !snapshot.items.some(item => item.id === id))) throw new CuratorError('revision-conflict', 'server-start', 'Refresh the server queue and select distinct current images.')
-      const existing = this.existingBatch(input.ids, environment, runId)
-      if (existing) return { runId: existing }
-      const pending = this.deps.domain.repository.manifests('server-admission:').map(row => admissionSchema.parse(row.state))
-      if (pending.some(row => row.runId !== runId && row.environment === environment && row.status === 'importing' && row.input.ids.some(id => input.ids.includes(id)))) throw new CuratorError('operation-conflict', 'server-start', 'Some selected originals already have an active import.')
       const admission = { version: 1 as const, runId, environment, input, status: 'importing' as const, createdAt: prior?.createdAt ?? new Date().toISOString() }
-      await this.save(key, admission); this.admissionFailures.delete(runId)
+      // Ownership changes and POST intents share one queue so a new selection cannot race a send.
+      const claim = this.deliveries.then(async () => {
+        if (this.read(actor).items.some(item => input.ids.includes(item.id) && serverImageComplete(item))) throw new CuratorError('constraint-conflict', 'server-start', 'The latest approved result is already confirmed by the server.')
+        await this.save(key, admission); this.admissionFailures.delete(runId)
+        for (const id of input.ids) {
+          const item = snapshot.items.find(item => item.id === id)!
+          await this.save('server-owner:' + sourceKey(environment, item, sourceVersion(item)), { version: 1, rootRunId: runId })
+        }
+      })
+      this.deliveries = claim.then(() => {}, () => {}); await claim
       const background = this.serial(async () => {
         try {
           if (environmentOf(this.settings()) !== environment) throw new CuratorError('revision-conflict', 'server-import', 'Restore the original server connection before continuing this import.')
@@ -290,8 +293,6 @@ export class ServerQueue {
     const snapshot = snapshotSchema.parse(this.deps.domain.repository.manifest('server-snapshot:' + environment)?.state)
     if (snapshot.snapshotId !== input.snapshotId || input.ids.length > limits.maxImportFiles || new Set(input.ids).size !== input.ids.length) throw new CuratorError('revision-conflict', 'server-start', 'Refresh the server selection and choose a bounded set of distinct images.')
     const selected = input.ids.map(id => { const item = snapshot.items.find(item => item.id === id); if (!item) throw new CuratorError('revision-conflict', 'server-start', 'A selected image is absent from the saved queue.'); return item })
-    const existing = this.existingBatch(input.ids, environment, this.deps.engine.operationRunId(input.operationId, actor))
-    if (existing) return { runId: existing }
     const linkedSignal = AbortSignal.any([signal, this.deps.signal]), imported = new Map<string, { imageVersionId: string; sourceDigest: string }>()
     let cursor = 0, spent = 0, reserved = 0
     const failures: unknown[] = []
@@ -325,58 +326,72 @@ export class ServerQueue {
     const old = this.deps.domain.repository.manifest(key)
     if (old && contentDigest(old.state) !== contentDigest(binding)) throw new CuratorError('operation-conflict', 'server-start', 'The operation identity already belongs to another server selection.')
     if (!old) await this.save(key, binding)
-    return await this.deps.direct.start({ operationId: input.operationId, name: input.name, source: { kind: 'server', photos: selected.map(item => ({ id: imported.get(item.id)!.imageVersionId, title: item.name })) } }, actor, linkedSignal)
+    return await this.deps.direct.start({ operationId: input.operationId, name: input.name, ...(input.imageRoute === undefined ? {} : { imageRoute: input.imageRoute }), source: { kind: 'server', photos: selected.map(item => ({ id: imported.get(item.id)!.imageVersionId, title: item.name })) } }, actor, linkedSignal)
   }
 
-  /** @param run Task with a committed approval. @param imageVersionId Newly approved original, omitted when recovering previously approved outputs. @returns Completion of serialized deliveries and receipt writes. */
+  /** @param run Settled processing batch. @param imageVersionId Explicit upload-only retry, omitted for batch delivery. @returns Completion of serialized deliveries and receipt writes. */
   deliver(run: RunRecord, imageVersionId?: string): Promise<void> {
     const work = this.deliveries.then(() => this.deliverNow(run.id, imageVersionId)); this.deliveries = work.then(() => {}, () => {}); return work
   }
   private async deliverNow(runId: string, imageVersionId?: string): Promise<void> {
     const run = this.deps.domain.require('run', runId)
-    if (!isDirectCropRun(run) || !['running', 'completed'].includes(run.status)) return
+    if (!isDirectCropRun(run) || run.status !== 'completed') return
     const rootRunId = z.string().parse(specOf(run).input.sourceRunId), manifest = this.deps.domain.repository.manifest('server-binding:' + rootRunId)
     if (!manifest || !wallpaperAcceptsWork(this.deps.domain, run)) return
     const binding = bindingSchema.parse(manifest.state), settings = this.settings(), actor: DomainActor = { kind: 'human', id: 'profile-owner', profileId: this.deps.domain.profileId }
-    if (environmentOf(settings) !== binding.environment) return
-    const state = wallpaperRunState(this.deps.domain, run)
+    if (environmentOf(settings) !== binding.environment || this.latest(rootRunId)?.id !== runId) return
+    const state = wallpaperRunState(this.deps.domain, run), signal = this.deps.signal
+    const ready: { source: z.infer<typeof bindingSchema>['items'][number]; key: string; bytes: Buffer; outputDigest: string }[] = []
     for (const source of binding.items) {
       if (imageVersionId !== undefined && source.imageVersionId !== imageVersionId) continue
+      if (this.currentBinding(binding.environment, source.id, source.sourceVersion)?.rootRunId !== rootRunId) continue
       const item = state.items.find(item => item.imageVersionId === source.imageVersionId)
       if (item?.status !== 'passed') continue
       const key = 'server-transfer:' + sourceKey(binding.environment, source, source.sourceVersion), raw = this.deps.domain.repository.manifest(key)?.state
-      if (raw && transferSchema.parse(raw).status !== 'waiting') continue
-      const signal = this.deps.signal
+      const prior = raw ? transferSchema.parse(raw) : undefined
+      if (prior && (prior.status === 'uploading' || prior.status === 'unknown' || prior.status === 'failed' && prior.runId === runId)) continue
       let approved
       try { approved = await this.deps.direct.approvedFile(run.id, source.imageVersionId, actor, signal) }
       catch (error) { if (signal.aborted) return; continue }
+      if (prior?.status === 'uploaded' && prior.outputDigest === approved.image.blob.digest) continue
       const original = this.deps.domain.authorizedImage(source.imageVersionId, actor).asset.originalBlob
       if (original?.digest !== source.sourceDigest || approved.bytes.length > settings.maxUploadBytes) { await this.save(key, { version: 1, status: 'failed', outputDigest: approved.image.blob.digest, runId: run.id, message: 'source-or-upload-budget-mismatch' }); continue }
-      const outputDigest = approved.image.blob.digest
-      let request: Request, token: string
-      try {
-        token = await this.token(settings)
-        const fresh = (await this.pending(settings, token, signal)).data.find(item => item.id === source.id)
-        if (!fresh || sourceVersion(fresh) !== source.sourceVersion) throw new CuratorError('revision-conflict', 'server-upload', 'The server original is no longer pending with the same saved identity; verify its assignment before sending a result.')
-        const form = new FormData(); form.append('token', token); form.append('ids[0]', source.id); form.append('images[0]', new Blob([new Uint8Array(approved.bytes)], { type: 'image/png' }), source.id + '-' + outputDigest.slice(0, 12) + '.png')
-        request = new Request(serverQueueApiUrl(settings.baseUrl, 'receive'), { method: 'POST', body: form })
-      } catch (error) { await this.save(key, { version: 1, status: 'failed', outputDigest, runId: run.id, message: safeFailure(error).code }); continue }
-      const body = new Uint8Array(await request.arrayBuffer())
+      ready.push({ source, key, bytes: approved.bytes, outputDigest: approved.image.blob.digest })
+    }
+    if (!ready.length) return
+    let token: string, pending: ServerImage[]
+    try { token = await this.token(settings); pending = (await this.pending(settings, token, signal)).data }
+    catch (error) {
+      for (const row of ready) await this.save(row.key, { version: 1, status: 'failed', outputDigest: row.outputDigest, runId, message: safeFailure(error).code })
+      return
+    }
+    const verified: typeof ready = []
+    for (const row of ready) {
+      const fresh = pending.find(item => item.id === row.source.id)
+      if (fresh && sourceVersion(fresh) === row.source.sourceVersion) verified.push(row)
+      else await this.save(row.key, { version: 1, status: 'failed', outputDigest: row.outputDigest, runId, message: 'revision-conflict' })
+    }
+    // OperateImage permits at most 20 matching index pairs in one request.
+    for (let offset = 0; offset < verified.length; offset += 20) {
+      const batch = verified.slice(offset, offset + 20), ids = batch.map(row => row.source.id)
+      const form = new FormData(); form.append('token', token)
+      batch.forEach((row, index) => { form.append(`ids[${index}]`, row.source.id); form.append(`images[${index}]`, new Blob([new Uint8Array(row.bytes)], { type: 'image/png' }), row.source.id + '-' + row.outputDigest.slice(0, 12) + '.png') })
+      const request = new Request(serverQueueApiUrl(settings.baseUrl, 'receive'), { method: 'POST', body: form }), body = new Uint8Array(await request.arrayBuffer())
       const current = this.deps.domain.require('run', runId)
-      if (signal.aborted || !['running', 'completed'].includes(current.status) || !wallpaperAcceptsWork(this.deps.domain, current) || environmentOf(this.settings()) !== binding.environment) return
-      await this.save(key, { version: 1, status: 'uploading', outputDigest, runId: run.id })
+      if (signal.aborted || current.status !== 'completed' || !wallpaperAcceptsWork(this.deps.domain, current) || this.latest(rootRunId)?.id !== runId || environmentOf(this.settings()) !== binding.environment || batch.some(row => this.currentBinding(binding.environment, row.source.id, row.source.sourceVersion)?.rootRunId !== rootRunId)) return
+      for (const row of batch) await this.save(row.key, { version: 1, status: 'uploading', outputDigest: row.outputDigest, runId, receiptIds: ids })
       try {
         // The durable intent precedes the first POST; neither redirects nor transport retries are permitted.
         const response = await this.client(settings).request(request.url, { ...this.bounds(signal), method: 'POST', headers: { 'content-type': request.headers.get('content-type')!, accept: 'application/json' }, body })
         let parsed: unknown
         try { parsed = JSON.parse(response.bytes.toString('utf8')) } catch (error) { throw new CuratorError('source-protocol-error', 'server-upload', 'The server upload response was not JSON.', { cause: error }) }
-        const reply = z.object({ success: z.boolean(), message: z.string().max(1024).optional(), data: z.unknown().optional() }).safeParse(parsed)
+        const rejected = z.object({ success: z.literal(false), data: z.array(z.unknown()).length(0) }).safeParse(parsed).success
         // A successful HTTP status alone never confirms file acceptance. Persist only protocol fields for local rechecking.
         const receipt = savedReceipt(parsed, token)
-        const status = reply.success && !reply.data.success ? 'failed' : acceptedReceipt(receipt, source.id) ? 'uploaded' : 'unknown'
-        await this.save(key, { version: 1, status, outputDigest, runId: run.id, ...(receipt ? { response: receipt } : {}), ...(status === 'uploaded' ? {} : { message: status === 'failed' ? 'server-rejected' : 'unrecognized-receipt' }) })
+        const status = rejected ? 'failed' : acceptedReceipt(receipt, ids) ? 'uploaded' : 'unknown'
+        for (const row of batch) await this.save(row.key, { version: 1, status, outputDigest: row.outputDigest, runId, receiptIds: ids, ...(receipt ? { response: receipt } : {}), ...(status === 'uploaded' ? {} : { message: status === 'failed' ? 'server-rejected' : 'unrecognized-receipt' }) })
       } catch (error) {
-        await this.save(key, { version: 1, status: 'unknown', outputDigest, runId: run.id, message: safeFailure(error).code })
+        for (const row of batch) await this.save(row.key, { version: 1, status: 'unknown', outputDigest: row.outputDigest, runId, receiptIds: ids, message: safeFailure(error).code })
       }
     }
   }
@@ -399,6 +414,7 @@ export class ServerQueue {
     const source = binding.items.find(item => item.id === input.id)
     if (!source) throw new CuratorError('owner-denied', 'server-upload', 'This server image does not belong to the selected batch.')
     if (retry) {
+      if (this.currentBinding(binding.environment, source.id, source.sourceVersion)?.rootRunId !== input.runId) throw new CuratorError('revision-conflict', 'server-upload', 'A newer batch owns this server image.')
       const key = 'server-transfer:' + sourceKey(binding.environment, source, source.sourceVersion), previous = transferSchema.parse(this.deps.domain.repository.manifest(key)?.state)
       if (previous.status !== 'failed') throw new CuratorError('constraint-conflict', 'server-upload', 'An uncertain or completed upload cannot be sent again.')
       const approved = await this.deps.direct.approvedFile(latest.id, source.imageVersionId, actor, this.deps.signal)
@@ -407,7 +423,7 @@ export class ServerQueue {
     } else {
       const key = 'server-transfer:' + sourceKey(binding.environment, source, source.sourceVersion), raw = this.deps.domain.repository.manifest(key)?.state
       const previous = raw ? transferSchema.parse(raw) : undefined
-      if (previous?.status === 'unknown' && acceptedReceipt(previous.response, source.id)) {
+      if (previous?.status === 'unknown' && acceptedReceipt(previous.response, previous.receiptIds ?? [source.id])) {
         const { message: _message, ...confirmed } = previous
         await this.save(key, { ...confirmed, status: 'uploaded' })
       }

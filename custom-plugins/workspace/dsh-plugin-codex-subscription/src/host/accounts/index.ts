@@ -167,13 +167,13 @@ export class CodexAccounts implements AccountsFacade {
   }
 
   /** List safe metadata with optional Chat feature observations.
-   * @param options Account-page opt-in; model routing and image-source enumeration do not poll Chat.
+   * @param options Account-page Chat opt-in; refreshUsage=false reads local metadata without polling Work quota.
    * @returns Detached metadata, retaining last-good observations after failed reads.
    */
-  async list(options: { includeChatUsage?: boolean } = {}): Promise<readonly AccountView[]> {
+  async list(options: { includeChatUsage?: boolean; refreshUsage?: boolean } = {}): Promise<readonly AccountView[]> {
     this.lifetime.signal.throwIfAborted()
     const before = await this.grant()
-    await Promise.all(Object.values(before.accounts).filter(account => account.enabled).flatMap(account => [this.refreshUsage(account.accountKey),
+    await Promise.all(Object.values(before.accounts).filter(account => account.enabled).flatMap(account => [...(options.refreshUsage === false ? [] : [this.refreshUsage(account.accountKey)]),
       ...(options.includeChatUsage ? [this.refreshChatUsage(account.accountKey)] : [])]))
     this.lifetime.signal.throwIfAborted()
     return Object.values((await this.grant()).accounts).map(account => this.view(account))

@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.21: Final-image review retains viable candidates through technical recovery, avoids invalid skip decisions and preserves quality checks after reconstruction. Workflow cards retain failed-version evidence; image inspection provides pixel rulers, edge measurements and pointer crosshairs. History supports a resizable version rail and borderless previews. Detail dialogs group image workspaces and review findings; saved image prompts open in a read-only tabbed editor. Existing tasks and images remain available.
+Release 0.2.22: Local, gallery and server imports confirm the selected account and model before admission. The dialog closes on submission; progress, errors and retry actions stay in the batch table. Only the latest approved and confirmed uploaded output is complete; incomplete originals can be selected again with history retained. Approved results upload together after their batch finishes. Selected image catalogs preload without waiting for unrelated providers.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 
