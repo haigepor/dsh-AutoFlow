@@ -38,7 +38,7 @@
     ".notice border: 1px solid var(--dsw-alias-border-l3)",
     ".card border: 1px solid var(--dsw-alias-border-l3)",
     ".accountMark border: 1px solid var(--dsw-alias-border-l3)",
-    ".compactQuotas border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".usageSection + .usageSection border-top: 1px solid var(--dsw-alias-border-l3)",
     ".creditPanel border: 1px solid var(--dsw-alias-border-l3)",
     ".creditStats border-bottom: 1px solid var(--dsw-alias-border-l3)",
     ".cardFooter border-top: 1px solid var(--dsw-alias-border-l3)",
