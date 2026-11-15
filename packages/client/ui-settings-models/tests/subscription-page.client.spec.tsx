@@ -197,7 +197,7 @@ it('a failed quota query explains the failure while keeping last-known allowance
   fireEvent.click(await screen.findByRole('button', { name: `${en.subscriptionExpand} · ${rawAccount.label}` }))
   expect(await screen.findByText(en.subscriptionQuotaHttp.replace('{status}', '503'))).toBeTruthy()
   expect(screen.getByRole('meter', { name: en.subscriptionPrimary }).getAttribute('aria-valuenow')).toBe('75')
-  expect(screen.getByText(en.subscriptionStale)).toBeTruthy()
+  expect(within(screen.getByRole('region', { name: en.subscriptionWorkQuota })).getByText(en.subscriptionStale)).toBeTruthy()
 })
 
 it('extra credits require an explicit toggle and stay disabled after a refused account update', async () => {
@@ -239,6 +239,47 @@ it.each([
   expect(details.getByText(en.subscriptionPrimary).closest('[data-quota-level]')?.getAttribute('data-quota-level')).toBe(level)
   if (remaining === undefined) expect(details.queryByRole('meter', { name: en.subscriptionPrimary })).toBeNull()
   else expect(details.getByRole('meter', { name: en.subscriptionPrimary }).getAttribute('aria-valuenow')).toBe(String(remaining))
+})
+
+it.each([false, true])('separates Work meters from an unverified Chat track without inventing a remaining percentage (expanded: %s)', async (expanded) => {
+  const owner = new SubscriptionController(async () => {}); owners.push(owner)
+  owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async operation => operation === 'account-list'
+    ? [{ ...rawAccount, allowCredits: false, chatUsage: { status: 'ready', freshness: 'fresh', fetchedAt: Date.now(), imageGeneration: { remaining: 120, resetAt: 1794763433465 } },
+      usage: { status: 'ready', freshness: 'fresh', fetchedAt: Date.now(), held: true, heldReason: 'workspace-limit',
+        primary: { usedPercent: 100, windowSeconds: 18000 }, secondary: { usedPercent: 55, windowSeconds: 604800 } } }] : [] })
+  render(<SubscriptionPage {...face(owner)} />)
+  const expand = await screen.findByRole('button', { name: `${en.subscriptionExpand} · ${rawAccount.label}` })
+  if (expanded) fireEvent.click(expand)
+  const work = within(screen.getByRole('region', { name: en.subscriptionWorkQuota }))
+  const chat = within(screen.getByRole('region', { name: en.subscriptionChatQuota }))
+  expect({ work: {
+    meters: work.getAllByRole('meter').map(meter => ({ label: meter.getAttribute('aria-label'), remaining: Number(meter.getAttribute('aria-valuenow')) })),
+    restriction: work.getByText(en.subscriptionWorkspaceLimit).textContent,
+    link: work.getByRole('link', { name: en.subscriptionWorkQuota }).getAttribute('href'),
+  }, chat: {
+    messageCount: chat.queryByText(en.subscriptionChatMessages)?.textContent ?? null,
+    imagesRemaining: chat.getByText(en.subscriptionImageRemaining.replace('{count}', '120')).textContent,
+    progress: { valueNow: chat.getByRole('progressbar', { name: en.subscriptionChatImages }).getAttribute('aria-valuenow'), valueText: chat.getByRole('progressbar', { name: en.subscriptionChatImages }).getAttribute('aria-valuetext') }, metering: chat.getByText(en.subscriptionImageMeteringUnverified).textContent, meterCount: chat.queryAllByRole('meter').length,
+    link: chat.getByRole('link', { name: en.subscriptionChatQuota }).getAttribute('href'),
+  } }).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/subscription-quota-scopes-en.json'), 'utf8')))
+  expect(chat.queryByText(en.subscriptionWorkspaceLimit)).toBeNull()
+  expect(chat.queryByText(en.subscriptionChatQuotaHint)).toBeNull()
+  expect(chat.queryByText(/^Interface reference time:/) !== null).toBe(expanded)
+  if (expanded) expect(screen.getByRole('switch', { name: en.subscriptionCredits }).getAttribute('aria-checked')).toBe('false')
+})
+
+it.each([0, 120])('a failed Chat refresh keeps its reported image count visible as stale (%s)', async (remaining) => {
+  const owner = new SubscriptionController(async () => {}); owners.push(owner)
+  owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async operation => operation === 'account-list'
+    ? [{ ...rawAccount, chatUsage: { status: 'error', freshness: 'stale', fetchedAt: Date.now(), imageGeneration: { remaining } } }] : [] })
+  render(<SubscriptionPage {...face(owner)} />)
+  await screen.findByRole('region', { name: en.subscriptionChatQuota })
+  const chat = within(screen.getByRole('region', { name: en.subscriptionChatQuota }))
+  expect(chat.getByText(en.subscriptionImageRemaining.replace('{count}', String(remaining)))).toBeTruthy()
+  expect(chat.getByText(en.subscriptionStale)).toBeTruthy()
+  expect(chat.getByRole('status').textContent).toBe(en.subscriptionQuotaFailed)
+  expect(chat.queryByRole('meter')).toBeNull()
+  expect(chat.getByRole('progressbar', { name: en.subscriptionChatImages }).getAttribute('aria-valuenow')).toBeNull()
 })
 
 it('multiple accounts expand independently and keep their selection after reordered refreshes', async () => {

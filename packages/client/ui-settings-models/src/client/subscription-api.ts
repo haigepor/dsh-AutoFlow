@@ -20,6 +20,12 @@ export interface SubscriptionAccount {
   subscriptionUntil?: number
   auth: 'ready' | 'refreshing' | 'refresh-required' | 'needs-login' | 'unknown'
   modelsStatus: 'unfetched' | 'ready' | 'error'
+  chatUsage?: {
+    status: 'ready' | 'error'
+    freshness: 'fresh' | 'stale' | 'unknown'
+    fetchedAt: number
+    imageGeneration?: { remaining: number; resetAt?: number }
+  }
   usage?: {
     status: 'ready' | 'error'
     freshness: 'fresh' | 'stale' | 'unknown'
@@ -92,6 +98,15 @@ function window(value: unknown): SubscriptionWindow {
     ...record['windowSeconds'] === undefined ? {} : { windowSeconds: number(record['windowSeconds']) } }
 }
 
+function chatUsage(value: unknown): NonNullable<SubscriptionAccount['chatUsage']> {
+  const record = object(value)
+  const observation = { status: choice(record['status'], ['ready', 'error']), freshness: choice(record['freshness'], ['fresh', 'stale', 'unknown']), fetchedAt: number(record['fetchedAt']) }
+  if (record['imageGeneration'] === undefined) return observation
+  const image = object(record['imageGeneration']), remaining = number(image['remaining'])
+  if (!Number.isSafeInteger(remaining) || remaining < 0) throw new SubscriptionFailure('INVALID_RESPONSE')
+  return { ...observation, imageGeneration: { remaining, ...image['resetAt'] === undefined ? {} : { resetAt: number(image['resetAt']) } } }
+}
+
 /** Validate JSON and project only fields that this page displays.
  * @param value Untrusted action result.
  * @returns Account display records with all credential fields omitted.
@@ -108,6 +123,7 @@ export function subscriptionAccounts(value: unknown): SubscriptionAccount[] {
       tokenExpiresAt: number(record['tokenExpiresAt']), ...record['subscriptionUntil'] === undefined ? {} : { subscriptionUntil: number(record['subscriptionUntil']) },
       auth: choice(object(record['auth'])['state'], ['ready', 'refreshing', 'refresh-required', 'needs-login', 'unknown']),
       modelsStatus: choice(record['modelsStatus'], ['unfetched', 'ready', 'error']),
+      ...record['chatUsage'] === undefined ? {} : { chatUsage: chatUsage(record['chatUsage']) },
       ...usage === undefined ? {} : { usage: { status: choice(usage['status'], ['ready', 'error']), freshness: choice(usage['freshness'], ['fresh', 'stale', 'unknown']),
         fetchedAt: number(usage['fetchedAt']), ...usage['primary'] === undefined ? {} : { primary: window(usage['primary']) },
         ...usage['errorCode'] === undefined ? {} : { errorCode: choice(usage['errorCode'], ['USAGE_POLL_FAILED', 'USAGE_STORAGE_FAILED', 'USAGE_HTTP_FAILED', 'USAGE_TIMEOUT', 'USAGE_INVALID_RESPONSE']) },

@@ -54,6 +54,47 @@ async function fixture(network?: typeof fetch, now?: () => number) {
   return { ctx, options, accounts, seed, close: async () => { await unmount(); await ctx.fiber.dispose() } }
 }
 
+test('Chat image counts are opt-in metadata and survive a read refusal without changing Work quota or authorization', async () => {
+  let chatReads = 0, refused = false
+  const requests: { method: string; body: unknown }[] = []
+  const f = await fixture(async (input, init) => {
+    if (String(input).endsWith('/conversation/init')) {
+      chatReads++; requests.push({ method: init?.method ?? 'GET', body: JSON.parse(String(init?.body)) })
+      return refused ? Response.json({}, { status: 403 }) : Response.json(JSON.parse(await readFile(new URL('./fixtures/chat-usage.json', import.meta.url), 'utf8')))
+    }
+    return Response.json({ plan_type: 'team', rate_limit: { allowed: false, primary_window: { used_percent: 100, reset_at: 2000000000 } } })
+  })
+  try {
+    await f.seed(['a'])
+    await f.accounts.list(); assert.equal(chatReads, 0)
+    const first = (await f.accounts.list({ includeChatUsage: true }))[0]!
+    assert.deepEqual(first.chatUsage?.imageGeneration, { remaining: 120, resetAt: 1794763433465 })
+    assert.equal(first.usage?.primary?.usedPercent, 100)
+    assert.deepEqual(requests[0], { method: 'POST', body: { conversation_id: null, conversation_origin: null, gizmo_id: null,
+      requested_default_model: null, system_hints: null, timezone: 'UTC', timezone_offset_min: 0 } })
+    refused = true
+    const second = (await f.accounts.list({ includeChatUsage: true }))[0]!
+    assert.equal(second.chatUsage?.status, 'error'); assert.equal(second.chatUsage?.errorStatus, 403)
+    assert.equal(second.chatUsage?.freshness, 'stale'); assert.deepEqual(second.chatUsage?.imageGeneration, first.chatUsage?.imageGeneration)
+    assert.equal(second.auth.state, 'ready'); assert.equal(second.usage?.primary?.usedPercent, 100)
+    await f.accounts.list(); assert.equal(chatReads, 2)
+  } finally { await f.close() }
+})
+
+test('Chat metadata preserves a reported zero count and rejects invalid counts without inventing missing limits', async () => {
+  let value: unknown = { type: 'conversation_detail_metadata', model_limits: [], limits_progress: [] }
+  const f = await fixture(async input => String(input).endsWith('/conversation/init') ? Response.json(value) : Response.json({ plan_type: 'team' }))
+  try {
+    await f.seed(['a'])
+    assert.equal((await f.accounts.list({ includeChatUsage: true }))[0]?.chatUsage?.imageGeneration, undefined)
+    value = { type: 'conversation_detail_metadata', limits_progress: [{ feature_name: 'image_gen', remaining: 0 }] }
+    assert.deepEqual((await f.accounts.list({ includeChatUsage: true }))[0]?.chatUsage?.imageGeneration, { remaining: 0 })
+    value = { type: 'conversation_detail_metadata', limits_progress: [{ feature_name: 'image_gen', remaining: -1 }] }
+    const invalid = (await f.accounts.list({ includeChatUsage: true }))[0]?.chatUsage
+    assert.equal(invalid?.errorCode, 'CHAT_USAGE_INVALID_RESPONSE'); assert.deepEqual(invalid?.imageGeneration, { remaining: 0 })
+  } finally { await f.close() }
+})
+
 test('image admission respects account availability without requiring extra text credits', async () => {
   const f = await fixture()
   try {

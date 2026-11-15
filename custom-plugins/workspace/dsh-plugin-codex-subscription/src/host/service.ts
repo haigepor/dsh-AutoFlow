@@ -317,7 +317,7 @@ export class CodexSubscriptionService {
     signal.throwIfAborted()
     switch (operation) {
       case 'snapshot': return this.snapshot()
-      case 'account-list': return this.accounts.list()
+      case 'account-list': return this.accounts.list(z.strictObject({ includeChatUsage: z.boolean().default(false) }).parse(args))
       case 'account-status': {
         const value = accountRead.parse(args)
         return this.accounts.getAccountStatus(value.accountKey, { ...(value.fresh === undefined ? {} : { fresh: value.fresh }), signal })

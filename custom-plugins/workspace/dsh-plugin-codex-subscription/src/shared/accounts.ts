@@ -19,6 +19,17 @@ export const accountUsageSchema = z.object({
   held: z.boolean().optional(), heldReason: z.enum(['usage-limit', 'workspace-limit', 'spending-limit']).optional(),
 })
 
+/** Chat metadata is informational and never changes Codex scheduling or image billing policy. */
+export const accountChatUsageSchema = z.object({
+  status: z.enum(['ready', 'error']), freshness: z.enum(['fresh', 'stale', 'unknown']),
+  fetchedAt: z.number(), attemptedAt: z.number(), lastSuccessfulAt: z.number().optional(),
+  imageGeneration: z.object({ remaining: z.number().int().nonnegative(), resetAt: z.number().optional() }).optional(),
+  errorCode: z.enum(['CHAT_USAGE_HTTP_FAILED', 'CHAT_USAGE_TIMEOUT', 'CHAT_USAGE_INVALID_RESPONSE', 'CHAT_USAGE_POLL_FAILED']).optional(),
+  errorStatus: z.number().int().min(400).max(599).optional(),
+})
+/** Credential-free last observation of Chat image counts and an upstream estimated recovery time. */
+export type AccountChatUsage = z.infer<typeof accountChatUsageSchema>
+
 /** One metadata schema prevents snapshot parsing from dropping fields exposed by account-list. */
 export const accountViewSchema = z.object({
   accountKey: z.string(), accountId: z.string(), label: z.string(), email: z.string().optional(), userId: z.string().optional(),
@@ -28,7 +39,7 @@ export const accountViewSchema = z.object({
   expiresAt: z.number(), tokenExpiresAt: z.number(), metadataAt: z.number(), lastRefreshAt: z.number().optional(),
   auth: z.object({ state: z.enum(['ready', 'refreshing', 'refresh-required', 'needs-login', 'unknown']), errorCode: authFailureCodeSchema.optional(), changedAt: z.number().optional() }),
   cooldowns: z.partialRecord(z.enum(['text', 'image', 'models', 'usage']), z.number()),
-  modelsStatus: z.enum(['unfetched', 'ready', 'error']), modelsFetchedAt: z.number().optional(), usage: accountUsageSchema.optional(),
+  modelsStatus: z.enum(['unfetched', 'ready', 'error']), modelsFetchedAt: z.number().optional(), usage: accountUsageSchema.optional(), chatUsage: accountChatUsageSchema.optional(),
 })
 
 /** Detached, credential-free account state. */

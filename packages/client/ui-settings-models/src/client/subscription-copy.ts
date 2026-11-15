@@ -1,5 +1,17 @@
 /** Locale-owned subscription account, authorization and quota copy. */
 export const subscriptionEn = {
+  subscriptionChatMessages: 'Chat messages',
+  subscriptionChatImages: 'Image generation',
+  subscriptionCountNotReported: 'No count reported',
+  subscriptionImageRemaining: 'Interface-reported value: {count}',
+  subscriptionImageMeteringUnverified: 'Metering unverified',
+  subscriptionEstimatedReset: 'Interface reference time: {time} (changes with queries)',
+  subscriptionViewUsage: 'View',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work and Codex share these plan windows. Chat is not counted in these windows.',
+  subscriptionChatQuota: 'ChatGPT Chat',
+  subscriptionChatQuotaHint: 'Reported Chat values are not verified Visual Curator availability or billing evidence.',
+  subscriptionWeekly: 'Weekly limit',
   subscriptionOfficialImages: 'Official image models',
   subscriptionCustomImageModel: 'Custom image model',
   subscriptionAutoImageCheck: 'Automatically check subscription access',
@@ -67,6 +79,18 @@ export const subscriptionEn = {
 
 /** Chinese subscription copy follows the same typed keys as English. */
 export const subscriptionZh: { [Key in keyof typeof subscriptionEn]: string } = {
+  subscriptionChatMessages: '聊天消息',
+  subscriptionChatImages: '聊天生图',
+  subscriptionCountNotReported: '未提供次数',
+  subscriptionImageRemaining: '接口报告值 {count}',
+  subscriptionImageMeteringUnverified: '计量未验证',
+  subscriptionEstimatedReset: '接口参考时间 {time}（会随查询变化）',
+  subscriptionViewUsage: '查看',
+  subscriptionWorkQuota: '工作（Work / Codex）',
+  subscriptionWorkQuotaHint: 'Work 与 Codex 共用这些套餐窗口；聊天不计入这些窗口。',
+  subscriptionChatQuota: 'ChatGPT 聊天',
+  subscriptionChatQuotaHint: '这些报告值不能作为 Visual Curator 可用次数或扣费的依据。',
+  subscriptionWeekly: '每周限额',
   subscriptionOfficialImages: '官方生图型号',
   subscriptionCustomImageModel: '自定义生图模型',
   subscriptionAutoImageCheck: '自动检测订阅可用性',
@@ -134,6 +158,18 @@ export const subscriptionZh: { [Key in keyof typeof subscriptionEn]: string } = 
 
 /** Japanese copy for this namespace. */
 export const subscriptionJa: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'チャットメッセージ',
+  subscriptionChatImages: '画像生成',
+  subscriptionCountNotReported: '回数の報告なし',
+  subscriptionImageRemaining: 'インターフェース報告値: {count}',
+  subscriptionImageMeteringUnverified: '計測は未検証',
+  subscriptionEstimatedReset: '参考時刻: {time}（照会により変動）',
+  subscriptionViewUsage: '表示',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work と Codex はこのプラン利用枠を共有します。Chat はこの枠に含まれません。',
+  subscriptionChatQuota: 'ChatGPT チャット',
+  subscriptionChatQuotaHint: 'この報告値は Visual Curator の利用可能回数や課金の根拠にはできません。',
+  subscriptionWeekly: '週間上限',
   subscriptionOfficialImages: '公式画像モデル',
   subscriptionCustomImageModel: 'カスタム画像モデル',
   subscriptionAutoImageCheck: 'サブスクリプションの利用可否を自動確認',
@@ -270,6 +306,18 @@ export const subscriptionJa: Record<keyof typeof subscriptionEn, string> = {
 
 /** Spanish copy for this namespace. */
 export const subscriptionEs: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'Mensajes de Chat',
+  subscriptionChatImages: 'Generación de imágenes',
+  subscriptionCountNotReported: 'Sin recuento disponible',
+  subscriptionImageRemaining: 'Valor informado por la interfaz: {count}',
+  subscriptionImageMeteringUnverified: 'Medición no verificada',
+  subscriptionEstimatedReset: 'Hora de referencia: {time} (cambia con las consultas)',
+  subscriptionViewUsage: 'Ver',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work y Codex comparten estos períodos del plan. Chat no cuenta en ellos.',
+  subscriptionChatQuota: 'Chat de ChatGPT',
+  subscriptionChatQuotaHint: 'Estos valores no verifican la disponibilidad ni los cargos de Visual Curator.',
+  subscriptionWeekly: 'Límite semanal',
   subscriptionOfficialImages: 'Modelos de imagen oficiales',
   subscriptionCustomImageModel: 'Modelo de imagen personalizado',
   subscriptionAutoImageCheck: 'Comprobar automáticamente el acceso',
@@ -406,6 +454,18 @@ export const subscriptionEs: Record<keyof typeof subscriptionEn, string> = {
 
 /** French copy for this namespace. */
 export const subscriptionFr: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'Messages Chat',
+  subscriptionChatImages: 'Génération d’images',
+  subscriptionCountNotReported: 'Nombre non fourni',
+  subscriptionImageRemaining: 'Valeur rapportée par l’interface : {count}',
+  subscriptionImageMeteringUnverified: 'Mesure non vérifiée',
+  subscriptionEstimatedReset: 'Heure de référence : {time} (varie selon les requêtes)',
+  subscriptionViewUsage: 'Voir',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work et Codex partagent ces limites du forfait. Chat ne compte pas dans ces limites.',
+  subscriptionChatQuota: 'Chat ChatGPT',
+  subscriptionChatQuotaHint: 'Ces valeurs ne prouvent ni la disponibilité ni la facturation de Visual Curator.',
+  subscriptionWeekly: 'Limite hebdomadaire',
   subscriptionOfficialImages: 'Modèles d’image officiels',
   subscriptionCustomImageModel: 'Modèle d’image personnalisé',
   subscriptionAutoImageCheck: 'Vérifier automatiquement l’accès',
@@ -542,6 +602,18 @@ export const subscriptionFr: Record<keyof typeof subscriptionEn, string> = {
 
 /** German copy for this namespace. */
 export const subscriptionDe: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'Chatnachrichten',
+  subscriptionChatImages: 'Bilderzeugung',
+  subscriptionCountNotReported: 'Keine Anzahl gemeldet',
+  subscriptionImageRemaining: 'Von der Schnittstelle gemeldeter Wert: {count}',
+  subscriptionImageMeteringUnverified: 'Messung nicht verifiziert',
+  subscriptionEstimatedReset: 'Referenzzeit: {time} (ändert sich bei Abfragen)',
+  subscriptionViewUsage: 'Ansehen',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work und Codex teilen diese Planlimits. Chat wird darin nicht gezählt.',
+  subscriptionChatQuota: 'ChatGPT Chat',
+  subscriptionChatQuotaHint: 'Diese Werte belegen weder verfügbare Visual-Curator-Nutzungen noch Gebühren.',
+  subscriptionWeekly: 'Wochenlimit',
   subscriptionOfficialImages: 'Offizielle Bildmodelle',
   subscriptionCustomImageModel: 'Eigenes Bildmodell',
   subscriptionAutoImageCheck: 'Abonnementzugriff automatisch prüfen',
@@ -678,6 +750,18 @@ export const subscriptionDe: Record<keyof typeof subscriptionEn, string> = {
 
 /** Russian copy for this namespace. */
 export const subscriptionRu: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'Сообщения чата',
+  subscriptionChatImages: 'Генерация изображений',
+  subscriptionCountNotReported: 'Количество не сообщено',
+  subscriptionImageRemaining: 'Значение интерфейса: {count}',
+  subscriptionImageMeteringUnverified: 'Учёт не проверен',
+  subscriptionEstimatedReset: 'Справочное время: {time} (меняется при запросах)',
+  subscriptionViewUsage: 'Открыть',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work и Codex используют общие лимиты плана. Chat в эти лимиты не входит.',
+  subscriptionChatQuota: 'Чат ChatGPT',
+  subscriptionChatQuotaHint: 'Эти значения не подтверждают доступные операции или списания Visual Curator.',
+  subscriptionWeekly: 'Недельный лимит',
   subscriptionOfficialImages: 'Официальные модели изображений',
   subscriptionCustomImageModel: 'Своя модель изображений',
   subscriptionAutoImageCheck: 'Автоматически проверять доступ',
@@ -814,6 +898,18 @@ export const subscriptionRu: Record<keyof typeof subscriptionEn, string> = {
 
 /** Portuguese copy for this namespace. */
 export const subscriptionPt: Record<keyof typeof subscriptionEn, string> = {
+  subscriptionChatMessages: 'Mensagens do Chat',
+  subscriptionChatImages: 'Geração de imagens',
+  subscriptionCountNotReported: 'Contagem não informada',
+  subscriptionImageRemaining: 'Valor informado pela interface: {count}',
+  subscriptionImageMeteringUnverified: 'Medição não verificada',
+  subscriptionEstimatedReset: 'Hora de referência: {time} (muda com as consultas)',
+  subscriptionViewUsage: 'Ver',
+  subscriptionWorkQuota: 'Work / Codex',
+  subscriptionWorkQuotaHint: 'Work e Codex partilham estes limites do plano. O Chat não conta para estes limites.',
+  subscriptionChatQuota: 'Chat do ChatGPT',
+  subscriptionChatQuotaHint: 'Estes valores não comprovam a disponibilidade nem a cobrança do Visual Curator.',
+  subscriptionWeekly: 'Limite semanal',
   subscriptionOfficialImages: 'Modelos de imagem oficiais',
   subscriptionCustomImageModel: 'Modelo de imagem personalizado',
   subscriptionAutoImageCheck: 'Verificar o acesso automaticamente',

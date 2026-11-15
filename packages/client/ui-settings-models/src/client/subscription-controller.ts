@@ -102,7 +102,7 @@ export class SubscriptionController {
       try {
         const availability = this.operations === undefined ? 'missing' : await this.operations.availability(this.lifetime.signal)
         if (availability !== 'active') { this.patch((state) => { state.availability = availability; state.status = 'ready' }); return }
-        const [rawAccounts, rawModels] = await Promise.all([this.invoke('account-list'), this.invoke('model-list')])
+        const [rawAccounts, rawModels] = await Promise.all([this.invoke('account-list', { includeChatUsage: true }), this.invoke('model-list')])
         const accounts = subscriptionAccounts(rawAccounts), models = subscriptionModels(rawModels)
         this.patch((state) => { state.availability = availability; state.accounts = accounts; state.models = models; state.status = 'ready'; state.error = null })
       } catch (error) { this.patch((state) => { state.status = 'error'; state.error = this.code(error) }) }

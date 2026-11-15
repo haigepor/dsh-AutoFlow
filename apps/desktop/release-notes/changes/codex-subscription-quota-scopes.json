@@ -1,0 +1,8 @@
+{
+  "id": "codex-subscription-quota-scopes",
+  "category": "improvements",
+  "text": {
+    "en": "Account cards separate Work/Codex quota from Chat image-count observations, label unverified metering, and retain last-known observations after read failures.",
+    "zh-CN": "账号卡片分开展示 Work/Codex 额度与 Chat 图片计数观测值，明确标注计量未验证，并在读取失败时保留上次成功值。"
+  }
+}

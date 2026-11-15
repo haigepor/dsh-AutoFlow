@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.6：向视觉策展提供可选择的订阅生图账号，继续保留图片编辑蒙版、持久化任务句柄及取消回执。
+0.2.7：分开展示 Chat 图片计数观测值与 Work/Codex 额度，读取失败时保留上次成功值。Chat 观测值不改变账号授权或图片计费判定；对应账号页布局随新版 AutoFlow 桌面端提供。
 
 本包是随 AutoFlow 分发的独立 Host 插件，显示在已安装插件分区，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `codex-subscription-v<version>` 标签族和 `codex-subscription-update.json` 资产；AFP 与应用使用独立版本族。
 

@@ -1,0 +1,27 @@
+{
+  "work": {
+    "meters": [
+      {
+        "label": "5-hour window",
+        "remaining": 0
+      },
+      {
+        "label": "Weekly limit",
+        "remaining": 45
+      }
+    ],
+    "restriction": "The workspace limit has been reached",
+    "link": "https://chatgpt.com/settings/usage?tab=overview"
+  },
+  "chat": {
+    "messageCount": null,
+    "imagesRemaining": "Interface-reported value: 120",
+    "metering": "Metering unverified",
+    "meterCount": 0,
+    "link": "https://chatgpt.com/",
+    "progress": {
+      "valueNow": null,
+      "valueText": "Interface-reported value: 120 · Metering unverified"
+    }
+  }
+}

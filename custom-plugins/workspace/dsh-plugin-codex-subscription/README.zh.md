@@ -82,6 +82,8 @@ MCP 同时接受 `/mcp/magpie/image`、Magpie 的 `reference_images` 和 `genera
 
 生图下拉选项合并已配置型号、当前生图默认项和此前保存的官方型号，并保留显式填写自定义 ID 的入口。打开设置、读取目录或启动插件均不会自动发现型号或生成探测图，即使旧 profile 的 `autoProbeImages` 或 `imageDiscovery.autoProbe` 已开启也不会执行。历史探测回执保留；它们不能证明图片响应背后的实际型号。选择型号不会改动当前默认值，只有显式保存为默认生图模型才会修改。
 
+账号页可在 `account-list` 中设置 `includeChatUsage: true`，通过同一 OAuth 账号读取独立的 `chatUsage` 观察。只读的输入框元数据请求不含提示词或消息，不启动生成。它投影 `limits_progress.image_gen` 的接口报告值及接口参考时间；聊天消息次数未提供时保持未提供状态。生图计量未验证，参考时间会随查询变化。这些观察不能作为 Visual Curator 可用次数或扣费的依据，也不参与生图调度。读取失败保留上次成功值并标记过期，不改变授权状态或 Work 调度。模型路由和图片来源枚举不请求这项元数据。
+
 账号身份组合用户与工作区。同一 Team 的不同成员分别保存；重新登录同一身份保留账号键、控制项和名称，包括任务或重放引用的旧账号键。信息包含用户／邮箱、工作区、token 到期时间（`tokenExpiresAt`，兼容别名为 `expiresAt`）、可选的未来订阅到期时间（`subscriptionUntil`）、套餐来源、授权状态、分操作冷却及发现时间。实时额度套餐优先于 token 声明，缺失额度保持未知。
 
 Host 插件注入 `codexSubscription` 后，可调用 `accounts.getAccountStatus(accountKey)`、`accounts.getAccountQuota(accountKey)`、`accounts.refreshAccount(accountKey, signal)`、`accounts.modelRoutes()`，以及原有登录、账号修改、模型发现和图片方法。状态／额度默认本地读取；传入 `{ fresh: true, signal }` 会显式刷新额度及模型，绕过 TTL 并合并并发刷新。管理 action 接收 `{ accountKey, fresh? }`，其中 `account-refresh` 只接收 `{ accountKey }`。`requestResponses(body, signal)` 的响应体必须消费或取消；`protocolStatus()` 读取本地传输／版本状态。

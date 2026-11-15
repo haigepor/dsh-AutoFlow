@@ -49,12 +49,47 @@ function Quota({ value, label, t, compact = false }: { value: SubscriptionWindow
   // 与显示百分比使用同一分级；未观察到额度不等于已耗尽，旧值的新鲜度另行提示。
   const level = displayed === undefined ? 'unknown' : displayed > 50 ? 'healthy' : displayed >= 20 ? 'warning' : 'critical'
   return <div className={css['quota']} data-quota-level={level}>
-    <div className={css['quotaLabel']}><span>{label}</span><span>{displayed === undefined ? t('subscriptionUnknown') : t('subscriptionRemaining').replace('{percent}', String(displayed))}</span></div>
+    <div className={css['quotaLabel']}><span>{label}</span><span className={css['quotaValue']}>{displayed === undefined ? t('subscriptionUnknown') : t('subscriptionRemaining').replace('{percent}', String(displayed))}</span></div>
     <div className={css['quotaTrack']}
       {...remaining === undefined ? { 'aria-hidden': true } : { role: 'meter', 'aria-label': label, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': remaining }}>
       <span style={{ width: `${remaining ?? 0}%` }} />
     </div>
     {!compact && <small>{value?.resetAt === undefined ? t('subscriptionNotObserved') : t('subscriptionReset').replace('{time}', date(value.resetAt, t('subscriptionUnknown')))}</small>}
+  </div>
+}
+
+function Usage({ account, t, compact = false }: { account: SubscriptionAccount; t: SubscriptionInjected['t']; compact?: boolean }): ReactNode {
+  const windows = [[account.usage?.primary, 'subscriptionPrimary'], [account.usage?.secondary, 'subscriptionSecondary']] as const
+  const chat = account.chatUsage, image = chat?.imageGeneration
+  return <div className={css['usageGroups']}>
+    <section className={css['usageSection']} aria-label={t('subscriptionWorkQuota')}>
+      <div className={css['usageHeading']}><h4>{t('subscriptionWorkQuota')}</h4>
+        <a className={css['usageLink']} href="https://chatgpt.com/settings/usage?tab=overview" aria-label={t('subscriptionWorkQuota')} target="_blank" rel="noopener noreferrer">{t('subscriptionViewUsage')}</a>
+      </div>
+      {(account.usage?.held === true || account.usage?.freshness === 'stale') && <div className={css['usageStatus']}>
+        {account.usage.held === true && <Tag tone="warning">{t(account.usage.heldReason === 'workspace-limit' ? 'subscriptionWorkspaceLimit' : account.usage.heldReason === 'spending-limit' ? 'subscriptionSpendingLimit' : 'subscriptionHeld')}</Tag>}
+        {account.usage.freshness === 'stale' && <span className={css['usageStale']}>{t('subscriptionStale')}</span>}
+      </div>}
+      <div className={css[compact ? 'compactQuotas' : 'quotas']}>{windows.map(([value, label]) => <Quota key={label} value={value}
+        label={value?.windowSeconds === 604800 ? t('subscriptionWeekly') : value?.windowSeconds === undefined ? t(label)
+          : t('subscriptionWindow').replace('{hours}', String(value.windowSeconds / 3600))} t={t} compact={compact} />)}</div>
+    </section>
+    <section className={css['usageSection']} aria-label={t('subscriptionChatQuota')}>
+      <div className={css['usageHeading']}><h4>{t('subscriptionChatQuota')}</h4>
+        <a className={css['usageLink']} href="https://chatgpt.com/" aria-label={t('subscriptionChatQuota')} target="_blank" rel="noopener noreferrer">{t('subscriptionViewUsage')}</a>
+      </div>
+      {chat?.freshness === 'stale' && <span className={css['usageStale']}>{t('subscriptionStale')}</span>}
+      <div className={css['quota']} data-quota-level="unknown">
+        <div className={css['quotaLabel']}><span>{t('subscriptionChatImages')}</span><span className={css['chatReported']}>
+          <span>{image === undefined ? t('subscriptionCountNotReported') : t('subscriptionImageRemaining').replace('{count}', String(image.remaining))}</span>
+          {image && <span className={css['usageStale']} title={t('subscriptionChatQuotaHint')}>{t('subscriptionImageMeteringUnverified')}</span>}
+        </span></div>
+        <div className={`${css['quotaTrack']} ${css['chatQuotaTrack']}`} role="progressbar" aria-label={t('subscriptionChatImages')}
+          aria-valuetext={image === undefined ? t('subscriptionCountNotReported') : `${t('subscriptionImageRemaining').replace('{count}', String(image.remaining))} · ${t('subscriptionImageMeteringUnverified')}`} title={t('subscriptionChatQuotaHint')} />
+      </div>
+      {chat?.status === 'error' && <p className={css['usageHint']} role="status">{t('subscriptionQuotaFailed')}</p>}
+      {!compact && image?.resetAt !== undefined && <p className={css['estimatedReset']}>{t('subscriptionEstimatedReset').replace('{time}', date(image.resetAt, t('subscriptionUnknown')))}</p>}
+    </section>
   </div>
 }
 
@@ -115,28 +150,28 @@ export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): React
             const detailsId = `${id}-${encodeURIComponent(account.accountKey)}-details`, headingId = `${detailsId}-heading`
             return <article className={css['card']} key={account.accountKey} data-enabled={account.enabled} data-expanded={expanded}>
               <div className={css['cardHeading']}><div className={css['accountIdentity']}><div className={css['accountMark']}><ProviderBrandIcon provider="openai" size={22} /></div>
-                <div><h3 id={headingId}>{account.label}</h3><p>{account.email ?? account.accountId}</p></div></div>
-              <div className={css['cardTools']}>{account.plan !== undefined && <Tag tone="neutral">{account.plan.toUpperCase()}</Tag>}
-                <Button variant="ghost" size="sm" className={css['expandButton']} aria-expanded={expanded} aria-controls={detailsId}
+                <div><div className={css['identityTitle']}><h3 id={headingId}>{account.label}</h3>
+                  {account.plan !== undefined && <Tag tone="neutral">{account.plan.toUpperCase()}</Tag>}</div>
+                {(account.email === undefined || account.email !== account.label) && <p>{account.email ?? account.accountId}</p>}
+                </div></div>
+              <div className={css['cardTools']}>
+                <Tooltip label={t(expanded ? 'subscriptionCollapse' : 'subscriptionExpand')}><Button variant="ghost" size="sm"
+                  className={css['expandButton']} aria-expanded={expanded} aria-controls={detailsId}
                   aria-label={`${t(expanded ? 'subscriptionCollapse' : 'subscriptionExpand')} · ${account.label}`} icon={<IconChevronDownOutlineRegular size={16} />}
-                  onClick={() => { toggleAccount(account.accountKey) }}>{t(expanded ? 'subscriptionCollapse' : 'subscriptionExpand')}</Button>
+                  onClick={() => { toggleAccount(account.accountKey) }} /></Tooltip>
               </div></div>
               <div className={css['statusRow']}><div className={css['accountStatus']}><Tag tone={!account.enabled ? 'neutral' : account.auth === 'needs-login' ? 'danger' : account.auth === 'ready' ? 'success' : 'warning'}>
                 {t(!account.enabled ? 'subscriptionDisabled' : authCopy[account.auth])}</Tag>
-              {account.usage?.held === true && <Tag tone="warning">{t(account.usage.heldReason === 'workspace-limit' ? 'subscriptionWorkspaceLimit' : account.usage.heldReason === 'spending-limit' ? 'subscriptionSpendingLimit' : 'subscriptionHeld')}</Tag>}
-              {account.usage?.freshness === 'stale' && <span>{t('subscriptionStale')}</span>}
               {account.auth === 'needs-login' && <Button variant="ghost" size="sm" disabled={busy || state.login !== null} onClick={add}>{t('subscriptionNeedsLogin')}</Button>}</div>
               <div className={css['enabledControl']}><Switch checked={account.enabled} disabled={busy} loading={state.busy === account.accountKey} label={t('subscriptionEnabled')} onChange={(enabled) => { void update(account, { enabled }) }} />
                 <span>{t(account.enabled ? 'subscriptionEnabled' : 'subscriptionDisabled')}</span></div></div>
-              <AnimatedCollapse open={!expanded} keepMounted><div className={css['compactQuotas']}><Quota value={account.usage?.primary} label={t('subscriptionPrimary')} t={t} compact />
-                <Quota value={account.usage?.secondary} label={t('subscriptionSecondary')} t={t} compact /></div></AnimatedCollapse>
+              <AnimatedCollapse open={!expanded} keepMounted><Usage account={account} t={t} compact /></AnimatedCollapse>
               <AnimatedCollapse open={expanded} id={detailsId} keepMounted className={css['detailDisclosure']}><div role="region" aria-labelledby={headingId}>
                 {account.usage?.status === 'error' && <div className={css['notice']} role="status"><span>{t(account.usage.errorCode === 'USAGE_TIMEOUT' ? 'subscriptionQuotaTimeout'
                   : account.usage.errorCode === 'USAGE_INVALID_RESPONSE' ? 'subscriptionQuotaInvalid' : account.usage.errorStatus === 401 ? 'subscriptionQuotaAuth'
                     : account.usage.errorStatus === 403 ? 'subscriptionQuotaDenied' : account.usage.errorStatus !== undefined ? 'subscriptionQuotaHttp' : 'subscriptionQuotaFailed')
                   .replace('{status}', String(account.usage.errorStatus ?? ''))}</span><Button variant="ghost" size="sm" disabled={busy} onClick={() => { void refresh() }}>{t('retry')}</Button></div>}
-                <div className={css['quotas']}><Quota value={account.usage?.primary} label={t('subscriptionPrimary')} t={t} />
-                  <Quota value={account.usage?.secondary} label={t('subscriptionSecondary')} t={t} /></div>
+                <Usage account={account} t={t} />
                 <dl className={css['details']}><div className={css['workspaceDetail']}><dt>{t('subscriptionWorkspace')}</dt><dd>{account.workspace ?? account.accountId}</dd></div>
                   <div><dt>{t('subscriptionTokenExpiry')}</dt><dd>{date(account.tokenExpiresAt, t('subscriptionUnknown'))}</dd></div>
                   {account.subscriptionUntil !== undefined && <div><dt>{t('subscriptionPlanExpiry')}</dt><dd>{date(account.subscriptionUntil, t('subscriptionUnknown'))}</dd></div>}

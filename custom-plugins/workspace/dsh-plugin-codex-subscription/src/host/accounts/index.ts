@@ -8,6 +8,8 @@ import { AccountError, AccountRejected, accountErrorCause, credentialTag, readCr
 import { accountRefusal, failureDetails } from './failures.ts'
 import { preflightResponse } from './preflight.ts'
 import { parseAccountUsage, quotaBlocks, resetCreditExpiry, imageProbeQuotaAllowed } from './quota.ts'
+import { parseChatUsage } from './chat-usage.ts'
+import type { AccountChatUsage } from '../../shared/accounts.ts'
 import { createOAuthAttempt, exchangeTokens, tokenMetadata, type OAuthAttempt } from './oauth.ts'
 import type { AccountsFacade, AccountsOptions, AccountView, LoginView, AccountLease, AccountRequest, AccountOperation, CodexModelView, CodexModelRouteView, AccountUsage, AccountReadOptions } from './types.ts'
 import { buildModelRoutes, selectModelRoute, type CodexModelRoute } from './routes.ts'
@@ -55,6 +57,8 @@ export class CodexAccounts implements AccountsFacade {
   private readonly modelPending = new Map<string, Promise<void>>()
   private readonly usageCache = new Map<string, AccountUsage>()
   private readonly usagePending = new Map<string, Promise<void>>()
+  private readonly chatUsageCache = new Map<string, AccountChatUsage>()
+  private readonly chatUsagePending = new Map<string, Promise<void>>()
   private readonly accountRefreshes = new Map<string, Promise<AccountView>>()
   private readonly liveUsageRevision = new Map<string, number>()
   private readonly logins = new Map<string, LoginState>()
@@ -106,10 +110,10 @@ export class CodexAccounts implements AccountsFacade {
     this.unmount?.(); this.unmount = undefined
     const login = this.active?.settled
     this.disposal = (async () => {
-      await Promise.allSettled([...this.modelPending.values(), ...this.usagePending.values(), ...this.accountRefreshes.values(), ...this.leases, ...(login ? [login] : [])])
+      await Promise.allSettled([...this.modelPending.values(), ...this.usagePending.values(), ...this.chatUsagePending.values(), ...this.accountRefreshes.values(), ...this.leases, ...(login ? [login] : [])])
       // 已启动的 refresh 可能已轮换上游 token，必须等待持久化，不能随消费者取消丢弃。
       while (this.writes.size) await Promise.allSettled([...this.writes])
-      this.affinity.clear(); this.native.clear(); this.modelCache.clear(); this.usageCache.clear(); this.liveUsageRevision.clear(); this.logins.clear()
+      this.affinity.clear(); this.native.clear(); this.modelCache.clear(); this.usageCache.clear(); this.chatUsageCache.clear(); this.liveUsageRevision.clear(); this.logins.clear()
       this.cooldowns.clear(); this.cooldownStatuses.clear(); this.modelCooldowns.clear(); this.modelEtags.clear(); this.refreshing.clear(); this.inflight.clear()
     })()
     return this.disposal
@@ -132,7 +136,7 @@ export class CodexAccounts implements AccountsFacade {
   }
 
   private view(account: StoredAccount): AccountView {
-    const catalog = this.modelCache.get(account.accountKey), usage = this.usageCache.get(account.accountKey)
+    const catalog = this.modelCache.get(account.accountKey), usage = this.usageCache.get(account.accountKey), chatUsage = this.chatUsageCache.get(account.accountKey)
     let metadata: Partial<ReturnType<typeof tokenMetadata>> = {}
     try { metadata = tokenMetadata(account.credential.access, account.credential.idToken, this.clock()) }
     catch (_error) { /* 旧凭据损坏仍须可查询、删除或重新授权；不伪造身份。 */ }
@@ -152,6 +156,8 @@ export class CodexAccounts implements AccountsFacade {
       auth: this.refreshing.has(account.accountKey) ? { state: 'refreshing' } : failure !== undefined ? { state: 'needs-login', errorCode: failure.code, changedAt: failure.at }
         : { state: account.credential.expires <= this.clock() ? 'refresh-required' : 'ready' },
       modelsStatus: catalog?.status ?? 'unfetched', ...(catalog?.lastGoodAt === undefined ? {} : { modelsFetchedAt: catalog.lastGoodAt }),
+      ...(chatUsage === undefined ? {} : { chatUsage: structuredClone({ ...chatUsage, freshness: chatUsage.lastSuccessfulAt === undefined ? 'unknown'
+        : chatUsage.status === 'error' || this.clock() - chatUsage.lastSuccessfulAt >= this.options.discoveryTtlMs ? 'stale' : 'fresh' }) }),
       ...(usage === undefined ? {} : { usage: structuredClone({ ...usage, freshness: usage.lastSuccessfulAt === undefined ? 'unknown'
         : usage.status === 'error' || this.clock() - usage.lastSuccessfulAt >= this.options.discoveryTtlMs ? 'stale' : 'fresh' }) }) }
   }
@@ -160,11 +166,15 @@ export class CodexAccounts implements AccountsFacade {
     return account.authFailure?.credentialTag === credentialTag(account.credential) ? account.authFailure : undefined
   }
 
-  /** List safe metadata, refreshing quota status with last-good values retained on failure. */
-  async list(): Promise<readonly AccountView[]> {
+  /** List safe metadata with optional Chat feature observations.
+   * @param options Account-page opt-in; model routing and image-source enumeration do not poll Chat.
+   * @returns Detached metadata, retaining last-good observations after failed reads.
+   */
+  async list(options: { includeChatUsage?: boolean } = {}): Promise<readonly AccountView[]> {
     this.lifetime.signal.throwIfAborted()
     const before = await this.grant()
-    await Promise.all(Object.values(before.accounts).filter(account => account.enabled).map(account => this.refreshUsage(account.accountKey)))
+    await Promise.all(Object.values(before.accounts).filter(account => account.enabled).flatMap(account => [this.refreshUsage(account.accountKey),
+      ...(options.includeChatUsage ? [this.refreshChatUsage(account.accountKey)] : [])]))
     this.lifetime.signal.throwIfAborted()
     return Object.values((await this.grant()).accounts).map(account => this.view(account))
   }
@@ -293,7 +303,7 @@ export class CodexAccounts implements AccountsFacade {
         ...(tokens.workspace === undefined ? {} : { workspace: tokens.workspace }), ...(tokens.userId === undefined ? {} : { userId: tokens.userId }),
         ...(tokens.subscriptionUntil === undefined ? {} : { subscriptionUntil: tokens.subscriptionUntil }),
         ...(previous?.lastUsage === undefined ? {} : { lastUsage: previous.lastUsage }), lastRefreshAt: now, credential: readCredential(tokens) }
-      this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.clearModelFailures(accountKey)
+      this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.chatUsageCache.delete(accountKey); this.clearModelFailures(accountKey)
       return true
     })
   }
@@ -324,7 +334,7 @@ export class CodexAccounts implements AccountsFacade {
       if (account.revision !== revision) throw new AccountError('账号已更新，请刷新后重试。', 'REVISION_CONFLICT', 409)
       delete grant.accounts[accountKey]; return true
     })
-    this.native.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.liveUsageRevision.delete(accountKey)
+    this.native.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.chatUsageCache.delete(accountKey); this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.liveUsageRevision.delete(accountKey)
     this.clearModelFailures(accountKey)
     for (const [key, value] of this.affinity) if (value === accountKey) this.affinity.delete(key)
   }
@@ -625,6 +635,41 @@ export class CodexAccounts implements AccountsFacade {
       snapshot: cached?.snapshot ?? { models: [], views: [], defaults: new Map() }, version, settingsRevision, ...(observedEtag === undefined ? {} : { etag: observedEtag }) }) })
       .finally(() => { this.modelPending.delete(accountKey) })
     this.modelPending.set(accountKey, task); return task
+  }
+
+  private async refreshChatUsage(accountKey: string): Promise<void> {
+    const pending = this.chatUsagePending.get(accountKey)
+    if (pending) return pending
+    let errorStatus: number | undefined
+    let observedAccess: string | undefined
+    const task = this.withAccount({ kind: 'usage', accountKey }, async lease => {
+      observedAccess = lease.accessToken
+      const signal = AbortSignal.any([lease.signal, AbortSignal.timeout(this.options.tokenTimeoutMs)])
+      const response = await this.options.fetch(this.endpoint('conversation/init'), { method: 'POST', redirect: 'error', signal,
+        headers: { ...lease.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: null, conversation_origin: null, gizmo_id: null, requested_default_model: null,
+          system_hints: null, timezone: 'UTC', timezone_offset_min: 0 }) })
+      if (!response.ok) {
+        errorStatus = response.status; await response.body?.cancel()
+        // Composer access failure is local to this observation, not an account-wide auth or Work quota failure.
+        throw new AccountError('Chat usage metadata could not be read.', 'CHAT_USAGE_HTTP_FAILED')
+      }
+      const value = parseChatUsage(await readBoundedJson(response, 262_144, signal), this.clock())
+      if ((await this.grant()).accounts[accountKey]?.credential.access === lease.accessToken) this.chatUsageCache.set(accountKey, value)
+    }).catch(async (error: unknown) => {
+      if (this.disposed) return
+      const current = (await this.grant()).accounts[accountKey]
+      if (current === undefined || observedAccess !== undefined && current.credential.access !== observedAccess) return
+      const previous = this.chatUsageCache.get(accountKey)
+      const { errorStatus: _oldStatus, ...kept } = previous ?? {}
+      this.chatUsageCache.set(accountKey, { ...kept, status: 'error', freshness: previous?.lastSuccessfulAt === undefined ? 'unknown' : 'stale',
+        fetchedAt: previous?.fetchedAt ?? this.clock(), attemptedAt: this.clock(),
+        errorCode: errorStatus !== undefined ? 'CHAT_USAGE_HTTP_FAILED' : error instanceof ZodError || error instanceof SyntaxError
+          || error instanceof AccountError && ['INVALID_RESPONSE', 'RESPONSE_TOO_LARGE'].includes(error.code) ? 'CHAT_USAGE_INVALID_RESPONSE'
+          : error instanceof Error && error.name === 'TimeoutError' ? 'CHAT_USAGE_TIMEOUT' : 'CHAT_USAGE_POLL_FAILED',
+        ...(errorStatus !== undefined && errorStatus >= 400 && errorStatus <= 599 ? { errorStatus } : {}) })
+    }).finally(() => { this.chatUsagePending.delete(accountKey) })
+    this.chatUsagePending.set(accountKey, task); return task
   }
 
   private async refreshUsage(accountKey: string, force = false): Promise<void> {

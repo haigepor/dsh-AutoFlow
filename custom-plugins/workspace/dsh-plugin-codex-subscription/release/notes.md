@@ -1,3 +1,15 @@
+## Codex Subscription 0.2.7
+
+Report Chat image counters separately from Work/Codex quota. Keep the last successful observation after a refused or invalid read, and label Chat image counts as unverified metering rather than available Visual Curator uses. Account authorization and spending policy remain unchanged.
+
+The account-page presentation requires AutoFlow Desktop 0.2.2-rc.1.20261115.2. Existing accounts, settings and historical tasks are retained.
+
+## Codex Subscription 0.2.7 更新说明
+
+分开报告 Chat 图片计数与 Work/Codex 额度。读取被拒绝或返回无效数据时保留上次成功值，Chat 图片计数标注为计量未验证，不作为视觉策展可用次数。账号授权与消费策略保持不变。
+
+账号页展示需要配套 AutoFlow Desktop 0.2.2-rc.1.20261115.2，保留现有账号、设置及历史任务。
+
 ## Codex Subscription 0.2.6
 
 Expose selectable subscription image accounts to Visual Curator. Preserve image-edit masks, durable task handles and cancellation receipts when a specific account is selected.

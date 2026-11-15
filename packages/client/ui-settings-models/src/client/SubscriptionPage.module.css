@@ -19,31 +19,48 @@
 .accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(320px, calc((100% - 32px) / 3))), 1fr)); align-items: start; gap: 16px; }
 .card { container-type: inline-size; min-width: 0; padding: 20px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); }
 .card[data-enabled='false'] { background: var(--dsw-alias-bg-layer-2); }
-.cardHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cardHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cardTools { display: flex; align-items: center; flex-wrap: wrap; flex: none; gap: 8px; min-width: 0; max-width: 100%; }
 .expandButton { color: var(--dsw-alias-label-secondary); }
 .expandButton svg { transition: transform var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease); }
 .expandButton[aria-expanded='true'] svg { transform: rotate(180deg); }
 .detailDisclosure > div { transform: translateY(-4px); transition: transform var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease); }
 .detailDisclosure[data-expanded] > div { transform: translateY(0); }
-.accountIdentity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.accountIdentity { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; }
+.identityTitle { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .accountIdentity > div:last-child { min-width: 0; }
 .accountIdentity h3 { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }
 .accountIdentity p { margin: 2px 0 0; font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-.accountMark { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); color: var(--dsw-alias-label-primary); }
-.statusRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; min-height: 28px; margin: 14px 0; }
+.accountMark { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); color: var(--dsw-alias-label-primary); }
+.statusRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; min-height: 24px; margin: 6px 0 10px; }
 .accountStatus, .enabledControl { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .enabledControl { flex-wrap: nowrap; flex: none; }
 .accountStatus > span, .enabledControl > span { font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
-.compactQuotas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding-top: 14px; border-top: 1px solid var(--dsw-alias-border-l3); }
-.compactQuotas .quotaLabel { flex-wrap: wrap; gap: 2px 8px; margin-bottom: 6px; }
+.usageGroups { display: grid; gap: 14px; }
+.usageSection { min-width: 0; }
+.usageSection > .quota { margin-top: 12px; }
+.usageSection + .usageSection { padding-top: 14px; border-top: 1px solid var(--dsw-alias-border-l3); }
+.usageHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.usageHeading h4 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 500; line-height: 22px; }
+.usageStale { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.usageLink { flex: none; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; text-decoration: none; }
+@media (hover: hover) { .usageLink:hover { color: var(--dsw-alias-label-primary); text-decoration: underline; text-underline-offset: 3px; } }
+.usageLink:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
+.usageStatus { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.usageHint { margin: 4px 0 12px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.usageSection > .usageHint:last-child { margin-bottom: 0; }
+.compactQuotas, .quotas { display: grid; gap: 14px; margin-top: 12px; }
 .compactQuotas .quotaTrack { height: 4px; }
-.quotas { display: grid; gap: 16px; padding-block: 16px; border-block: 1px solid var(--dsw-alias-border-l3); }
-.quota { --quota-fill: var(--dsw-alias-state-success-primary); }
+.quota { --quota-fill: var(--dsw-alias-state-success-primary); min-width: 0; }
 .quota[data-quota-level='warning'] { --quota-fill: var(--dsw-alias-state-warn-primary); }
 .quota[data-quota-level='critical'] { --quota-fill: var(--dsw-alias-state-error-primary); }
 .quota[data-quota-level='unknown'] { --quota-fill: var(--dsw-alias-bg-layer-2); }
-.quotaLabel { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.quotaLabel { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.quotaValue { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.quota[data-quota-level='critical'] .quotaValue { color: var(--dsw-alias-state-error-primary); }
+.chatReported { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; text-align: right; }
+.quotaTrack.chatQuotaTrack { background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--dsw-alias-label-secondary) 20%, transparent) 6px 8px); }
+.estimatedReset { margin: 8px 0 0; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .quotaLabel > span:last-child { color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; }
 .quota[data-quota-level='warning'] .quotaLabel > span:last-child { color: var(--dsw-alias-state-warn-label); }
 .quota[data-quota-level='critical'] .quotaLabel > span:last-child { color: var(--dsw-alias-state-error-primary); }
@@ -166,10 +183,6 @@
 .editForm > button svg { flex: none; }
 .danger { color: var(--dsw-alias-state-error-primary); }
 @container (max-width: 420px) {
-  .cardHeading { flex-direction: column; }
-  .accountIdentity, .cardTools { width: 100%; }
-  .cardTools { justify-content: space-between; }
-  .compactQuotas { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .details { gap: 14px 16px; }
 }
 @media (max-width: 900px) { .intro { flex-wrap: wrap; } .actions { width: 100%; } }
@@ -182,7 +195,7 @@
   .intro > img { width: 80px; height: 80px; }
   .introCopy { flex-basis: calc(100% - 92px); }
   .card { padding: 18px; }
-  .compactQuotas { gap: 16px; }
+  .compactQuotas { gap: 10px; }
   .details { gap: 14px 16px; }
   .creditPanel { padding: 14px; }
   .actions > button { flex: 1; }
