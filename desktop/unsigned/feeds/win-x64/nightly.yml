@@ -1,47 +1,40 @@
-version: 0.2.2-rc.1.20261114.1
+version: 0.2.2-rc.1.20261115.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261114.1-unsigned/deepseek-harness-0.2.2-rc.1.20261114.1-win-x64-unsigned.exe
-    sha512: F3njRYkbikJKl5WfRRDjn8DqeMSubpJVz5KtVeUyaqGXEGusue/W4GUu3GwkBbQKIwXdSZfkCqQddxjb9ST4nw==
-    size: 432131211
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261114.1-unsigned/deepseek-harness-0.2.2-rc.1.20261114.1-win-x64-unsigned.exe
-sha512: F3njRYkbikJKl5WfRRDjn8DqeMSubpJVz5KtVeUyaqGXEGusue/W4GUu3GwkBbQKIwXdSZfkCqQddxjb9ST4nw==
-releaseDate: '2026-11-13T17:20:20.009Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.1-unsigned/deepseek-harness-0.2.2-rc.1.20261115.1-win-x64-unsigned.exe
+    sha512: Fv7eTlQao9ZWVEeLbvDdaPEwpqtUaDZOMjpXZF9RONG5m58Onrv9c5GoPdza+qBNFkP8Nh84IpNw9/kmGFxbtA==
+    size: 432301013
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.1-unsigned/deepseek-harness-0.2.2-rc.1.20261115.1-win-x64-unsigned.exe
+sha512: Fv7eTlQao9ZWVEeLbvDdaPEwpqtUaDZOMjpXZF9RONG5m58Onrv9c5GoPdza+qBNFkP8Nh84IpNw9/kmGFxbtA==
+releaseDate: '2026-11-15T06:45:44.041Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261114.1
+  version: 0.2.2-rc.1.20261115.1
   items:
-    - id: plugin-update-details-layout
-      category: improvements
-      text:
-        en: Plugin update details show compact script permission notices, clear retry actions and separate check history and technical logs.
-        zh-CN: 优化插件详情页更新区域：压缩脚本授权提示，突出重试操作，分开呈现检查记录与技术日志。
-    - id: subscription-login-browser-lifecycle
+    - id: visual-curator-quality-first-pipeline
       category: fixes
       text:
-        en: Adding a ChatGPT account opens the login page automatically when Desktop blocks a blank popup; completed logins refresh accounts and release their owned popup.
-        zh-CN: 修复桌面端新增 ChatGPT 账号未自动打开登录页的问题；登录成功后自动刷新账号，并关闭本次持有的授权弹窗。
-    - id: visual-curator-settings-left-alignment
+        en: Visual Curator retains generated candidates during review recovery and independently checks final wallpapers. Stage-specific previews preserve failed-version evidence. Image inspection adds pixel rulers, edge measurements and pointer crosshairs. History supports resizable navigation. Detail dialogs use image workspaces and a read-only prompt editor.
+        zh-CN: 视觉策展在复审故障恢复时保留生成候选，独立检查最终图片质量。流程节点展示所属阶段的图片，保留未通过版本的证据。大图支持像素标尺、边缘尺寸与鼠标十字线，历史版本栏可拖拽调宽。详情采用图片工作区与检查信息分栏，生图提示词在独立只读编辑器查看。
+    - id: visual-curator-review-evidence-gallery
       category: improvements
       text:
-        en: Visual Curator aligns its settings tabs, forms and footer with the gallery's left edge while retaining readable form widths in large windows.
-        zh-CN: 视觉策展的设置页签、表单和底部操作区与图库共用左侧对齐线，宽窗口下继续保留适合阅读的表单宽度。
+        en: Visual Curator workflow cards let you browse saved images, safety guides and review concerns by version, including failed and stopped attempts. Expanded previews retain annotations, and review recovery rejects skip decisions when no blocking concern remains and the saved image can still be reviewed.
+        zh-CN: 视觉策展流程节点可按版本切换已保存图片、安全区标注和复审问题，未通过或停止返工的证据仍可查看，放大预览保留标注。已有图片可继续复审且没有阻塞问题时，不再接受跳过图片的矛盾决策。
 releaseNotes: |-
   ## 体验优化
 
-  - 优化插件详情页更新区域：压缩脚本授权提示，突出重试操作，分开呈现检查记录与技术日志。
-  - 视觉策展的设置页签、表单和底部操作区与图库共用左侧对齐线，宽窗口下继续保留适合阅读的表单宽度。
+  - 视觉策展流程节点可按版本切换已保存图片、安全区标注和复审问题，未通过或停止返工的证据仍可查看，放大预览保留标注。已有图片可继续复审且没有阻塞问题时，不再接受跳过图片的矛盾决策。
 
   ## 问题修复
 
-  - 修复桌面端新增 ChatGPT 账号未自动打开登录页的问题；登录成功后自动刷新账号，并关闭本次持有的授权弹窗。
+  - 视觉策展在复审故障恢复时保留生成候选，独立检查最终图片质量。流程节点展示所属阶段的图片，保留未通过版本的证据。大图支持像素标尺、边缘尺寸与鼠标十字线，历史版本栏可拖拽调宽。详情采用图片工作区与检查信息分栏，生图提示词在独立只读编辑器查看。
 
   ---
 
   ## Improvements
 
-  - Plugin update details show compact script permission notices, clear retry actions and separate check history and technical logs.
-  - Visual Curator aligns its settings tabs, forms and footer with the gallery's left edge while retaining readable form widths in large windows.
+  - Visual Curator workflow cards let you browse saved images, safety guides and review concerns by version, including failed and stopped attempts. Expanded previews retain annotations, and review recovery rejects skip decisions when no blocking concern remains and the saved image can still be reviewed.
 
   ## Bug fixes
 
-  - Adding a ChatGPT account opens the login page automatically when Desktop blocks a blank popup; completed logins refresh accounts and release their owned popup.
+  - Visual Curator retains generated candidates during review recovery and independently checks final wallpapers. Stage-specific previews preserve failed-version evidence. Image inspection adds pixel rulers, edge measurements and pointer crosshairs. History supports resizable navigation. Detail dialogs use image workspaces and a read-only prompt editor.
