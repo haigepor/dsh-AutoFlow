@@ -47,6 +47,17 @@ test('normal occlusion and background framing can continue without inventing a p
   assert.equal(parse().safeParse({ ...response, action: { kind: 'continue_current_plan', passed: true } }).success, false)
 })
 
+test('a saved review can resume without skipping an image whose decision findings are all nonblocking', () => {
+  const schema = wallpaperDecisionOutputSchema('source', 2, concerns, ['retry_saved_review', 'skip_image', 'manual_review'], images)
+  const skipped = schema.safeParse({ ...response, action: { kind: 'skip_image' } })
+  assert.equal(skipped.success, false)
+  if (!skipped.success) assert(skipped.error.issues.some(issue => issue.message === 'decision-reusable-review-cannot-skip-resolved-image'))
+  assert.equal(schema.parse({ ...response, action: { kind: 'retry_saved_review' } }).action.kind, 'retry_saved_review')
+  assert.equal(schema.parse({ ...response, action: { kind: 'manual_review' } }).action.kind, 'manual_review')
+  assert.equal(schema.parse({ ...response, findings: response.findings.map(finding => ({ ...finding, blocking: true })), action: { kind: 'skip_image' } }).action.kind, 'skip_image')
+  assert.equal(wallpaperDecisionOutputSchema('source', 2, concerns, ['skip_image', 'manual_review'], images).parse({ ...response, action: { kind: 'skip_image' } }).action.kind, 'skip_image')
+})
+
 test('continuation retains real truncation, unreadable critical content, unknown extent and every explicit blocker', () => {
   for (const change of [
     { scope: 'subject', classification: 'frame-truncation', blocking: false },
@@ -145,4 +156,57 @@ test('one image retains decision rounds outside attempts and preserves safe froz
   assert.equal(wallpaperDecisionRecordSchema.safeParse({ ...record, input: new Uint8Array([1, 2, 3]) }).success, false)
   assert.equal(wallpaperDecisionRecordSchema.parse({ ...record, targetStage: 'decision' }).targetStage, 'decision')
   for (const status of ['running', 'applied', 'manual', 'skipped', 'failed']) assert.equal(wallpaperDecisionRecordSchema.parse({ ...record, status }).status, status)
+})
+
+test('the recorded intentional half-portrait cannot be skipped after declaring every saved-review concern nonblocking', () => {
+  const recorded = {
+    "version": "wallpaper-decision-v2",
+    "imageVersionId": "1c82be1f-48b7-4c2d-a30e-f70e5658d501",
+    "planRevision": 1,
+    "findings": [
+      {
+        "concernId": "source-extent",
+        "scope": "subject",
+        "classification": "frame-truncation",
+        "blocking": false,
+        "reason": "原画为明确的半身坐姿取景：女子左侧衣袖在原画左缘被自然裁切，下部裙摆延伸至原画底边，右侧乐谱架在右缘被裁切，均属有意画框截断而非结构损坏。成品按同一构图保留半身取景，衣袖顺原有走向延伸收口，裙摆继续延伸至画面下缘而未被平切悬空，谱架木框、纸页与立柱的外侧已补全；未凭空补画腿部、背面或全身，不构成保真或主体破损问题。",
+        "evidenceImageVersionIds": [
+          "1c82be1f-48b7-4c2d-a30e-f70e5658d501",
+          "wallpaper-seed-0c3153e60f52b8c32e34af81667091aba6a2015200037143dcf898496e01d08f"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.36,
+          "width": 0.13,
+          "height": 0.26
+        }
+      },
+      {
+        "concernId": "technical:reviewing",
+        "scope": "technical",
+        "classification": "resolved",
+        "blocking": false,
+        "reason": "先前结构化复审返回无效输出，本轮已直接依据两版实际像素完成检查：女子卷发、闭目侧脸、持弓与按弦双手、小提琴琴身与琴弓的接触关系均保持，比例与遮挡合理；暖金衣裙、深绿厚涂背景、左上帷幔与右侧乐谱架的色彩与笔触连续，扩展区与旧边界过渡自然，无平切边、错接、重复主体或可读文字臆造。主体完整位于内安全区，未见阻塞性技术或清晰度缺陷。",
+        "evidenceImageVersionIds": [
+          "1c82be1f-48b7-4c2d-a30e-f70e5658d501",
+          "wallpaper-seed-0c3153e60f52b8c32e34af81667091aba6a2015200037143dcf898496e01d08f"
+        ]
+      }
+    ],
+    "sourceExtent": {
+      "extent": "cut-off",
+      "reason": "原画为半身坐姿肖像，女子左侧衣袖在原画左缘被自然裁切，裙摆延伸至原画底边，右侧乐谱架局部被右缘裁切，属有意取景；未入镜的腿部与背面不视为缺失，头顶、面部、双手与乐器均完整在画内。"
+    },
+    "action": {
+      "kind": "skip_image"
+    },
+    "reason": "成品保留唯一主角女子及小提琴、琴弓的演奏关系，暖金衣裙与深绿厚涂背景、左上帷幔、右侧乐谱架均连续自然，原画左袖、底边裙摆与谱架右缘进入成品内部的断口已合理补全并保持半身取景，未新增文字、品牌或额外乐器；无阻塞缺陷，无需重新生图。"
+  }
+  const concerns = recorded.findings.map(finding => ({ id: finding.concernId, text: finding.reason }))
+  const images = [...new Set([recorded.imageVersionId, ...recorded.findings.flatMap(finding => finding.evidenceImageVersionIds)])]
+  const schema = wallpaperDecisionOutputSchema(recorded.imageVersionId, recorded.planRevision, concerns, ['retry_saved_review', 'skip_image', 'manual_review'], images, undefined, 'wallpaper-decision-v2')
+  const parsed = schema.safeParse(recorded)
+  assert.equal(parsed.success, false)
+  if (!parsed.success) assert(parsed.error.issues.some(issue => issue.message === 'decision-reusable-review-cannot-skip-resolved-image'))
+  assert.equal(schema.parse({ ...recorded, action: { kind: 'retry_saved_review' } }).action.kind, 'retry_saved_review')
 })

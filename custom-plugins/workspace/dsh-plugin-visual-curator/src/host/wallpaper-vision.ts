@@ -15,6 +15,7 @@ import type { BlobRef } from '../media/assets.ts'
  * @returns Request containing saved model-view bytes and explicit original-to-view geometry.
  */
 export async function wallpaperVisionInput(input: VisionInput, files: AssetFiles, provider: StructuredVisionProvider, maxDimension: number, signal: AbortSignal, persistDetail?: (sourceId: string, blob: BlobRef, geometry: { width: number; height: number }, rect: { x: number; y: number; width: number; height: number }) => Promise<string>): Promise<VisionInput> {
+  if (input.images.length + (input.detailRegions?.length ?? 0) > provider.config.maxImages) throw new MediaError('vision-detail-unavailable', 'wallpaper-vision', false, 'The required subject detail view cannot fit this vision route.', 'Use a route with enough image slots for the original, final and subject detail views.')
   const images: VisionImage[] = [], representations = []
   let totalBytes = 0
   for (const image of input.images) {

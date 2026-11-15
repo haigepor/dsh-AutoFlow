@@ -45,6 +45,26 @@ class Adapter extends LlmAdapter {
   }
 }
 
+it('retains available native response text when a local output callback throws an unclassified error', async () => {
+  const f = await fixture()
+  f.adapter.stream = async function* (): AsyncGenerator<StreamChunk> {
+    yield { type: 'text-delta', index: 0, text: '{"saved":"response text"}' }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    await assert.rejects(f.provider.analyze(f.input, { ...f.bounds, onOutput: () => { throw new TypeError('private internal details') } }), error => {
+      const failure = safeFailure(error)
+      assert.equal(failure.code, 'vision-response-processing-failed')
+      assert.equal(failure.stage, 'reviewing')
+      assert.equal(failure.retryable, false)
+      assert.ok(!JSON.stringify(failure).includes('private internal details'))
+      assert.ok(error instanceof Error && 'diagnostics' in error)
+      assert.deepEqual(error.diagnostics, { modelOutput: { rawText: '{"saved":"response text"}' }, issues: ['TypeError'] })
+      return true
+    })
+  } finally { await f.cleanup() }
+})
+
 it('defaults new work to native LLM while preserving frozen legacy and explicit HTTP selection', () => {
   const current = resolveCurrentConfig({ vision: { model: 'vision-model' } })
   assert.equal(current.vision.backend, 'native')

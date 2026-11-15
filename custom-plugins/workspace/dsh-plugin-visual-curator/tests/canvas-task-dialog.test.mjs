@@ -15,13 +15,13 @@ const {createCanvasTaskDialog,createConversationTaskDock,conversationRunSchema,z
 const ui=new Proxy({
  Modal:({open,title,children,className,footer})=>open?h('div',{role:'dialog',className},h('h2',null,title),children,footer):null,
  Button:React.forwardRef(({children,size,variant,...props},ref)=>h('button',{...props,ref},children)),
- Menu:({anchor})=>anchor,Tooltip:({children})=>children,Tag:({children})=>h('span',null,children),StateDot:({state})=>h('i',{'data-state':state}),
+ Menu:({anchor,open,items=[],onSelect})=>h(React.Fragment,null,anchor,open&&h('div',{role:'menu'},items.filter(item=>!item.type).map(item=>h('button',{key:item.id,role:'menuitem',onClick:()=>onSelect(item.id)},item.label)))),Tooltip:({children})=>children,Tag:({children})=>h('span',null,children),StateDot:({state})=>h('i',{'data-state':state}),
  AnimatedCollapse:({open,children,...props})=>h('div',{hidden:!open,id:props.id},children),
  ImageGenerationSkeleton:({active})=>h('canvas',{'data-image-generation-skeleton':'','data-active':active}),
 },{get:(target,key)=>target[key]??(()=>null)})
 async function environment(work){
- const previous=Object.fromEntries(['window','document','navigator','HTMLElement','Node','getComputedStyle','IS_REACT_ACT_ENVIRONMENT'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid'})
- for(const[k,v]of Object.entries({window:dom.window,document:dom.window.document,navigator:dom.window.navigator,HTMLElement:dom.window.HTMLElement,Node:dom.window.Node,getComputedStyle:dom.window.getComputedStyle.bind(dom.window),IS_REACT_ACT_ENVIRONMENT:true}))Object.defineProperty(globalThis,k,{configurable:true,writable:true,value:v})
+ const previous=Object.fromEntries(['window','document','navigator','HTMLElement','Node','getComputedStyle','ResizeObserver','IS_REACT_ACT_ENVIRONMENT'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid'})
+ for(const[k,v]of Object.entries({window:dom.window,document:dom.window.document,navigator:dom.window.navigator,HTMLElement:dom.window.HTMLElement,Node:dom.window.Node,getComputedStyle:dom.window.getComputedStyle.bind(dom.window),IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}}))Object.defineProperty(globalThis,k,{configurable:true,writable:true,value:v})
  const rootNode=createRoot(document.getElementById('root'))
  try{await work({paint:async element=>act(async()=>{rootNode.render(element);await Promise.resolve()}),doc:document})}finally{await act(async()=>rootNode.unmount());dom.window.close();for(const[k,v]of Object.entries(previous))if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k]}
 }
@@ -98,23 +98,26 @@ test('plan editor explains every guide and protection role without changing save
  assert.deepEqual(changes[0].regions[0],plan.regions[0])
 }))
 
-test('review cards show the actual output annotations before approval and both views after approval',()=>environment(async({paint,doc})=>{
+test('review cards retain actual annotations and navigate to lock-screen evidence before and after approval',()=>environment(async({paint,doc})=>{
  const {ImageStepCard}=capsule.exports.createWallpaperCanvas(React,ui),checks=Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:'Actual output pixels'}]))
  const attempt={revision:1,plan:{placement:{scale:0.4,left:0,top:0}},checks:[],needsOutpaint:true,outputId:'clean',analysisId:'annotated-output',simulationId:'clock-output',review:{issues:[],checks:{...checks,background:{result:'violated',reason:'Visible seam'}}}}
  const item={imageVersionId:'source',status:'needs-review',edits:1,attempts:[attempt]},value={status:'completed',state:{version:2},settings:capsule.exports.wallpaperSettingsSchema.parse({}),sourceImages:{},resources:{clean:'/api/visual-curator/resource?imageVersionId=clean', 'annotated-output':'/api/visual-curator/resource?imageVersionId=annotated', 'clock-output':'/api/visual-curator/resource?imageVersionId=clock'},previewResources:{clean:'/api/visual-curator/resource?imageVersionId=clean-preview','annotated-output':'/api/visual-curator/resource?imageVersionId=annotated-preview','clock-output':'/api/visual-curator/resource?imageVersionId=clock-preview'}}
  const history=[],control={item,attempt,value,setPreview(){},setDetails(){},setHistoryOpen(open){history.push(open)}},actual=[]
  await paint(h(ImageStepCard,{kind:'reviewing',stage:'reviewing',control,t}))
- actual.push({state:'rejected',labels:[...doc.querySelectorAll('.vc-image-review-previews button')].map(e=>e.getAttribute('aria-label')),images:[...doc.querySelectorAll('.vc-image-review-previews img')].map(e=>e.getAttribute('src'))})
+ actual.push({state:'rejected',labels:[...doc.querySelectorAll('.vc-stage-gallery .vc-image-step-preview')].map(e=>e.getAttribute('aria-label')),images:[...doc.querySelectorAll('.vc-stage-gallery .vc-image-step-preview img')].map(e=>e.getAttribute('src'))})
  attempt.review.checks=checks;item.status='passed'
  await paint(h(ImageStepCard,{kind:'reviewing',stage:'reviewing',control,t}))
- actual.push({state:'passed',labels:[...doc.querySelectorAll('.vc-image-review-previews button')].map(e=>e.getAttribute('aria-label')),images:[...doc.querySelectorAll('.vc-image-review-previews img')].map(e=>e.getAttribute('src'))})
+ actual.push({state:'passed',labels:[...doc.querySelectorAll('.vc-stage-gallery .vc-image-step-preview')].map(e=>e.getAttribute('aria-label')),images:[...doc.querySelectorAll('.vc-stage-gallery .vc-image-step-preview img')].map(e=>e.getAttribute('src'))})
  assert.deepEqual(actual,JSON.parse(await readFile(new URL('./fixtures/wallpaper-review-node.expected.json',import.meta.url),'utf8')))
  assert.equal(doc.querySelectorAll('[data-image-generation-skeleton]').length,0)
- assert.equal(doc.querySelectorAll('.vc-image-preview-skeleton').length,2)
- await act(async()=>doc.querySelector('.vc-image-review-previews img').dispatchEvent(new window.Event('error')))
+ assert.equal(doc.querySelectorAll('.vc-image-preview-skeleton').length,1)
+ await act(async()=>doc.querySelector('.vc-stage-gallery .vc-image-step-preview img').dispatchEvent(new window.Event('error')))
  const retry=doc.querySelector('button[aria-label="'+zh.wallpaperEditorRetryImage+'"]');assert(retry)
  await act(async()=>retry.click())
- assert.equal(doc.querySelectorAll('.vc-image-review-previews img').length,2)
+ assert.equal(doc.querySelectorAll('.vc-stage-gallery .vc-image-step-preview img').length,1)
+ await act(async()=>doc.querySelector('.vc-stage-gallery-caption .vc-select-trigger').click())
+ await act(async()=>[...doc.querySelectorAll('[role=menuitem]')].find(e=>e.textContent===zh.wallpaperSimulation).click())
+ assert(doc.querySelector('.vc-image-step-preview img').src.includes('clock-preview'))
  delete attempt.outputId;item.status='rendering';value.status='running'
  attempt.generation={id:'operation',taskId:'image-task',provider:'codex',model:'image-model'}
  await paint(h(ImageStepCard,{kind:'rendering',stage:'rendering',control,t}))
@@ -137,13 +140,18 @@ test('image history dialog shows saved milestones and selects the requested revi
  const milestones=()=>[...doc.querySelectorAll('.vc-image-history > li')].map(row=>({kind:row.dataset.kind,label:row.querySelector('.vc-image-history-heading strong').textContent,time:row.querySelector('time').dateTime}))
  assert.deepEqual(milestones(),expected.revisionMilestones)
  assert.deepEqual([...doc.querySelectorAll('.vc-image-history-comparison img')].map(image=>new URL(image.src).searchParams.get('imageVersionId')),['original','native'])
+ assert.deepEqual([...doc.querySelectorAll('.vc-image-history-view-toggle button')].map(button=>button.textContent),expected.viewModes)
+ assert(doc.querySelector('.vc-image-history-inspector').textContent.includes(zh.wallpaperHistoryReviewHeading))
+ await act(async()=>doc.querySelectorAll('.vc-image-history-view-toggle button')[1].click())
+ assert.deepEqual([...doc.querySelectorAll('.vc-image-history-comparison img')].map(image=>new URL(image.src).searchParams.get('imageVersionId')),['native'])
+ await act(async()=>doc.querySelectorAll('.vc-image-history-view-toggle button')[0].click())
  const versions=[...doc.querySelectorAll('.vc-image-history-versions button')]
  await act(async()=>versions[0].click())
  assert.deepEqual(milestones(),expected.sourceMilestones)
  assert.equal(doc.querySelectorAll('.vc-image-history-comparison img').length,1)
  await act(async()=>versions[1].click())
  assert.deepEqual(milestones(),expected.revisionMilestones)
- await act(async()=>[...doc.querySelectorAll('.vc-image-history-toolbar button')].find(button=>button.textContent===zh.wallpaperHistoryViewRevision).click())
+ await act(async()=>[...doc.querySelectorAll('.vc-image-history-actions button')].find(button=>button.textContent===zh.wallpaperHistoryViewRevision).click())
  assert.deepEqual(selected,[{image:'source',revision:1}]);assert.deepEqual(closed,[false])
 }))
 test('saved wallpaper results start one current-policy review and retain ordinary crop actions',()=>environment(async({paint,doc})=>{

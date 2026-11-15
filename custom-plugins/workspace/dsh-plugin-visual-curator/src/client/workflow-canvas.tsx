@@ -298,14 +298,14 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     const container = React.useRef<HTMLDivElement>(null), cameraEpoch = React.useRef(0), motionEpoch = React.useRef(performance.now())
     const navigated = React.useRef(!!layout.initialViewport), steps = imageWorkflowWindow(control.item, control.attempt, inspected)
     const navigate = () => { navigated.current = true; cameraEpoch.current++ }
-    const automatic = workflowStaggeredPositions(steps.map(step => { const id = fixedImageWorkflowNodeId(base.laneId, step.stage); return { id, width: layout.measuredDimensions(id)?.width ?? layout.sizes[id]?.width ?? 330 } }))
+    const automatic = workflowStaggeredPositions(steps.map(step => { const id = fixedImageWorkflowNodeId(base.laneId, step.stage); return { id, width: layout.measuredDimensions(id)?.width ?? layout.sizes[id]?.width ?? 380 } }))
     const nodes: FlowNode[] = steps.map(({ kind, stage }, index) => {
       const nodeControl = control
       const upcoming = stage !== 'decision' && !imageWorkflowStageReached(stage, control.item, control.attempt)
       const id = fixedImageWorkflowNodeId(base.laneId, stage), position = layout.position(id, kind === 'decision' ? 'planning' : kind, base.laneId, automatic[id], index)
       const observedPhase = control.value && control.item ? imageWorkflowStagePhase(stage, control.item, wallpaperImageWorkStatus(control.value, control.item.imageVersionId), nodeControl.attempt) : 'queued'
       const phase = stage === 'final' && observedPhase === 'completed' && (control.item?.status !== 'passed' || !control.attempt?.outputId || control.attempt !== control.item.attempts.at(-1)) ? 'blocked' : observedPhase
-      const size = layout.sizes[id] ?? { width: 330 }, measured = layout.measuredDimensions(id)
+      const size = layout.sizes[id] ?? { width: 380 }, measured = layout.measuredDimensions(id)
       return { id, type: 'workflow', position, ...(measured ? { measured } : {}), selected: selected === id, style: { width: size.width }, dragHandle: '.vc-flow-node-titlebar', data: {
         ...base, wallpaper: nodeControl, kind, image: { id: imageId, index: control.offset, stage, ordinal: index + 1, upcoming, previousReview: false }, processing: false, finals: false, phase, size, collapsed: collapsed[id] ?? false, receiving: phase === 'running', hasInput: index > 0, hasOutput: index < steps.length - 1,
         collapse: () => setCollapsed(value => ({ ...value, [id]: !value[id] })), focus: () => control.setDetails(stage === 'clarity' || stage === 'detail' ? stage : kind),

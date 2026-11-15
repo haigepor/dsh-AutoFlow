@@ -1,3 +1,17 @@
+## Visual Curator 0.2.21
+
+- Preserve generated candidates during review recovery and reject contradictory skip decisions.
+- Keep final image quality checks, protected subject evidence and per-version history visible.
+- Add edge pixel rulers, measurements, pointer crosshairs and resizable history navigation.
+- Group image workspaces and inspection results, with saved prompts in a read-only tabbed editor.
+
+## Visual Curator 0.2.21 更新说明
+
+- 复审故障恢复保留生成候选，拒绝矛盾的跳过决策。
+- 保留最终图质量检查、主体保护证据和逐版本历史。
+- 大图新增边缘像素标尺、尺寸与鼠标十字线，历史版本栏可拖拽调宽。
+- 图片工作区与检查信息分区展示，已保存提示词通过独立只读编辑器查看。
+
 ## Visual Curator 0.2.20
 
 - Settings tabs, forms and the footer align with the gallery's left edge while retaining readable form widths.

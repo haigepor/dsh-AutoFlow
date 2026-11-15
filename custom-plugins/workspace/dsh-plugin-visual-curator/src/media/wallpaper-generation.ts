@@ -5,7 +5,7 @@ import type { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-g
 import type { WallpaperPlan, WallpaperItem, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair } from '../shared/wallpaper-policy.ts'
-import { wallpaperLayoutCoordinates, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
+import { wallpaperLayoutCoordinates, wallpaperPositionedLayout, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
 
 type Region = WallpaperPlan['regions'][number]['rect']
 type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
@@ -54,6 +54,7 @@ export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPl
   if (sourceGeometry && brief) {
     const latest = attempts.at(-1)
     const sourceLock = latest?.compositionMode === 'generated-canvas-protected-v2'
+    const candidateLock = latest?.layoutCorrection?.version === 'candidate-placement-locked-v2'
     const referenceRoles = references.length > 1
       ? '第1张参考图是唯一的构图与位置依据；第2张原图只供核对画风、材质和健康细节，不采用它的取景。'
       : '第1张参考图是完整画布及唯一构图依据。'
@@ -65,16 +66,16 @@ export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPl
     const continuationTargets = wallpaperSourceContinuationTargets(plan, settings, sourceGeometry)
     const interiorTargets = continuationTargets.filter(target => target.disposition === 'interior')
     const frameCrops = continuationTargets.filter(target => target.disposition === 'final-frame-crop')
-    return [referenceRoles, brief.generationPrompt, clock,
+    return [referenceRoles, candidateLock ? plan.editPrompt : brief.generationPrompt, clock,
       '输出与第1张相同视野的完整竖幅画面。保留原图的共同主体、健康细节和自然取景；新增画布区域可依据原有光线、透视、景深和材质主动生成合理场景细节，形成完整画面，消除灰色占位、重复主体与扩图接缝。',
       sourceLock ? 'Host会在交付时逐像素恢复画布中全部健康原图；重点让新增画布与原图边界的颜色、轮廓、景深和纹理自然相接。原图边缘已裁切的花束等陪衬不可变成清晰的新花瓣或重复物体；整幅生成背景必须不透明。' : '',
       opaqueCanvas ? `灰色区域及蒙版透明处需要补画；${settings.processing?.clockContrast ? '按显式时钟规则自然调整必要的背景亮度；' : ''}其余不透明原图像素尽量保留。` : '',
-      correction, repair ?? '',
+      correction, candidateLock ? 'Host会保留本轮已定位的完整生成候选像素，仅采用外围新背景；不能重画、重复或移动其中的空间关系。' : '', repair ?? '',
       `画风与关键细节：${JSON.stringify({ styleAnchors: brief.styleAnchors, detailAnchors: brief.detailAnchors })}`,
       interiorTargets.length ? `成品内部需要自然补全的原图断口：${JSON.stringify(interiorTargets.map(({ entityId, name, edge }) => ({ entityId, name, edge })))}。此处优先于前文任何“短距收口”或“不补完整”的旧表述：根据每件物体已有的轴线、材质、透视和光照，合理生成成品视角下应当可见的完整局部外形，允许重绘蒙版开放的断口及相邻过渡；盖顶、侧壁、刷柄端头和盘框所需的可见延续不受固定长度限制。保留产品身份、数量和主次关系，不虚构品牌或未知背面。` : '',
       frameCrops.length ? `仍处于最终画框裁切的原图边缘：${JSON.stringify(frameCrops.map(({ entityId, name, edge }) => ({ entityId, name, edge })))}。这些部分可以自然出画，不为补全它们而移动或缩小核心主体。` : '',
       brief.clockText.action === 'remove-generated-overlay' ? '擦除上一轮生成图中新添的日期或时间，并补回自然背景。' : '',
-      `Host布局数据：${JSON.stringify({ ...wallpaperLayoutCoordinates(settings), referenceImageVersionId: plan.imageVersionId, referenceTransformAlreadyApplied: true, placement: plan.placement, layoutCorrectionApplied: !!latest?.layoutCorrection, objectRoles: plan.objectRoles })}。所有坐标均以输出整张画布为基准；核心主体及关键部位须完整位于protectedNormalized内，陪衬和原图有意截断内容不冒充核心主体。保持本轮参考中已定位的主体，不重复执行历史位移动作。输出较小图片时保持同一视野与比例，复审通过后再由Host超分。`,
+      `Host布局数据：${JSON.stringify({ ...wallpaperPositionedLayout(plan, sourceGeometry, settings), referenceImageVersionId: latest?.opaqueCanvasId, layoutCorrectionApplied: !!latest?.layoutCorrection })}。positionedRegions与protectedNormalized均以输出整张画布为基准；appliedSourceTransform仅记录已执行的历史变换，objectRoles只标识冻结角色，不含定位坐标。核心主体及关键部位须完整位于protectedNormalized内，陪衬和原图有意截断内容不冒充核心主体。保持本轮参考中已定位的主体，不重复执行历史位移动作。输出较小图片时保持同一视野与比例，复审通过后再由Host超分。`,
     ].filter(Boolean).join('\n')
   }
   if (sourceGeometry) {

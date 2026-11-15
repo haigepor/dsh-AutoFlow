@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.20: Settings tabs, forms and the footer share the gallery's left alignment while retaining readable form widths. Reviews retain the planned subject roles, treat supporting props outside the inner safe area as nonblocking and reserve automatic rework for confirmed failures. Image history compares saved versions with the original; images and full-size previews support saving the complete resource. New crop batches can choose a Codex image account or a configured OpenAI API key and image model. Official-key results use their reviewed native resolution; Codex results use ESPCN x3 only after review.
+Release 0.2.21: Final-image review retains viable candidates through technical recovery, avoids invalid skip decisions and preserves quality checks after reconstruction. Workflow cards retain failed-version evidence; image inspection provides pixel rulers, edge measurements and pointer crosshairs. History supports a resizable version rail and borderless previews. Detail dialogs group image workspaces and review findings; saved image prompts open in a read-only tabbed editor. Existing tasks and images remain available.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-quality-first-pipeline",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator retains generated candidates during review recovery and independently checks final wallpapers. Stage-specific previews preserve failed-version evidence. Image inspection adds pixel rulers, edge measurements and pointer crosshairs. History supports resizable navigation. Detail dialogs use image workspaces and a read-only prompt editor.",
+    "zh-CN": "视觉策展在复审故障恢复时保留生成候选，独立检查最终图片质量。流程节点展示所属阶段的图片，保留未通过版本的证据。大图支持像素标尺、边缘尺寸与鼠标十字线，历史版本栏可拖拽调宽。详情采用图片工作区与检查信息分栏，生图提示词在独立只读编辑器查看。"
+  }
+}

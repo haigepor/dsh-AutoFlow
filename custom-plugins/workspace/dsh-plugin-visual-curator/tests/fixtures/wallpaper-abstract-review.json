@@ -1,0 +1,143 @@
+{
+  "objects": [
+    {
+      "entityId": "source-1",
+      "name": "半透明米色纸飘带网络",
+      "role": "supporting",
+      "evidence": "多条半透明米色与浅粉纸条在画面左上、中部和右下反复缠绕，压于彩色纸卷之上，形成透光叠色、柔边和软阴影；它跨越画框但属于连续满版图案，不是独立具象主体。",
+      "rect": {
+        "x": 0.12,
+        "y": 0,
+        "width": 0.88,
+        "height": 1
+      },
+      "sourceEdges": [
+        "top",
+        "right",
+        "bottom"
+      ]
+    },
+    {
+      "entityId": "source-2",
+      "name": "深蓝手作纸卷与弧形层带",
+      "role": "supporting",
+      "evidence": "靛蓝和深蓝纸卷在左上方、顶部、中部及左右下方呈环形与波浪层带，手撕边缘和纤维清楚，是冷暖对比与纵深的主要构成。",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "sourceEdges": [
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ]
+    },
+    {
+      "entityId": "source-3",
+      "name": "珊瑚红、橙金与浅粉纸卷层带",
+      "role": "supporting",
+      "evidence": "珊瑚红、橙金和浅粉纸卷在右上、左侧、中部与底部形成多层弧形色带，与深蓝形成主要撞色；纸面保留压痕和手作纹理。",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "sourceEdges": [
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ]
+    },
+    {
+      "entityId": "source-4",
+      "name": "米白与浅色纸卷花心",
+      "role": "supporting",
+      "evidence": "米白与极浅米色纸卷在右上、左侧中段和右下卷成花心状层叠，承担高光与色阶过渡；浅色面积分散但材料连续。",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 0.88
+      },
+      "sourceEdges": [
+        "left",
+        "top",
+        "right"
+      ]
+    }
+  ],
+  "review": {
+    "subject": "半透明米色纸飘带与珊瑚红、橙金、深蓝手作纸卷组成的满版抽象纸艺图案",
+    "checks": {
+      "subject": {
+        "result": "satisfied",
+        "reason": "原任务为满版抽象纸艺，无独立具象主体；成品中纸卷与飘带连续覆盖画框，边缘延展属有意构图。"
+      },
+      "protection": {
+        "result": "satisfied",
+        "reason": "冻结角色均为陪衬纸艺层带，无primary或critical主体，因而不存在受保护主体越出安全区的缺陷。"
+      },
+      "clock": {
+        "result": "unknown",
+        "reason": "时钟对比检查未启用。"
+      },
+      "readability": {
+        "result": "unknown",
+        "reason": "可读性检查未启用。"
+      },
+      "composition": {
+        "result": "satisfied",
+        "reason": "中心裁切后深蓝、橙红纸卷与半透明飘带层层交叠，疏密和冷暖对比保持自然平衡。"
+      },
+      "background": {
+        "result": "satisfied",
+        "reason": "画面为满版纸艺叠层，无独立背景，也未见接缝、镜像重复、矩形贴片或异常光照。"
+      },
+      "style": {
+        "result": "satisfied",
+        "reason": "手撕边缘、纤维压痕、薄纸透光和柔边材质均与原图纸艺风格一致。"
+      },
+      "clarity": {
+        "result": "satisfied",
+        "reason": "在目标显示尺度下纸纤维和折痕可辨，未见明显模糊、噪声或锐化光晕。"
+      }
+    },
+    "issues": [],
+    "styleResults": [],
+    "reviewVersion": "wallpaper-review-source-v4",
+    "subjectIntegrity": {
+      "mode": "abstract",
+      "source": {
+        "extent": "complete",
+        "reason": "原图是完整的抽象纸艺满版画面，四边图案延展为有意取景而非主体截断。",
+        "imageVersionId": "corpus-08-source-f4e78767d837"
+      },
+      "output": {
+        "extent": "complete",
+        "reason": "成品为完整竖向画布，满版纸艺连续覆盖，边缘裁切自然。",
+        "imageVersionId": "corpus-08-center-cover-54f2d315327b"
+      },
+      "task": {
+        "result": "satisfied",
+        "reason": "无冻结主角或关键部件；满版纸卷与飘带在裁切后结构连续，未见主体破损。"
+      }
+    },
+    "sourceRepair": {
+      "result": "satisfied",
+      "reason": "本次仅为保存原图的等比放大与居中裁切，未见新增、补画或重绘导致的异常。"
+    },
+    "actualLayout": {
+      "imageVersionId": "corpus-08-center-cover-54f2d315327b",
+      "regions": []
+    },
+    "sourceCorrespondence": {
+      "result": "satisfied",
+      "reason": "成品可见纸卷层次、飘带走向、遮挡关系、比例和冷暖色彩均与原始中心区域对应。"
+    }
+  }
+}

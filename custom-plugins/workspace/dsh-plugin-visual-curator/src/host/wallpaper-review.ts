@@ -34,13 +34,13 @@ export function applyWallpaperNoClockRequirement(review: z.infer<typeof wallpape
 }
 
 /** A measured source-to-extension seam rejects a model pass while preserving its other findings. */
-export function applyWallpaperSourceSeams(review: z.infer<typeof wallpaperStoredSourceReviewV4Schema>, seams: Awaited<ReturnType<typeof wallpaperSourceSeams>>, mode: 'source-restored' | 'generated-canvas' = 'source-restored'): z.infer<typeof wallpaperStoredSourceReviewV4Schema> {
+export function applyWallpaperSourceSeams(review: z.infer<typeof wallpaperStoredSourceReviewV4Schema>, seams: Awaited<ReturnType<typeof wallpaperSourceSeams>>, mode: 'source-restored' | 'candidate-restored' | 'generated-canvas' = 'source-restored'): z.infer<typeof wallpaperStoredSourceReviewV4Schema> {
   if (!seams.length) return review
   const names = { top: '顶部', bottom: '底部', left: '左侧', right: '右侧' }
   const first = seams[0]!
   const reason = mode === 'generated-canvas'
     ? `生成图在原图${names[first.edge]}截断位置的${first.from}–${first.to}像素段仍有平直断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持整组位置，沿可见轮廓短距离自然收口并接续背景。`
-    : `原图与生成扩图的${names[first.edge]}交界在${first.from}–${first.to}像素段出现明显断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持原图不变，重新生成外侧背景与原有景深。`
+    : `${mode === 'candidate-restored' ? '已定位候选' : '原图'}与生成扩图的${names[first.edge]}交界在${first.from}–${first.to}像素段出现明显断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持${mode === 'candidate-restored' ? '已定位候选' : '原图'}不变，重新生成外侧背景与原有景深。`
   return wallpaperStoredSourceReviewV4Schema.parse({ ...review,
     checks: { ...review.checks, background: { result: 'violated', reason: review.checks.background.result === 'violated' ? `${review.checks.background.reason}；${reason}` : reason } },
     issues: [...review.issues, { kind: 'background', check: 'background', code: 'other', reason }],
@@ -110,7 +110,13 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
   const balanced = wallpaperSourceReviewV4Schema.safeParse(output)
   if (balanced.success) {
     if (!settings) throw new CuratorError('constraint-conflict', 'wallpaper-review', 'Complete-canvas review requires frozen output geometry.')
-    const { actualLayout, sourceCorrespondence, issues: modelIssues, reviewVersion: _version, ...source } = balanced.data
+    const { actualLayout: observedLayout, sourceCorrespondence, issues: modelIssues, reviewVersion: _version, ...source } = balanced.data
+    const actualLayout = { ...observedLayout, regions: observedLayout.regions.map(region => {
+      const evidence = modelIssues.flatMap(issue => issue.evidence?.kind === 'safe-area-overflow' && issue.code !== 'minor-peripheral-overflow' && issue.evidence.imageVersionId === observedLayout.imageVersionId && region.scope === 'core' && region.entityId && issue.evidence.entityIds.includes(region.entityId) ? [issue.evidence.outputRect] : [])
+      if (!evidence.length) return region
+      const rects = [region.rect, ...evidence], x = Math.min(...rects.map(rect => rect.x)), y = Math.min(...rects.map(rect => rect.y))
+      return { ...region, rect: { x, y, width: Math.max(...rects.map(rect => rect.x + rect.width)) - x, height: Math.max(...rects.map(rect => rect.y + rect.height)) - y } }
+    }) }
     const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2', issues: modelIssues.map(({ kind, reason }) => ({ kind, reason })) }, edgeRepairAuthorized)
     const hasSubject = actualLayout.regions.some(region => region.role === 'subject')
     const boundary = wallpaperActualBoundary(actualLayout, hasSubject ? 'group' : source.subjectIntegrity.mode, settings)
@@ -118,7 +124,6 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     if (hasSubject && source.subjectIntegrity.output.extent === 'not-applicable') checks.subject = { result: 'unknown', reason: '实际成品标有主体范围，须独立确认其完整性，不能记为不适用' }
     const issues = [...(base.issues.length > modelIssues.length ? [{ ...base.issues[0]!, check: 'subject' as const, code: 'other' as const }] : []), ...modelIssues]
     if (sourceCorrespondence.result !== 'satisfied') {
-      if (checks.subject.result !== 'violated' || sourceCorrespondence.result === 'violated') checks.subject = sourceCorrespondence
       issues.push({ kind: 'preservation', check: 'sourceCorrespondence', code: 'other', reason: sourceCorrespondence.reason })
     }
     if (boundary.hard.length) {
@@ -130,7 +135,7 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     const minorOnly = !boundary.hard.length && boundary.warnings.length > 0 && protectionIssues.length > 0 && protectionIssues.every(issue => issue.code === 'minor-peripheral-overflow')
     if (minorOnly && checks.protection.result === 'violated') checks.protection = { result: 'satisfied', reason: '外围细节越界在冻结面积容差内；主体核心与关键部位仍满足安全区' }
     const effectiveIssues = minorOnly ? issues.filter(issue => issue.check !== 'protection' || issue.code !== 'minor-peripheral-overflow') : issues
-    return wallpaperStoredSourceReviewV4Schema.parse({ ...balanced.data, ...(edgeRepairAuthorized ? { sourceRepairAuthorized: true } : {}), checks, issues: effectiveIssues.slice(0, 32), layoutChecks: boundary.hard, layoutWarnings: boundary.warnings, modelProtectionCheck, modelIssues })
+    return wallpaperStoredSourceReviewV4Schema.parse({ ...balanced.data, actualLayout, modelChecks: balanced.data.checks, ...(edgeRepairAuthorized ? { sourceRepairAuthorized: true } : {}), checks, issues: effectiveIssues.slice(0, 32), layoutChecks: boundary.hard, layoutWarnings: boundary.warnings, modelProtectionCheck, modelIssues })
   }
   const canvas = wallpaperSourceReviewV3Schema.safeParse(output)
   if (canvas.success) {
@@ -140,7 +145,6 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     const geometry = wallpaperGeometry(settings, { version: 1, imageVersionId: actualLayout.imageVersionId, mode: source.subjectIntegrity.mode, subject: source.subject, evidence: sourceCorrespondence.reason, priorities: [], anchors: [], truncations: [], uncertainties: [], regions: actualLayout.regions, placement: { scale: 1, left: 0, top: 0 }, reason: 'Actual output coordinates' }, settings)
     const checks = { ...base.checks }, issues = [...base.issues]
     if (sourceCorrespondence.result !== 'satisfied') {
-      if (checks.subject.result !== 'violated' || sourceCorrespondence.result === 'violated') checks.subject = sourceCorrespondence
       issues.push({ kind: 'preservation', reason: sourceCorrespondence.reason })
     }
     if (geometry.checks.length) {

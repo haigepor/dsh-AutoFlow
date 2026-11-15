@@ -1,9 +1,25 @@
+import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {planningImagesPerPage,planningWindowStart,planningImageNodeId,planningImageLane,planningImagePhase,imageWorkflowNodeId,imageWorkflowPhase,imageWorkflowStagePhase,imageNavigationPageSize,imageWorkflowStages,imageWorkflowWindow,imageWorkflowConnections,imageWorkflowArtifact,imageWorkflowRework,imageWorkflowDecisionRecord,fixedImageWorkflowNodeId} from '../src/client/workflow-image-branches.ts'
 import {wallpaperRecovery,wallpaperCanDecide} from '../src/client/wallpaper-recovery.ts'
-import {imageWorkflowPreviousReview} from '../src/client/workflow-image-branches.ts'
+import {imageWorkflowGallery,imageWorkflowPreviousReview} from '../src/client/workflow-image-branches.ts'
 import {wallpaperDecisionRecordSchema} from '../src/shared/wallpaper-decision.ts'
+
+test('failed native review and lock-screen evidence remain reachable after edits stop and while later pixels are being prepared', async () => {
+  const fixture = JSON.parse(await readFile(new URL('./fixtures/station-boundary-pending.json', import.meta.url), 'utf8'))
+  const item = wallpaperItemSchema.parse(fixture.item), prior = item.attempts[0]!
+  item.status = 'needs-review'; item.edits = 5
+  const stopped = imageWorkflowGallery('reviewing', item, prior)
+  assert(stopped.some(slide => slide.id === prior.nativeReviewCandidate?.nativeId && slide.annotated))
+  assert(stopped.some(slide => slide.id === prior.simulationId && !slide.annotated))
+  const next = wallpaperItemSchema.parse({ ...item, attempts: [{ ...prior, revision: 2, review: undefined, boundaryReview: undefined, outputId: undefined, nativeReviewCandidate: undefined, preResolutionReview: undefined, analysisId: undefined, simulationId: undefined }] }).attempts[0]!
+  item.attempts.push(next)
+  assert(imageWorkflowGallery('rendering', item, next).every(slide => slide.attempt?.revision === next.revision))
+  assert(imageWorkflowGallery('reviewing', item, prior).some(slide => slide.id === prior.nativeReviewCandidate?.nativeId && slide.annotated))
+  assert(imageWorkflowWindow(item, next).some(step => step.stage === 'reviewing'))
+  assert.equal(imageWorkflowGallery('reviewing', item, prior).filter(slide => slide.annotated).every(slide => slide.attempt === prior), true)
+})
 
 test('a stopped alignment retry exposes saved-canvas review at the edit limit and retains the preceding quality failure', () => {
   const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Hanging plant', evidence: 'Original pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 0 }, reason: 'Saved placement' })
@@ -139,6 +155,8 @@ test('a generated canvas shows native review before super-resolution and keeps t
   assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'completed')
   assert.equal(imageWorkflowStagePhase('final', item, 'completed'), 'completed')
   assert.equal(imageWorkflowArtifact('final', item), 'delivered')
+  assert(imageWorkflowGallery('reviewing', item, attempt, true).some(slide => slide.id === 'delivered' && slide.label === 'wallpaperFinalOutput'))
+  assert(!imageWorkflowGallery('reviewing', item, attempt).some(slide => slide.id === 'delivered'))
 })
 
 test('review repair follows current pixels through red remake, yellow review and green acceptance without reusing earlier conclusions',()=>{
@@ -276,4 +294,43 @@ test('completed canvas reconstruction and a recorded clarity pass reach the clar
   item.attempts[0]!.review!.checks.clarity = { result: 'violated', reason: 'Blur is present' }
   assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'attention')
   assert.deepEqual(wallpaperBackgroundReview(item.attempts[0]!.review!), { status: 'needs-review', reason: 'Blur is present' })
+})
+
+
+test('recorded station boundary review stays active before its verdict commits and does not complete later clarity', async () => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/station-boundary-pending.json', import.meta.url), 'utf8'))
+  const item = wallpaperItemSchema.parse(saved.item), attempt = item.attempts[0]!
+  assert.equal(saved.snapshotRevision, 34)
+  assert.deepEqual({ rendering: imageWorkflowStagePhase('rendering', item, 'running'), reviewing: imageWorkflowStagePhase('reviewing', item, 'running'), clarity: imageWorkflowStagePhase('clarity', item, 'running'), activeStages: imageWorkflowWindow(item).filter(step => imageWorkflowStagePhase(step.stage, item, 'running') === 'running').map(step => step.stage), returnStage: imageWorkflowRework(item, 'running')?.stage, returnPhase: imageWorkflowRework(item, 'running')?.phase }, { rendering: saved.expected.rendering, reviewing: saved.expected.reviewing, clarity: saved.expected.clarity, activeStages: saved.expected.activeStages, returnStage: saved.expected.returnStage, returnPhase: saved.expected.returnPhase })
+  assert.equal(attempt.boundaryReview?.status, 'pending')
+  assert.equal(imageWorkflowStagePhase('rendering', item, 'running'), 'completed')
+  assert.equal(imageWorkflowArtifact('rendering', item), attempt.nativeReviewCandidate?.nativeId)
+  assert.equal(imageWorkflowStagePhase('reviewing', item, 'running'), 'running')
+  assert.deepEqual(imageWorkflowRework(item, 'running'), { stage: 'reviewing', phase: 'running', flowing: true })
+  assert.equal(imageWorkflowStagePhase('reviewing', item, 'paused'), 'paused')
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'running'), 'idle')
+  assert.deepEqual(imageWorkflowWindow(item).filter(step => imageWorkflowStagePhase(step.stage, item, 'running') === 'running').map(step => step.stage), ['reviewing'])
+  attempt.boundaryReview!.status = 'completed'
+  attempt.preResolutionReview = { ...attempt.nativeReviewCandidate! }
+  attempt.outputId = attempt.nativeReviewCandidate!.nativeId
+  item.status = 'needs-review'
+  assert.deepEqual(imageWorkflowRework(item, 'completed'), { stage: 'rendering', phase: 'attention', flowing: false })
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'queued')
+})
+
+
+test('saved native review failures are rendered and recover by reviewing existing pixels', async () => {
+  const fixture = JSON.parse(await readFile(new URL('./fixtures/station-boundary-pending.json', import.meta.url), 'utf8'))
+  const item = wallpaperItemSchema.parse(fixture.item), attempt = item.attempts[0]!
+  item.status = 'needs-review'; item.failedStep = 'reviewing'; item.errorCode = 'vision-invalid-output'
+  delete attempt.outputId; delete attempt.review; delete attempt.preResolutionReview
+  const value = wallpaperViewSchema.parse({ runId: 'saved-native', sourceRunId: 'root', status: 'completed', settings: fixture.settings ?? {}, state: { version: 2, sourceRunId: 'root', skillVersion: 'direct', items: [item], budgetStopped: false }, resources: {}, sourceImages: {}, total: 1, offset: 0, counts: {}, warnings: [] })
+  const progress = wallpaperProgress(value.state, undefined, value.status)
+  assert.equal(progress.rendered, 1); assert.equal(progress.renderingAttention, 0); assert.equal(progress.reviewingBlocked, 0)
+  assert.deepEqual(wallpaperRecovery(value, item, attempt), { kind: 'retry', step: 'reviewing' })
+  const rendered = imageWorkflowGallery('rendering', item, attempt)
+  assert.equal(rendered.length, 1); assert.equal(rendered[0]?.label, 'wallpaperNativeCandidate')
+  attempt.outputId = 'final-output'; item.status = 'passed'
+  const final = imageWorkflowGallery('final', item, attempt)
+  assert.equal(final.length, 1); assert.equal(final[0]?.label, 'wallpaperFinalOutput'); assert.equal(final[0]?.id, 'final-output')
 })

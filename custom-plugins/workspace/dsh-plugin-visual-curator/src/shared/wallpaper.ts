@@ -1,5 +1,6 @@
 /** Versioned wallpaper settings, inferred scene evidence and resumable per-image progress. */
 import { z } from 'zod'
+import { wallpaperReviewEvidenceIssues } from './wallpaper-review-evidence.ts'
 import { wallpaperGenerationBriefSchema } from './wallpaper-generation-brief.ts'
 import { serverTransferViewSchema } from './server-queue.ts'
 import { resolutionProgressSchema } from './clarity.ts'
@@ -10,7 +11,7 @@ import { wallpaperClockContrastSchema, wallpaperProcessingSchema, wallpaperRepai
 import { wallpaperEdgeRepairEvidenceSchema, wallpaperFindingSchema, wallpaperFindingBlocksEditing, wallpaperRetainedUncertaintySchema } from './wallpaper-evidence.ts'
 import { styleMatchSchema } from './style-matching.ts'
 import { blobRefSchema, runSchema, type Json, type RunRecord } from './model.ts'
-import { wallpaperCandidatePlacement } from './wallpaper-geometry.ts'
+import { wallpaperCandidatePlacement, wallpaperObjectProtectionRegions, wallpaperProtectedBounds } from './wallpaper-geometry.ts'
 
 const text = z.string().trim().min(1).max(4096)
 const id = z.string().min(1).max(256)
@@ -163,14 +164,19 @@ export const wallpaperSourceReviewV2Schema = wallpaperSourceReviewSchema.extend(
 export const wallpaperSourceReviewV3Schema = wallpaperSourceReviewV2Schema.extend({ reviewVersion: z.literal('wallpaper-review-source-v3'), actualLayout: z.strictObject({ imageVersionId: id, regions: wallpaperPlanSchema.shape.regions }), sourceCorrespondence: check })
 /** Host-measured failures retain model observations and never qualify outside protected bounds. */
 export const wallpaperStoredSourceReviewV3Schema = wallpaperSourceReviewV3Schema.extend({ sourceRepairAuthorized: z.literal(true).optional(), layoutChecks: z.array(text) })
+// Historical stored reviews may omit evidence; live role-bound failures must substantiate their cause.
+const wallpaperIssueEvidence = z.strictObject({
+  kind: z.enum(['safe-area-overflow', 'frame-truncation', 'missing-structure', 'distorted-structure', 'relative-layout', 'identity-change', 'detail-loss', 'style-change', 'background-artifact']),
+  entityIds: z.array(id).max(32), imageVersionId: id, outputRect: rect, sourceRect: rect.optional(),
+}).describe('Visible defect in the complete actual output. entityIds identifies frozen objects; an empty list is only for scene-wide background, style or clarity defects. sourceRect is required for sourceRepair/sourceCorrespondence. Safe-area overflow is layout only, never missing pixels, damage or fidelity loss.')
 /** V4 distinguishes small peripheral detail from protected subject structure in actual output pixels. */
 export const wallpaperSourceReviewV4Schema = wallpaperSourceReviewV3Schema.extend({
   reviewVersion: z.literal('wallpaper-review-source-v4'),
   actualLayout: wallpaperSourceReviewV3Schema.shape.actualLayout.extend({ regions: z.array(wallpaperPlanSchema.shape.regions.element.extend({ scope: z.enum(['core', 'peripheral']) })).max(32) }),
-  issues: z.array(wallpaperReviewSchema.shape.issues.element.extend({ check: z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence']), code: z.enum(['minor-peripheral-overflow', 'other']), detail: z.strictObject({ sourceRect: rect, outputRect: rect, question: text }).optional().describe('Only for an unresolved acceptance-critical pixel question that a genuinely local source/output crop can answer. Omit for known defects, background, normal occlusion and unrelated unreadable text.') })).max(32),
+  issues: z.array(wallpaperReviewSchema.shape.issues.element.extend({ check: z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence']), code: z.enum(['minor-peripheral-overflow', 'other']), evidence: wallpaperIssueEvidence.optional(), detail: z.strictObject({ sourceRect: rect, outputRect: rect, question: text }).optional().describe('Only for an unresolved acceptance-critical pixel question that a genuinely local source/output crop can answer. Omit for known defects, background, normal occlusion and unrelated unreadable text.') })).max(32),
 })
 /** Host findings and the model's original protection opinion remain visible after bounded warnings. */
-export const wallpaperStoredSourceReviewV4Schema = wallpaperSourceReviewV4Schema.extend({ sourceRepairAuthorized: z.literal(true).optional(), clockContrast: wallpaperClockContrastSchema.optional(), modelReadabilityCheck: check.optional(), layoutChecks: z.array(text), layoutWarnings: z.array(text), modelProtectionCheck: check, modelIssues: wallpaperSourceReviewV4Schema.shape.issues,
+export const wallpaperStoredSourceReviewV4Schema = wallpaperSourceReviewV4Schema.extend({ sourceRepairAuthorized: z.literal(true).optional(), clockContrast: wallpaperClockContrastSchema.optional(), modelChecks: wallpaperSourceReviewV4Schema.shape.checks.optional(), modelReadabilityCheck: check.optional(), layoutChecks: z.array(text), layoutWarnings: z.array(text), modelProtectionCheck: check, modelIssues: wallpaperSourceReviewV4Schema.shape.issues,
   criticalDetail: z.strictObject({ requestId: id, evidenceDigest: z.string().optional(), examinedChecks: z.array(z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence'])), resolvedChecks: z.array(z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence'])) }).optional() })
 /** Only the Host attaches repair authorization after checking this attempt's saved source evidence. */
 export const wallpaperStoredSourceReviewV2Schema = wallpaperSourceReviewV2Schema.extend({ sourceRepairAuthorized: z.literal(true).optional() })
@@ -222,9 +228,12 @@ export function wallpaperReviewOutputSchema(version: string, ruleIds: readonly s
     const schema = version === 'wallpaper-review-source-v4' ? wallpaperSourceReviewV4Schema.extend({ actualLayout: layout }) : version === 'wallpaper-review-source-v3' ? wallpaperSourceReviewV3Schema.extend({ actualLayout: wallpaperSourceReviewV3Schema.shape.actualLayout.extend({ imageVersionId: z.literal(finalImageId) }) }) : version === 'wallpaper-review-source-v2' ? wallpaperSourceReviewV2Schema : wallpaperSourceReviewSchema
      const evidence = schema.extend({ subjectIntegrity: wallpaperSubjectIntegritySchema.extend({ source: subjectExtent.extend({ imageVersionId: z.literal(sourceImageId).describe('Required source evidence identity: copy this exact const from wallpaper-original. Extent and reason do not replace this field; detail crops and simulations are not the original frame.') }), output: subjectExtent.extend({ imageVersionId: z.literal(finalImageId).describe('Required output evidence identity: copy this exact const from actual-wallpaper. Extent and reason do not replace this field; detail crops and simulations are not the final frame.') }) }) })
      if (version !== 'wallpaper-review-source-v4' || !objectRoles) return evidence
-     return evidence.superRefine((review, ctx) => {
-       if (!('actualLayout' in review)) return
-       const actualLayout = wallpaperSourceReviewV4Schema.shape.actualLayout.parse(review.actualLayout)
+     const protectedIds = objectRoles.filter(object => object.role !== 'supporting').map(object => object.entityId)
+     const subjectRegion = protectedRegion.options[0].extend({ entityId: protectedIds.length ? z.enum(protectedIds) : id })
+     const criticalRegion = protectedRegion.options[1].extend({ entityId: protectedIds.length ? z.enum(protectedIds) : id })
+     const identified = wallpaperSourceReviewV4Schema.extend({ subjectIntegrity: evidence.shape.subjectIntegrity, actualLayout: layout.extend({ regions: z.array(z.discriminatedUnion('role', [subjectRegion, criticalRegion])).max(protectedIds.length) }) })
+     return identified.superRefine((review, ctx) => {
+       const actualLayout = review.actualLayout
        const expected = new Map(objectRoles.map(object => [object.entityId, object]))
        const seen = new Set<string>()
        for (const [index, region] of actualLayout.regions.entries()) {
@@ -234,6 +243,7 @@ export function wallpaperReviewOutputSchema(version: string, ruleIds: readonly s
          if (region.entityId) seen.add(region.entityId)
        }
        for (const object of objectRoles) if (object.role !== 'supporting' && !seen.has(object.entityId)) ctx.addIssue({ code: 'custom', path: ['actualLayout', 'regions'], message: `Missing actual protected region for ${object.entityId}.` })
+       for (const issue of wallpaperReviewEvidenceIssues(review, objectRoles, finalImageId)) ctx.addIssue({ code: 'custom', ...issue })
      })
   }
   if (version !== 'wallpaper-review-v2' && version !== 'wallpaper-review-v3' && version !== 'wallpaper-review-v4') throw new TypeError('Unknown wallpaper review protocol.')
@@ -262,7 +272,7 @@ export { wallpaperEdgeRepairSchema } from './wallpaper-evidence.ts'
 /** Each round preserves its plan, artifacts and actual review; revising a plan does not erase history. */
 export const wallpaperAttemptSchema = z.strictObject({
   revision: z.number().int().positive(), createdAt: z.iso.datetime().optional(), reviewedAt: z.iso.datetime().optional(), plan: wallpaperPlanSchema,
-  layoutCorrection: z.strictObject({ version: z.literal('candidate-placement-v1'), plan: wallpaperPlanSchema }).optional(),
+  layoutCorrection: z.strictObject({ version: z.enum(['candidate-placement-v1', 'candidate-placement-locked-v2', 'candidate-subject-locked-v3']), plan: wallpaperPlanSchema }).optional(),
   checks: z.array(z.string()), needsOutpaint: z.boolean(),
   generationFramingFailure: z.strictObject({ code: z.literal('canvas-aspect-mismatch'), width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
   generationCanvasCrop: z.strictObject({ originalId: id, croppedId: id, sourceDigest: z.string(), sourceWidth: z.number().int().positive(), sourceHeight: z.number().int().positive(), left: z.number().int().nonnegative(), top: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
@@ -270,7 +280,11 @@ export const wallpaperAttemptSchema = z.strictObject({
     concerns: z.array(z.strictObject({ id, text })).max(35).optional(), findings: z.array(wallpaperFindingSchema.extend({ result: z.enum(['resolved', 'unresolved', 'violated']) })).max(35).optional(), retainedUncertainties: z.array(wallpaperRetainedUncertaintySchema).max(16).optional(),
   }).optional(),
   canvasId: id.optional(), opaqueCanvasId: id.optional(), maskId: id.optional(), layoutAnalysisId: id.optional(), analysisId: id.optional(), simulationId: id.optional(), outputId: id.optional(),
+  nativeReviewCandidate: z.strictObject({ nativeId: id, nativeDigest: z.string(), previewId: id, simulationId: id }).optional(),
+  boundaryReview: z.strictObject({ requestId: id, status: z.enum(['pending', 'completed', 'failed']), errorCode: z.string().optional() }).optional(),
   preResolutionReview: z.strictObject({ nativeId: id, nativeDigest: z.string(), previewId: id, simulationId: id, finalId: id.optional() }).optional(),
+  finalReviewRequired: z.literal(true).optional(),
+  postResolutionReview: z.strictObject({ requestId: id, imageVersionId: id, digest: z.string(), nativeId: id, nativeDigest: z.string(), analysisId: id, simulationId: id, review: wallpaperStoredReviewSchema.optional(), reviewedAt: z.iso.datetime().optional() }).optional(),
   clarity: clarityStateSchema.optional(), clarityBaseReview: wallpaperStoredReviewSchema.optional(),
   generation: generation.optional(), generationOperation: id.optional(), editReserved: z.boolean().optional(), reviewReserved: z.boolean().optional(), review: wallpaperStoredReviewSchema.optional(), compositionMode: wallpaperCompositionModeSchema.optional(),
   generationInput: wallpaperGenerationInputSchema.optional(), generationBrief: wallpaperGenerationBriefSchema.optional(),
@@ -295,6 +309,14 @@ export const wallpaperItemSchema = z.strictObject({
 })
 /** Recoverable per-source state. */
 export type WallpaperItem = z.infer<typeof wallpaperItemSchema>
+/** @param attempt Saved processing revision. @returns Whether actual produced pixels exist before final qualification. */
+export function wallpaperHasRendered(attempt: WallpaperItem['attempts'][number] | undefined): boolean {
+  return !!(attempt?.nativeReviewCandidate || attempt?.preResolutionReview || attempt?.outputId)
+}
+/** @param attempt Saved native and final checks. @returns The latest quality result without replacing native evidence. */
+export function wallpaperAttemptReview(attempt: WallpaperItem['attempts'][number] | undefined): WallpaperReview | undefined {
+  return attempt?.postResolutionReview ? attempt.postResolutionReview.review : attempt?.review
+}
 /** @param plan Prior source observations. @returns Whether an ambiguous historical anchor extends outside all protected objects and needs a current object-only plan. */
 export function wallpaperHasBackgroundAnchors(plan: WallpaperPlan): boolean {
   return plan.regions.some(region => region.role === 'anchor' && !plan.regions.some(object => object.role !== 'anchor' && region.rect.x >= object.rect.x && region.rect.y >= object.rect.y && region.rect.x + region.rect.width <= object.rect.x + object.rect.width && region.rect.y + region.rect.height <= object.rect.y + object.rect.height))
@@ -317,16 +339,27 @@ export function wallpaperReworkCount(item: WallpaperItem): number {
   return item.attempts.filter((attempt, index) => {
     const prior = item.attempts[index - 1]
     if (!prior) return false
-    if (attempt.retryTarget === 'reviewing' && attempt.outputId && attempt.outputId === prior.outputId) return false
+    if (attempt.retryTarget === 'reviewing' && (attempt.outputId && attempt.outputId === prior.outputId || attempt.nativeReviewCandidate && attempt.nativeReviewCandidate.nativeDigest === prior.nativeReviewCandidate?.nativeDigest)) return false
     if (attempt.retryFrom === 'planning' && attempt.retryTarget === 'planning' && (attempt.detailAnalysis?.outcome === 'resolved' || attempt.detailAnalysis?.outcome === 'ready-for-edit') && attempt.detailAnalysis.requestId === prior.detailAnalysis?.requestId) return false
     if (attempt.retryFrom === 'planning' && attempt.retryTarget === 'rendering' && item.decisions?.some(d => d.status === 'applied' && d.targetRevision === attempt.revision && d.response?.action.kind === 'continue_current_plan')) return false
     return true
   }).length
 }
+/** Hold legacy role-bound findings that cannot substantiate another image edit.
+ * @param attempt Saved plan and effective review; current receiver validation does not retroactively validate old responses.
+ * @returns Whether the same pixels need an evidence-complete review before automatic rework.
+ */
+export function wallpaperReviewNeedsEvidence(attempt: WallpaperItem['attempts'][number]): boolean {
+  const review = attempt.review
+  if (!attempt.plan.objectRoles || !review || !('modelIssues' in review)) return false
+  const model = { ...review, issues: review.modelIssues, checks: review.modelChecks ?? { ...review.checks, protection: review.layoutChecks.length ? { result: 'satisfied' as const, reason: 'Host protected geometry supplies the layout evidence.' } : review.modelProtectionCheck } }
+  return wallpaperReviewEvidenceIssues(model, attempt.plan.objectRoles, review.actualLayout.imageVersionId).length > 0
+}
 /** @param item Image checkpoint. @param settings Frozen task limits. @returns Whether a rejected output can enter corrective editing with its saved evidence. */
 export function wallpaperReviewReworkAvailable(item: WallpaperItem, settings: WallpaperSettings): boolean {
   const attempt = item.attempts.at(-1), review = attempt?.review
   const repair = wallpaperGenerativeRepair(settings)
+  if (attempt && wallpaperReviewNeedsEvidence(attempt)) return false
   if (!item.originalId || item.status === 'passed' || !attempt?.outputId || attempt.checks.length || !review || wallpaperVerdict(review) !== 'reject' || !('subjectIntegrity' in review)) return false
   if (!repair && !attempt.needsOutpaint && !review.issues.some(issue => issue.kind === 'layout' || issue.kind === 'readability')) return false
   const { source, output, mode } = review.subjectIntegrity
@@ -337,6 +370,39 @@ export function wallpaperReviewReworkAvailable(item: WallpaperItem, settings: Wa
   if ('styleMatch' in review && review.checks.style.result !== 'satisfied' && Object.entries(review.checks).every(([key, check]) => key === 'style' || check.result === 'satisfied')) return false
   return wallpaperReworkCount(item) < settings.maxReworks && (!(repair || attempt.needsOutpaint) || item.edits < settings.maxEditsPerImage)
 }
+/** Stop repeated semantic failures only when their measured layout excess has not improved.
+ * @param item Saved independent reviews; prompt wording and generated image ids do not identify a defect. @param settings Frozen repeat limit and output geometry.
+ * @returns Whether the latest consecutive rejected reviews repeat the same defect without reducing its pixel excess.
+ */
+export function wallpaperRepairWithoutProgress(item: WallpaperItem, settings: WallpaperSettings): boolean {
+  const limit = settings.repairPolicy?.maxRepeatedDefects
+  if (!limit) return false
+  const candidates = new Map<string | undefined, WallpaperReview>()
+  for (const attempt of item.attempts) if (attempt.review && wallpaperVerdict(attempt.review) === 'reject') candidates.set(attempt.generation?.id ?? attempt.generationOperation ?? attempt.nativeReviewCandidate?.nativeDigest ?? attempt.generatedImageId ?? attempt.outputId, attempt.review)
+  const reviews = [...candidates.values()].slice(-limit)
+  if (reviews.length < limit) return false
+  const failures = reviews.map(review => {
+    const edges = new Map<string, number>()
+    const current = 'reviewVersion' in review && review.reviewVersion === 'wallpaper-review-source-v4' ? review : undefined
+    const allowed = wallpaperProtectedBounds(settings)
+    const core = current?.actualLayout.regions.filter(region => region.scope === 'core') ?? []
+    const protectedCore = wallpaperGenerativeRepair(settings) ? wallpaperObjectProtectionRegions({ mode: core.some(region => region.role === 'subject') ? 'group' : current?.subjectIntegrity.mode ?? 'uncertain', regions: core }) : core
+    if (current?.checks.protection.result === 'violated' && current.layoutChecks.length) for (const region of protectedCore) {
+      const bounds = { ...(region.role === 'subject' ? allowed.subject : allowed.critical), top: allowed.top }
+      const excess = { left: bounds.left - region.rect.x * settings.width, top: bounds.top - region.rect.y * settings.height,
+        right: (region.rect.x + region.rect.width) * settings.width - bounds.right, bottom: (region.rect.y + region.rect.height) * settings.height - bounds.bottom }
+      for (const [edge, pixels] of Object.entries(excess)) if (pixels > 0) {
+        const key = `${region.entityId ?? region.name}:${edge}`
+        edges.set(key, Math.max(edges.get(key) ?? 0, Math.ceil(pixels)))
+      }
+    }
+    const signature = current ? (current.modelIssues.length ? current.modelIssues : current.issues).map(issue => `${issue.kind}:${issue.check}:${issue.evidence?.entityIds.join(',') ?? ''}`) : review.issues.map(issue => issue.kind)
+    return { signature: [...new Set([...signature, ...edges.keys()])].sort().join('|'), excess: [...edges.values()].reduce((a, b) => a + b, 0) }
+  })
+  const first = failures[0]!
+  return !!first.signature && failures.every(failure => failure.signature === first.signature) && failures.at(-1)!.excess >= first.excess
+}
+
 /** Reuse source observations for pixel edits and uniformly place independently complete saved candidates for layout defects.
  * @param item Image retaining its rejected output and independent review.
  * @param settings Frozen repair authorization; omission retains conservative editing.
@@ -346,9 +412,10 @@ export function wallpaperEditingRetry(item: WallpaperItem, settings?: WallpaperS
   const prior = item.attempts.at(-1)
   if (!prior?.review || !prior.needsOutpaint && !(settings && wallpaperGenerativeRepair(settings)) || prior.checks.length) return undefined
   const placement = settings && wallpaperCandidatePlacement(prior, settings)
+  const layoutOnly = Object.entries(prior.review.checks).every(([key, check]) => key === 'protection' || check.result === 'satisfied') && prior.review.issues.every(issue => issue.kind === 'layout')
   if (prior.review.issues.some(issue => issue.kind === 'layout') && !placement) return undefined
   return { revision: prior.revision + 1, plan: structuredClone(prior.plan), checks: [], needsOutpaint: true, compositionMode: prior.compositionMode,
-    ...(placement ? { layoutCorrection: { version: 'candidate-placement-v1', plan: placement } } : prior.layoutCorrection ? { layoutCorrection: structuredClone(prior.layoutCorrection) } : {}),
+    ...(placement ? { layoutCorrection: { version: prior.review.checks.background.result === 'violated' ? 'candidate-subject-locked-v3' : layoutOnly ? 'candidate-placement-locked-v2' : 'candidate-placement-v1', plan: placement } } : prior.layoutCorrection ? { layoutCorrection: structuredClone(prior.layoutCorrection) } : {}),
     ...(prior.detailAnalysis ? { detailAnalysis: structuredClone(prior.detailAnalysis) } : {}), retryFrom: 'reviewing', retryTarget: 'rendering' }
 }
 /** Keep the effective reference and its transform when a technical generation retry needs a fresh receipt.
@@ -410,16 +477,16 @@ export function wallpaperProgress(state: WallpaperState, activeImageVersionId?: 
     attention: status === 'cancelled' ? 0 : count(stopped),
     downloaded: count(item => !!item.originalId && wallpaperFailedStep(item) !== 'downloading'), downloadingFailed: count(item => wallpaperFailedStep(item) === 'downloading'), downloadingRestricted: count(wallpaperSourceRestricted), downloadingReplaced: count(item => !!item.replacementOf),
     downloadingRetrying: count(item => item.status === 'downloading' && item.download?.retrying === true),
-    planned: count(planned), rendered: count(item => !!item.attempts.at(-1)?.outputId), reviewed: count(item => !!item.attempts.at(-1)?.review),
+    planned: count(planned), rendered: count(item => wallpaperHasRendered(item.attempts.at(-1))), reviewed: count(item => !!wallpaperAttemptReview(item.attempts.at(-1))),
     planningFailed: count(item => wallpaperFailedStep(item) === 'planning' || !!item.attempts.at(-1)?.checks.length),
     renderingFailed: count(item => item.failedStep === 'rendering'),
-    reviewingFailed: count(item => item.failedStep === 'reviewing' || !!item.attempts.at(-1)?.review && wallpaperVerdict(item.attempts.at(-1)!.review!) === 'reject'),
+    reviewingFailed: count(item => item.failedStep === 'reviewing' || !!wallpaperAttemptReview(item.attempts.at(-1)) && wallpaperVerdict(wallpaperAttemptReview(item.attempts.at(-1))!) === 'reject'),
     planningAttention: count(item => item.status === 'needs-review' && (!planned(item) || item.attempts.at(-1)?.plan.mode === 'uncertain')),
-    renderingAttention: count(item => item.status === 'needs-review' && planned(item) && item.attempts.at(-1)?.plan.mode !== 'uncertain' && !item.attempts.at(-1)?.outputId),
-    reviewingAttention: count(item => item.status === 'needs-review' && !!item.attempts.at(-1)?.review && wallpaperVerdict(item.attempts.at(-1)!.review!) === 'needs-review'),
+    renderingAttention: count(item => item.status === 'needs-review' && planned(item) && item.attempts.at(-1)?.plan.mode !== 'uncertain' && !wallpaperHasRendered(item.attempts.at(-1))),
+    reviewingAttention: count(item => item.status === 'needs-review' && !!wallpaperAttemptReview(item.attempts.at(-1)) && wallpaperVerdict(wallpaperAttemptReview(item.attempts.at(-1))!) === 'needs-review'),
     planningBlocked: count(item => stopped(item) && (!item.originalId || wallpaperFailedStep(item) === 'downloading')),
     renderingBlocked: count(item => stopped(item) && (wallpaperFailedStep(item) === 'planning' || !planned(item) || item.attempts.at(-1)?.plan.mode === 'uncertain')),
-    reviewingBlocked: count(item => stopped(item) && !item.attempts.at(-1)?.outputId),
+    reviewingBlocked: count(item => stopped(item) && !wallpaperHasRendered(item.attempts.at(-1))),
   }
 }
 /** View-only original acquisition state; byte counters never enter saved task checkpoints. */
@@ -444,6 +511,7 @@ export function wallpaperDownloadProgress(item: WallpaperItem, status: RunRecord
 /** Read-only authorized canvas state, with image resources resolved by the existing resource endpoint. */
 export const wallpaperViewSchema = z.object({
   runId: runSchema.shape.id, sourceRunId: runSchema.shape.id, status: runSchema.shape.status, settings: wallpaperSettingsSchema, state: wallpaperStateSchema,
+  artifactDimensions: z.record(z.string(), z.object({ width: z.number().int().positive(), height: z.number().int().positive() })).optional(),
   resources: z.record(z.string(), z.string()), artifactTimes: z.record(z.string(), z.iso.datetime()).optional(),
   sourceImages: z.record(z.string(), z.object({ width: z.number().int().positive(), height: z.number().int().positive(), previewPath: z.string() })),
   previewResources: z.record(z.string(), z.string()).default({}),
@@ -480,5 +548,6 @@ export function wallpaperVerdict(review: WallpaperReview): 'pass' | 'reject' | '
   if ('clarity' in review.checks) checks.push(review.checks.clarity.result)
   if ('subjectIntegrity' in review) checks.push(wallpaperSubjectCheck(review.subjectIntegrity, 'sourceRepairAuthorized' in review && review.sourceRepairAuthorized === true).result)
   if ('sourceRepair' in review) checks.push(review.sourceRepair.result)
+  if ('sourceCorrespondence' in review) checks.push(review.sourceCorrespondence.result)
   return checks.includes('violated') ? 'reject' : checks.includes('unknown') || 'styleMatch' in review && review.issues.some(issue => issue.kind !== 'style') || 'reviewVersion' in review && ['wallpaper-review-source-v1', 'wallpaper-review-source-v2', 'wallpaper-review-source-v3', 'wallpaper-review-source-v4'].includes(review.reviewVersion) && review.issues.length > 0 ? 'needs-review' : 'pass'
 }

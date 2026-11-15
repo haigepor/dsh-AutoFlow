@@ -95,6 +95,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
     const signal = AbortSignal.any(bounds.signal ? [bounds.signal] : [])
     let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
     let preparationQueueMs = 0, prepareImagesMs = 0, modelStartedAt: number | undefined
+    let responseText = ''
     const assembler = new BlockAssembler()
     const preparedImages = Promise.withResolvers<void>(), previousPreparation = this.imagePreparation
     this.imagePreparation = previousPreparation.then(() => preparedImages.promise)
@@ -175,7 +176,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
           const elapsed = Date.now() - startedAt
           firstOutputMs ??= elapsed
           if (chunk.type === 'reasoning-delta') { firstReasoningMs ??= elapsed; bounds.onOutput?.({ reasoning: chunk.text }) }
-          else { firstTextMs ??= elapsed; bounds.onOutput?.({ content: chunk.text }) }
+          else { responseText += chunk.text; firstTextMs ??= elapsed; bounds.onOutput?.({ content: chunk.text }) }
         } else if (chunk.type === 'usage') usage = chunk.usage
       }
       await bounds.onMetadata?.(metadata())
@@ -198,6 +199,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
         const retryable = error.code === 'ATTACHMENT_WRITE_FAILED' && !streamStarted
         throw new MediaError(error.code, 'vision-images', retryable, 'An image attachment could not be prepared for analysis.', retryable ? 'Check attachment storage and continue within the saved task budget.' : 'Check image format, size and attachment integrity before starting an incremental analysis.', { modelOutput: null, issues: [error.code] })
       }
+      if (!(error instanceof MediaError) && streamStarted) throw new MediaError('vision-response-processing-failed', 'reviewing', false, 'The native response could not be processed. Its available text and request metadata are retained.', 'Inspect the saved response diagnostics before retrying this image.', { modelOutput: { rawText: responseText }, issues: [error instanceof Error ? error.name : 'unknown-error'] })
       throw error
     } finally { preparedImages.resolve() }
   }

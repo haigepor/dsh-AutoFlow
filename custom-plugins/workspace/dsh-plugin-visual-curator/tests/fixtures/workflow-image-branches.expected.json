@@ -37,28 +37,68 @@
       "y": 0
     },
     {
-      "x": 470,
+      "x": 520,
       "y": 0
     },
     {
-      "x": 940,
+      "x": 1040,
       "y": 0
     },
     {
-      "x": 1410,
+      "x": 1560,
       "y": 0
     },
     {
-      "x": 1880,
+      "x": 2080,
       "y": 0
     },
     {
-      "x": 2350,
+      "x": 2600,
       "y": 0
     },
     {
-      "x": 2820,
+      "x": 3120,
       "y": 0
     }
-  ]
+  ],
+  "presentation": {
+    "detailsAction": {
+      "label": "步骤详情",
+      "icon": true
+    },
+    "annotatedLayers": {
+      "safe": "true",
+      "regions": "true",
+      "defects": "true"
+    },
+    "historyTabs": [
+      "复审结论",
+      "处理记录 · 3"
+    ],
+    "reviewDetails": {
+      "checks": 8,
+      "previews": 1,
+      "duplicateEvidence": 0
+    },
+    "historyRailWidth": 224,
+    "measurements": {
+      "rulers": [
+        "水平像素标尺",
+        "垂直像素标尺"
+      ],
+      "sidebar": false
+    },
+    "promptEditor": {
+      "tabs": [
+        "生图提示词",
+        "原图画法要求",
+        "须保留的具体细节"
+      ],
+      "readOnly": true
+    },
+    "renderingWorkspace": {
+      "summary": "处理概览",
+      "caption": "干净壁纸"
+    }
+  }
 }

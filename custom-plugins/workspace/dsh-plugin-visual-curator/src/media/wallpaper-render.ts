@@ -46,7 +46,7 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
     }
     for (let i = 0; i < blend.length; i++) { protection[i] = Math.min(protection[i]!, mask.data[i]!); blend[i] = Math.min(blend[i]!, mask.data[i]!) }
   }
-  if (geometry.needsOutpaint && (compositionMode === 'protected-context-v1' || compositionMode === 'protected-context-v2')) {
+  if ((geometry.needsOutpaint || compositionMode === 'protected-context-v2') && (compositionMode === 'protected-context-v1' || compositionMode === 'protected-context-v2')) {
     const regions = geometry.regions.map(region => ({ left: Math.max(0, Math.floor(region.left)), right: Math.min(settings.width, Math.ceil(region.left + region.width)), top: Math.max(0, Math.floor(region.top)), bottom: Math.min(settings.height, Math.ceil(region.top + region.height)) }))
     const protectedPixels = Buffer.alloc(mask.data.length)
     for (const region of regions) for (let y = region.top; y < region.bottom; y++) protectedPixels.fill(255, y * settings.width + region.left, y * settings.width + region.right)
@@ -70,7 +70,7 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
   const editMask = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: { r: 255, g: 255, b: 255 } } }).joinChannel(protection, { raw }).png().toBuffer()
   let image: Buffer<ArrayBufferLike> = seed
   let generatedSize: { width: number; height: number } | undefined
-  if (background && (geometry.needsOutpaint || compositionMode === 'generated-canvas-v1' || compositionMode === 'generated-canvas-protected-v2')) {
+  if (background && (geometry.needsOutpaint || compositionMode === 'protected-context-v2' || compositionMode === 'generated-canvas-v1' || compositionMode === 'generated-canvas-protected-v2')) {
     const generated = await sharp(background).metadata()
     if (!generated.width || !generated.height || Math.abs(generated.width - generated.height * settings.width / settings.height) > 1) throw new CuratorError('constraint-conflict', 'wallpaper-background', 'The generated background aspect ratio differs from the edit canvas. Replan or choose an output size with the same ratio.')
     generatedSize = { width: generated.width, height: generated.height }
@@ -87,6 +87,16 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
     }
   }
   return { image, mask: editMask, geometry, generatedSize }
+}
+
+/** Preserve a complete, content-reviewed candidate at its corrected placement before reviewing the new background.
+ * @param candidate Saved complete-candidate pixels. @param plan Its one uniform placement. @param settings Frozen target geometry. @param generated Provider background pixels. @param subjectsOnly Restore protected subject rectangles while leaving defective background editable.
+ * @returns Candidate-preserving composition at the provider's native dimensions, before super-resolution.
+ */
+export async function lockWallpaperCandidate(candidate: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, generated: Uint8Array, subjectsOnly = false): Promise<Buffer> {
+  const native = await sharp(generated).metadata()
+  const composed = await renderWallpaper(candidate, plan, subjectsOnly ? { ...settings, backgroundContextPixels: 0, backgroundTransitionPixels: 0 } : settings, generated, subjectsOnly ? 'protected-context-v2' : 'generated-canvas-protected-v2')
+  return sharp(composed.image).resize(native.width, native.height, { fit: 'fill' }).png().toBuffer()
 }
 
 /** Blend narrow newly exposed edges toward the source boundary, leaving every retained source pixel unchanged.

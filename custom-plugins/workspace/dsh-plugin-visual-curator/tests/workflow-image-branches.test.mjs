@@ -10,6 +10,7 @@ import {build} from 'esbuild'
 import {JSDOM} from 'jsdom'
 import {wallpaperPlanSchema,wallpaperSettingsSchema} from '../src/shared/wallpaper.ts'
 import {zh} from '../src/client/workbench-locale.ts'
+import {wallpaperGenerationBriefSchema} from '../src/shared/wallpaper-generation-brief.ts'
 
 const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(import.meta.url),React=require('react'),{act}=React
 const graphModule=`import React from 'react';
@@ -26,13 +27,13 @@ const {createAutomaticWorkflowCanvas,createDirectCropCanvas}=capsule.exports
 
 test('the production canvas reuses seven mounted workflow slots across one hundred images without moving or mixing content',async()=>{
   const dom=new JSDOM('<div id="root"></div>',{url:'https://owner.example/',pretendToBeVisual:true}),win=dom.window
-  const globals={window:win,document:win.document,navigator:win.navigator,HTMLElement:win.HTMLElement,Element:win.Element,getComputedStyle:win.getComputedStyle.bind(win),requestAnimationFrame:win.requestAnimationFrame.bind(win),cancelAnimationFrame:win.cancelAnimationFrame.bind(win),IS_REACT_ACT_ENVIRONMENT:true}
+  const globals={window:win,document:win.document,navigator:win.navigator,HTMLElement:win.HTMLElement,Element:win.Element,getComputedStyle:win.getComputedStyle.bind(win),requestAnimationFrame:win.requestAnimationFrame.bind(win),cancelAnimationFrame:win.cancelAnimationFrame.bind(win),IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{constructor(callback){this.callback=callback}observe(){this.callback([{contentRect:{width:1000,height:700}}])}disconnect(){}}}
   win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}})
   const previous=Object.fromEntries(Object.keys(globals).map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]))
   for(const[key,value]of Object.entries(globals))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value})
   const {createRoot}=require('react-dom/client'),h=React.createElement,empty=()=>null,pass=({children})=>h('div',null,children)
-  const Button=React.forwardRef(({children,onClick,onPointerDown,disabled,className,...props},ref)=>h('button',{ref,onClick,onPointerDown,disabled,className,'aria-label':props['aria-label'],'aria-expanded':props['aria-expanded']},children))
-  const ui=new Proxy({Button,DisclosureRow:pass,Tag:pass,StateDot:empty,Tooltip:pass,ZoomControls:empty,AnimatedCollapse:({open,children})=>open?h('div',null,children):null,Modal:({open,title,children,footer})=>open?h('section',{role:'dialog','aria-label':title},children,footer):null,TextArea:props=>h('textarea',{value:props.value,onChange:props.onChange}),Menu:({open,anchor,items=[],onSelect,listClassName})=>h('div',null,anchor,open&&h('div',{role:'menu',className:listClassName},items.filter(item=>!item.type).map(item=>h('button',{key:item.id,role:'menuitem',disabled:item.disabled,onClick:()=>onSelect(item.id)},item.label))))},{get:(target,key)=>target[key]??empty})
+  const Button=React.forwardRef(({children,onClick,onPointerDown,disabled,className,...props},ref)=>h('button',{ref,onClick,onPointerDown,disabled,className,'data-action':props['data-action'],'aria-label':props['aria-label'],'aria-expanded':props['aria-expanded']},children))
+  const ui=new Proxy({Button,DisclosureRow:pass,Tag:pass,StateDot:empty,Tooltip:pass,SegmentedTabs:({items,value,onChange,label})=>h('div',{role:'tablist','aria-label':label},items.map(item=>h('button',{key:item.value,id:item.id,role:'tab','aria-selected':value===item.value,'aria-controls':item.panelId,onClick:()=>onChange(item.value)},item.label))),ZoomControls:empty,AnimatedCollapse:({open,children})=>open?h('div',null,children):null,Modal:({open,title,children,footer,onClose,closeLabel})=>open?h('section',{role:'dialog','aria-label':title},h('button',{'aria-label':closeLabel,onClick:onClose},closeLabel),children,footer):null,TextArea:props=>h('textarea',{value:props.value,onChange:props.onChange}),Menu:({open,anchor,items=[],onSelect,listClassName})=>h('div',null,anchor,open&&h('div',{role:'menu',className:listClassName},items.filter(item=>!item.type).map(item=>h('button',{key:item.id,role:'menuitem',disabled:item.disabled,onClick:()=>onSelect(item.id)},item.label))))},{get:(target,key)=>target[key]??empty})
   const items=Array.from({length:100},(_,index)=>{
     const imageVersionId=`source-${index}`,plan=wallpaperPlanSchema.parse({version:1,imageVersionId,mode:'single',subject:`汽车 ${index+1}`,evidence:'Actual fixture source',priorities:[],anchors:[],truncations:[],uncertainties:[],regions:['subject','critical'].map(role=>({name:role,role,rect:{x:0.2,y:0.2,width:0.3,height:0.3}})),placement:{scale:1,left:400,top:1100},reason:'Saved valid source geometry'})
     return {imageVersionId,originalId:imageVersionId,familyId:imageVersionId,status:'passed',edits:0,attempts:[{revision:1,plan,checks:[],needsOutpaint:true,canvasId:`canvas-${index}`,layoutAnalysisId:`layout-${index}`,outputId:`output-${index}`,simulationId:`simulation-${index}`,analysisId:`analysis-${index}`,clarity:{status:'not-needed',reason:'Recorded sufficient source resolution'},review:{subject:`Car ${index+1}`,checks:Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:'Recorded fixture review'}])),issues:[]}} ]}
@@ -45,6 +46,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.equal(operation,'wallpaper-read');calls.push([args.offset,args.limit]);if(args.runId)assert.equal(args.runId,'fixture-wallpaper');if(hold&&args.offset===99)await new Promise(resolve=>waiting.push(resolve))
     const page=items.slice(args.offset,args.offset+args.limit),resources={},previewResources={},sourceImages={}
     for(const item of page){const id=item.attempts[0].analysisId;resources[id]=`/api/visual-curator/resource?imageVersionId=${id}`;previewResources[id]=`/api/visual-curator/resource?imageVersionId=${id}-preview`;sourceImages[item.originalId]={width:1000,height:2000,previewPath:`/api/visual-curator/resource?imageVersionId=${item.originalId}-preview`};if(item.attempts.at(-1)?.generatedImageId)for(const generatedId of [item.attempts.at(-1)?.generatedImageId,item.attempts.at(-1)?.outputId].filter(Boolean)){resources[generatedId]=`/api/visual-curator/resource?imageVersionId=${generatedId}`;previewResources[generatedId]=`/api/visual-curator/resource?imageVersionId=${generatedId}-preview`}}
+    for(const item of page)for(const attempt of item.attempts)for(const id of [attempt.nativeReviewCandidate?.nativeId,attempt.outputId,attempt.analysisId,attempt.simulationId].filter(Boolean)){resources[id]=`/api/visual-curator/resource?imageVersionId=${id}`;previewResources[id]=`/api/visual-curator/resource?imageVersionId=${id}-preview`;}
     return {runId:'fixture-wallpaper',sourceRunId:batch.runId,status:workflowStatus,settings:wallpaperSettingsSchema.parse(decisionPolicy?{decision:decisionPolicy}:{}),state:{version:1,sourceRunId:batch.runId,skillVersion:'fixture',items:page,budgetStopped:false},itemIndex:items.map(i=>({imageVersionId:i.imageVersionId,status:i.status,planned:true,previewPath:`/api/visual-curator/resource?imageVersionId=${i.imageVersionId}-preview`})),resources,previewResources,sourceImages,total:100,offset:args.offset,counts,warnings:[],...(enhancementProgress?{enhancements:enhancementProgress}:{})}
   }}
   const Canvas=createAutomaticWorkflowCanvas(React,ui),rootNode=createRoot(win.document.getElementById('root')),expected=JSON.parse(await readFile(new URL('./fixtures/workflow-image-branches.expected.json',import.meta.url),'utf8'))
@@ -57,7 +59,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.equal(edges.length,expected.imageNodes-1+Number(edges.some(edge=>edge.data.rework)))
     for(let index=1;index<nodes.length;index++)assert(edges.some(edge=>edge.source===nodes[index-1].id&&edge.target===nodes[index].id))
     assert(win.document.querySelectorAll('.vc-image-thumbnail').length<=expected.thumbnailLimit)
-    assert(win.document.querySelectorAll('img').length<=expected.thumbnailLimit+expected.imageNodes)
+    assert(win.document.querySelectorAll('.vc-image-thumbnail img, .vc-flow-node[data-image-id] img').length<=expected.thumbnailLimit+expected.imageNodes+2)
     return nodes
   }
   const click=async button=>{assert(button);await act(async()=>{button.click();await flush()})}
@@ -93,7 +95,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.equal(reopened[2].data.collapsed,true);assert.deepEqual(calls,expected.requests)
     const saved=JSON.parse(win.localStorage.getItem('visual-curator:workflow-canvas:v7:fixture-style:fixed-image-flow:fixture-search:progressive-v2'));assert.deepEqual(saved.viewport,{x:10,y:20,zoom:1})
     const card=win.document.querySelector('[data-image-id="source-99"][data-kind="planning"]')
-    await click([...card.querySelectorAll('button')].find(button=>button.textContent===zh.wallpaperEditPlan))
+    await click([...card.querySelectorAll('button')].find(button=>(button.getAttribute('aria-label')??button.textContent)===zh.wallpaperEditPlan))
     const dialog=win.document.querySelector('[role=dialog]'),json=dialog?.querySelector('textarea')
     assert(json);assert.equal(JSON.parse(json.value).imageVersionId,expected.editedSource)
     await click([...dialog.querySelectorAll('button')].find(button=>button.textContent===zh.close))
@@ -112,6 +114,103 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert(feedback);assert(feedback.source.endsWith(':image-step:reviewing:reviewing'));assert(feedback.target.endsWith(':image-step:rendering:rendering'))
     assert.equal(feedback.data.phase,'attention');assert.equal(feedback.markerEnd.type,'arrow');assert.equal(feedback.data.flowing,false)
     assert.equal(feedback.label,zh.directCropReworkStopped);assert.equal(feedback.ariaLabel,zh.directCropReworkStopped)
+    const station = JSON.parse(await readFile(new URL('./fixtures/station-boundary-pending.json', import.meta.url), 'utf8'))
+    const pending = station.item.attempts[0]
+    const reviewPixels = pending.nativeReviewCandidate.nativeId
+    reviewedAttempt.nativeReviewCandidate = pending.nativeReviewCandidate
+    reviewedAttempt.review = pending.review
+    reviewedAttempt.plan.objectRoles = station.item.attempts[0].plan.objectRoles
+    reviewedAttempt.outputId = reviewPixels
+    reviewedAttempt.generatedImageId = reviewPixels
+    const savedPrompt = 'Keep the complete space station, its solar wings and supporting trusses intact. Extend only the background.\n'.repeat(60)
+    reviewedAttempt.generationBrief = wallpaperGenerationBriefSchema.parse({status:'saved',requestId:'fixture-brief',reasoningEffort:'max',result:{version:'wallpaper-generation-brief-v1',sourceImageVersionId:items[99].originalId,canvasImageVersionId:reviewPixels,styleAnchors:['Metal surfaces','Natural starlight','Photographic detail'],detailAnchors:['Solar wings','Ring module','Long trusses'],preserveInstructions:'Retain healthy subjects',extensionInstructions:'Extend the background',repairInstructions:'Repair grounded defects',negativeInstructions:['No overlays'],generationPrompt:savedPrompt,clockText:{evidence:'absent',action:'background-only',reason:'No required source text'}}})
+    await jump(0);await jump(99)
+    const loadReviewPreview = async () => {
+      const image = win.document.querySelector('[data-step="reviewing"] img')
+      assert(image)
+      await act(async () => { image.dispatchEvent(new win.Event('load')); await flush() })
+    }
+    await loadReviewPreview()
+    const overlay = win.document.querySelector('[data-step="reviewing"] .vc-review-overlay')
+    assert(overlay)
+    assert.equal(overlay.querySelector('[data-review-guide]').getAttribute('x'), String(station.expected.safeLeft))
+    assert(overlay.querySelectorAll('[data-review-defect]').length >= 3)
+    assert.equal(overlay.querySelectorAll('[data-review-separator]').length,3)
+    assert(overlay.querySelectorAll('[data-review-region]').length > 0)
+    const reviewCard=win.document.querySelector('[data-step="reviewing"]')
+    const detailsAction=reviewCard.querySelector('.vc-node-icon-action[data-action="details"]')
+    assert.deepEqual({label:detailsAction.querySelector('.vc-node-action-label').textContent,icon:!!detailsAction.querySelector('.vc-node-action-icon')},expected.presentation.detailsAction)
+    await click(reviewCard.querySelector('.vc-select-trigger'))
+    const imageChoices=[...win.document.querySelectorAll('[role=menuitem]')]
+    assert(imageChoices.some(button=>button.textContent.includes(zh.wallpaperSimulation)),'A failed review retains its saved lock-screen image')
+    await click(imageChoices[0])
+    await click(reviewCard.querySelector('.vc-image-step-preview'))
+    const annotationDialog=win.document.querySelector('[role=dialog]')
+    assert(annotationDialog)
+    const expandedImage=annotationDialog.querySelector('.vc-image-inspector-stage img')
+    await act(async()=>{expandedImage.dispatchEvent(new win.Event('load'));await flush()})
+    assert(annotationDialog.querySelector('[data-review-defect]'),'Expanded previews retain the matching review evidence')
+    assert.deepEqual({ rulers: [...annotationDialog.querySelectorAll('.vc-inspector-ruler')].map(e=>e.getAttribute('aria-label')), sidebar: !!annotationDialog.querySelector('.vc-inspector-coordinate-panel') },expected.presentation.measurements)
+    const annotationLayers=annotationDialog.querySelector('.vc-image-inspector-document').dataset
+    assert.deepEqual({safe:annotationLayers.safe,regions:annotationLayers.regions,defects:annotationLayers.defects},expected.presentation.annotatedLayers)
+    await click([...annotationDialog.querySelectorAll('button')].find(button=>button.textContent===zh.close))
+    await click(win.document.querySelector('[data-step="rendering"] .vc-node-icon-action[data-action="history"]'))
+    const historyDialog=win.document.querySelector('[role=dialog]')
+    const resizeVersion=historyDialog.querySelector('.vc-history-version-resize')
+    assert.equal(resizeVersion.getAttribute('aria-valuenow'),String(expected.presentation.historyRailWidth))
+    await act(async()=>{resizeVersion.dispatchEvent(new win.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));await flush()})
+    assert.equal(resizeVersion.getAttribute('aria-valuenow'),'232')
+    assert.equal(win.localStorage.getItem('visual-curator:history-version-width:v1'),'232')
+    assert(historyDialog.querySelector('.vc-image-history-source'))
+    assert.equal(historyDialog.querySelector('.vc-gallery-evidence'),null,'History shows review reasons once in its inspection panel')
+    assert(!historyDialog.querySelector('.vc-image-history-inspection-scroll').contains(historyDialog.querySelector('.vc-image-history-actions')),'Save and version actions remain outside scrolling notes')
+    const historyTabs=[...historyDialog.querySelectorAll('[role="tab"]')]
+    assert.deepEqual(historyTabs.map(tab=>tab.textContent),expected.presentation.historyTabs)
+    assert.equal(historyTabs[0].getAttribute('aria-selected'),'true')
+    await click(historyTabs[1])
+    assert.equal(historyDialog.querySelector('[role="tabpanel"]:not([hidden])').querySelectorAll('.vc-image-history > li').length,3)
+    await click(historyTabs[0])
+    assert(historyDialog.querySelector('[role="tabpanel"]:not([hidden]) [data-verdict]'))
+    await click([...historyDialog.querySelectorAll('button')].find(button=>button.textContent===zh.close))
+    await click(detailsAction)
+    const reviewDetails=win.document.querySelector('[role=dialog]')
+    assert(reviewDetails.querySelector('.vc-review-overview'))
+    assert.deepEqual({checks:reviewDetails.querySelectorAll('.vc-review-report .vc-image-review-detail-checks > section').length,previews:reviewDetails.querySelectorAll('.vc-review-preview .vc-image-step-preview').length,duplicateEvidence:reviewDetails.querySelectorAll('.vc-gallery-evidence').length},expected.presentation.reviewDetails)
+    assert(reviewDetails.querySelector('.vc-review-summary').textContent.includes('8'))
+    assert(reviewDetails.querySelector('.vc-review-observations'))
+    await click([...reviewDetails.querySelectorAll('button')].find(button=>button.textContent===zh.close))
+    await click(win.document.querySelector('[data-step="rendering"] .vc-node-icon-action[data-action="details"]'))
+    const renderDialog=win.document.querySelector('[role=dialog]')
+    assert.equal(renderDialog.querySelectorAll('.vc-detail-context-selection, .vc-detail-context-meta').length,2)
+    assert.deepEqual({summary:renderDialog.querySelector('.vc-image-result-summary').getAttribute('aria-label'),caption:renderDialog.querySelector('.vc-image-result-preview figcaption strong').textContent},expected.presentation.renderingWorkspace)
+    assert(!renderDialog.querySelector('.vc-image-details-footer').textContent.includes(savedPrompt),'Long prompt content stays out of the action footer')
+    await click([...renderDialog.querySelectorAll('button')].find(button=>button.textContent===zh.wallpaperPromptDocument))
+    const promptDialog=[...win.document.querySelectorAll('[role=dialog]')].find(dialog=>dialog.getAttribute('aria-label')===zh.wallpaperAuthoredPrompt)
+    assert(promptDialog)
+    assert.deepEqual([...promptDialog.querySelectorAll('[role=tab]')].map(tab=>tab.textContent),expected.presentation.promptEditor.tabs)
+    assert.equal(promptDialog.querySelector('[role=tabpanel]:not([hidden]) pre').textContent,savedPrompt)
+    assert.equal(promptDialog.querySelectorAll('textarea,input,[contenteditable="true"]').length,0)
+    await click(promptDialog.querySelectorAll('[role=tab]')[1])
+    assert.equal(promptDialog.querySelector('[role=tabpanel]:not([hidden]) pre').textContent,'Metal surfaces\n\nNatural starlight\n\nPhotographic detail')
+    await click([...promptDialog.querySelectorAll('button')].find(button=>button.textContent===zh.close))
+    assert.equal(win.document.querySelectorAll('[role=dialog]').length,1,'Closing the prompt editor retains the source details')
+    await click([...renderDialog.querySelectorAll('button')].find(button=>button.textContent===zh.close))
+    await click(reviewCard.querySelector('.vc-select-trigger'))
+    await click([...win.document.querySelectorAll('[role=menuitem]')].find(button=>button.textContent.includes(zh.wallpaperSimulation)))
+    assert(reviewCard.querySelector('img').src.includes('simulation'))
+    await act(async()=>{reviewCard.querySelector('.vc-stage-gallery').dispatchEvent(new win.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));await flush()})
+    assert(reviewCard.querySelector('img').src.includes(reviewPixels))
+
+    assert(overlay.querySelector('[aria-label="右侧横向细桁架与散热器"]'))
+    assert.equal(overlay.querySelector('[aria-label="右侧横向细桁架与散热器"]').getAttribute('x'), String(station.expected.badRightTrussX))
+    reviewedAttempt.review = { ...pending.review, actualLayout: { ...pending.review.actualLayout, imageVersionId: 'different-output' } }
+    await jump(0);await jump(99);await loadReviewPreview()
+    assert.equal(win.document.querySelector('.vc-review-overlay'), null, 'A prior candidate cannot annotate different pixels')
+    delete reviewedAttempt.generationBrief
+    delete reviewedAttempt.nativeReviewCandidate
+    delete reviewedAttempt.generatedImageId
+    reviewedAttempt.outputId = 'output-99'
+    reviewedAttempt.review = {subject:'Car 100',checks:{...reviewChecks,background:{result:'violated',reason:'Visible seam'}},issues:[{kind:'background',reason:'Visible seam'}]}
     const current={...reviewedAttempt,revision:2,retryFrom:'reviewing',retryTarget:'rendering'}
     for(const key of ['review','outputId','simulationId','analysisId','clarity'])delete current[key]
     reviewed.attempts.push(current);reviewed.status='rendering';workflowStatus='running'
@@ -229,7 +328,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     for(let index=1;index<directStages.length;index++)assert(directStages[index].position.x>=directStages[index-1].position.x+directStages[index-1].style.width+100,'direct steps keep clear columns in displayed order')
     assert.equal(globalThis.__vcPlanningProjection.edges.some(edge=>edge.source.endsWith(':image-step:geometry:planning')&&edge.target.endsWith(':image-step:rendering:rendering')),false)
     assert.equal(current.review,undefined);assert(!win.document.querySelector('.vc-decision-card').textContent.includes(zh.wallpaperPassed))
-    await click([...win.document.querySelectorAll('.vc-decision-card button')].find(button=>button.textContent===zh.wallpaperStepDetails))
+    await click([...win.document.querySelectorAll('.vc-decision-card button')].find(button=>(button.getAttribute('aria-label')??button.textContent)===zh.wallpaperStepDetails))
     assert(win.document.querySelector('[role=dialog]').textContent.includes(decision.response.findings[0].reason))
     await click([...win.document.querySelectorAll('[role=dialog] button')].find(button=>button.textContent===zh.close))
     decisionPolicy={version:'wallpaper-decision-v1',enabled:true,maxRoundsPerImage:1,maxDetailRequests:1}

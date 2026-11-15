@@ -1,0 +1,699 @@
+{
+  "snapshotRevision": 34,
+  "runId": "663c3f6c31bd43f9510348383b39ed3f5e2624dccddfdadbe84d1d15bc7c0b77",
+  "status": "running",
+  "settings": {
+    "version": 1,
+    "width": 1845,
+    "height": 3280,
+    "safe": {
+      "left": 258,
+      "top": 1032,
+      "width": 1329,
+      "height": 1686
+    },
+    "topBuffer": 32,
+    "sideOverflow": 66,
+    "bottomOverflow": 84,
+    "backgroundTransitionPixels": 192,
+    "backgroundContextPixels": 128,
+    "backgroundAlignment": {
+      "sampleWidth": 56,
+      "sampleHeight": 100,
+      "minimumCopyCorrelation": 0.95,
+      "minimumPlacementGap": 0.2,
+      "minimumProtectedCorrelation": 0.8
+    },
+    "sourceFrameRepair": {
+      "enabled": true,
+      "marginPixels": 128
+    },
+    "concurrency": 5,
+    "maxReworks": 5,
+    "maxEditsPerImage": 5,
+    "recoveryLimitVersion": "five-attempts-v1",
+    "imageProvider": "autoflow-codex",
+    "imageSourceId": "acct-a9ab44c575b48348f28d46e4",
+    "imageModel": "gpt-image-2.6-sunburst",
+    "imageSize": "1872x3328",
+    "imageQuality": "high",
+    "clarity": {
+      "version": "espcn-luma-v1",
+      "enabled": true,
+      "maxSubjectPixels": 800000,
+      "timeoutMs": 30000,
+      "blend": 0.35,
+      "featherPixels": 8
+    },
+    "backgroundResolution": {
+      "version": "espcn-background-v1",
+      "enabled": true,
+      "maxInputPixels": 2000000,
+      "timeoutMs": 120000
+    },
+    "decision": {
+      "version": "wallpaper-decision-v1",
+      "enabled": true,
+      "maxRoundsPerImage": 2,
+      "maxDetailRequests": 1
+    },
+    "learningEnabled": false,
+    "autoPromote": false,
+    "learningInterval": 20,
+    "minBenchmarks": 12,
+    "maxEvalVisionCalls": 48,
+    "maxSkillChars": 4000,
+    "processing": {
+      "version": "balanced-v1",
+      "reasoningEffort": "medium",
+      "criticalReasoningEffort": "high",
+      "layoutInsetPixels": 24,
+      "maxCanvasAspectCropRatio": 0.04,
+      "sourceSeam": {
+        "blendPixels": 64,
+        "segmentPixels": 256,
+        "minimumCrossMean": 18,
+        "minimumRelative": 4
+      },
+      "maxPeripheralOutsideAreaRatio": 0.005,
+      "maxTotalOutsideAreaRatio": 0.012
+    },
+    "repairPolicy": {
+      "version": "subject-repair-v1",
+      "mode": "repair-when-needed",
+      "maxRepeatedDefects": 2
+    },
+    "concurrencyVersion": "five-workers-v1"
+  },
+  "item": {
+    "imageVersionId": "7bd02d8e-1d39-43e5-bc88-42b8e20ef28b",
+    "familyId": "7b00677c75091436390d93bb36b3330ec371679cc4c3523eee69e4182a4f404a",
+    "status": "reviewing",
+    "edits": 1,
+    "attempts": [
+      {
+        "revision": 1,
+        "createdAt": "2026-11-14T16:49:05.377Z",
+        "plan": {
+          "version": 1,
+          "imageVersionId": "7bd02d8e-1d39-43e5-bc88-42b8e20ef28b",
+          "mode": "single",
+          "subject": "一座位于近地轨道上方的写实空间站：中央白色与灰色舱段组成垂直主体，左右展开深色网格太阳能帆板和横向桁架，底部连接一艘飞船；下方为蓝色地球，周围是黑色星空。",
+          "evidence": "空间站位于画面中央，舱段、太阳能帆板和细长横向桁架层次清晰，是唯一明确视觉主角；地球与星空处于背景层。可见范围内未见明显断裂、悬空连接、异常重复或需要强制补画的主体缺陷。太阳能帆板细网格、远处星点和大气柔边属于正常细节，不按质量问题处理。底部对接飞船轮廓完整；地球纹理与地平线自然延续。主体上沿高于目标安全区仅属于画布摆放适配问题，不是原图破损。",
+          "priorities": [
+            "保持空间站整体结构完整，太阳能帆板、舱段和横向桁架的连接连续。",
+            "保持中央垂直舱段与左右横向模块的相对位置、尺度关系和前后遮挡。",
+            "保留左右太阳能帆板的深色网格、倾斜角度及亮暗反光。",
+            "保留底部对接飞船的位置与轮廓。",
+            "保持地球弧形地平线、蓝色海洋、白色云层和大气辉光连续。",
+            "保持深黑星空与稀疏星点分布。",
+            "保持写实硬表面材质、冷色光照和轨道视角。",
+            "适配画布时仅允许整组等比缩放和平移，不单独移动或拉伸舱段、帆板和桁架。",
+            "不新增品牌、文字、额外舱段或未知背面。",
+            "若旧画框断口进入成品内部，仅在必要范围依据可见轴线、材质和透视连续补全。"
+          ],
+          "anchors": [
+            "深黑星空自画面上部延伸至地球外围，星点稀疏细小，不形成密集星云。",
+            "地球弧形地平线横贯画面中部偏下，蓝色海洋与白色云层在下半部连续分布。",
+            "地球在左、右、下侧自然延伸出画框，属于普通背景裁切。",
+            "地球边缘有薄青色大气辉光，空间站舱段与帆板在其前方形成清晰前后层次。"
+          ],
+          "truncations": [],
+          "uncertainties": [],
+          "regions": [
+            {
+              "name": "空间站主体整体可见范围",
+              "entityId": "source-1",
+              "role": "subject",
+              "rect": {
+                "x": 0.01,
+                "y": 0.142,
+                "width": 0.97,
+                "height": 0.652
+              }
+            },
+            {
+              "name": "中央垂直舱段与上下连接节点",
+              "entityId": "source-2",
+              "role": "critical",
+              "rect": {
+                "x": 0.455,
+                "y": 0.14,
+                "width": 0.17,
+                "height": 0.49
+              }
+            },
+            {
+              "name": "横向大型舱段与主承力桁架",
+              "entityId": "source-3",
+              "role": "critical",
+              "rect": {
+                "x": 0.23,
+                "y": 0.29,
+                "width": 0.5,
+                "height": 0.17
+              }
+            },
+            {
+              "name": "左侧大型太阳能帆板组",
+              "entityId": "source-4",
+              "role": "critical",
+              "rect": {
+                "x": 0.21,
+                "y": 0.38,
+                "width": 0.34,
+                "height": 0.18
+              }
+            },
+            {
+              "name": "右侧大型太阳能帆板组",
+              "entityId": "source-5",
+              "role": "critical",
+              "rect": {
+                "x": 0.6,
+                "y": 0.31,
+                "width": 0.29,
+                "height": 0.25
+              }
+            },
+            {
+              "name": "左侧横向细桁架与散热器",
+              "entityId": "source-6",
+              "role": "critical",
+              "rect": {
+                "x": 0.02,
+                "y": 0.525,
+                "width": 0.35,
+                "height": 0.075
+              }
+            },
+            {
+              "name": "右侧横向细桁架与散热器",
+              "entityId": "source-7",
+              "role": "critical",
+              "rect": {
+                "x": 0.52,
+                "y": 0.54,
+                "width": 0.44,
+                "height": 0.08
+              }
+            }
+          ],
+          "objectRoles": [
+            {
+              "entityId": "source-1",
+              "name": "轨道空间站整体",
+              "role": "primary",
+              "evidence": "占据画面中央、体量最大且细节最清晰，舱段、帆板与横向桁架共同构成唯一视觉主角。",
+              "rect": {
+                "x": 0.01,
+                "y": 0.142,
+                "width": 0.97,
+                "height": 0.652
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-2",
+              "name": "中央垂直舱段与对接节点",
+              "role": "critical-part",
+              "evidence": "贯穿画面中央的白色与灰色舱段轴线，串联顶部模块、核心舱和下部节点，是空间站身份不可缺少的主体结构。",
+              "rect": {
+                "x": 0.455,
+                "y": 0.14,
+                "width": 0.17,
+                "height": 0.49
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-3",
+              "name": "横向大型舱段与主承力桁架",
+              "role": "critical-part",
+              "evidence": "中部横向展开的大型舱段和承力结构，与垂直舱段相交，决定空间站整体轮廓与结构关系。",
+              "rect": {
+                "x": 0.23,
+                "y": 0.29,
+                "width": 0.5,
+                "height": 0.17
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-4",
+              "name": "左侧大型太阳能帆板组",
+              "role": "critical-part",
+              "evidence": "左侧多片深色网格太阳能帆板是空间站的主要供能结构，也是画面中面积显著的识别特征。",
+              "rect": {
+                "x": 0.21,
+                "y": 0.38,
+                "width": 0.34,
+                "height": 0.18
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-5",
+              "name": "右侧大型太阳能帆板组",
+              "role": "critical-part",
+              "evidence": "右侧倾斜展开的深色帆板与左侧形成对称结构，是主体身份与轮廓不可缺少的组成部分。",
+              "rect": {
+                "x": 0.6,
+                "y": 0.31,
+                "width": 0.29,
+                "height": 0.25
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-6",
+              "name": "左侧横向细桁架与散热器",
+              "role": "critical-part",
+              "evidence": "从站体向左侧伸出的细长桁架、端部散热器与连接结构，是空间站主体必要的延伸结构。",
+              "rect": {
+                "x": 0.02,
+                "y": 0.525,
+                "width": 0.35,
+                "height": 0.075
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-7",
+              "name": "右侧横向细桁架与散热器",
+              "role": "critical-part",
+              "evidence": "从站体向右侧伸出的细长桁架与端部结构，维持主体横向展开关系，不能按普通背景处理。",
+              "rect": {
+                "x": 0.52,
+                "y": 0.54,
+                "width": 0.44,
+                "height": 0.08
+              },
+              "sourceEdges": []
+            },
+            {
+              "entityId": "source-8",
+              "name": "底部对接飞船",
+              "role": "supporting",
+              "evidence": "附着在空间站底部的独立飞船，轮廓清楚但不承载空间站主体身份，保留其位置和外观即可。",
+              "rect": {
+                "x": 0.43,
+                "y": 0.615,
+                "width": 0.16,
+                "height": 0.18
+              },
+              "sourceEdges": []
+            }
+          ],
+          "placement": {
+            "scale": 0.7384823848233282,
+            "left": 255,
+            "top": 742
+          },
+          "reason": "原图为单主体写实太空场景，空间站舱段、太阳能帆板与横向桁架均清晰可辨，未发现明显断裂、悬空连接、重复模块或需要强制补画的结构缺失。地球、云层与星空属于正常背景，柔和大气辉光不是缺陷。主体上沿高于safe.top仅表示目标画布需要整组等比缩放和平移，不构成原图破损；底部对接飞船作为附属结构保留。",
+          "editPrompt": "未发现明确的主体结构缺陷，按保留式处理。保持原图写实太空场景：深黑星空、蓝色地球、白色云层与弧形地平线；中央空间站由白色和灰色舱段组成，左右两侧为深色网格太阳能帆板，横向细桁架和底部对接飞船保持原数量、连接方式、遮挡与相对尺度。主光自上方偏右照亮舱段，帆板呈冷色反光，材质为金属与深色光伏玻璃。按Host进行整组等比缩放和平移以适配画布，不单独移动、拉伸或重画舱段、帆板和桁架；背景星点、地球纹理和大气辉光自然延续，避免接缝。若旧画框断口进入成品内部，仅在必要范围依据可见轴线、透视和材质连续补全相应局部，不得新增舱段、品牌、文字、额外盘格或未知背面；生成细节仅作为合理修复，不称为恢复原图未记录的真实像素。"
+        },
+        "checks": [],
+        "needsOutpaint": true,
+        "compositionMode": "generated-canvas-v1",
+        "generationBrief": {
+          "status": "saved",
+          "requestId": "663c3f6c31bd43f9510348383b39ed3f5e2624dccddfdadbe84d1d15bc7c0b77:7bd02d8e-1d39-43e5-bc88-42b8e20ef28b:generation-brief:1",
+          "reasoningEffort": "max",
+          "result": {
+            "version": "wallpaper-generation-brief-v1",
+            "sourceImageVersionId": "7bd02d8e-1d39-43e5-bc88-42b8e20ef28b",
+            "canvasImageVersionId": "wallpaper-seed-29d1fb61ef0a32336a31f4ef5c0a9fb16e3e0bc8f6896eb963bb7bad0ed1fb2a",
+            "styleAnchors": [
+              "高精度写实三维硬表面渲染与太空摄影合成质感，数字图像底材为连续不透明画幅；表面由白色舱体漆面、浅灰金属桁架、深色光伏玻璃与地球大气构成，没有纸张纤维、颜料沉积或绘画笔触。",
+              "光照与色温：主光从上方偏右照向舱段，冷白镜面高光与少量暖白反射并存，阴影保留蓝黑层次；光伏板是低饱和冷蓝黑，地球呈明亮钴蓝和白色，大气边缘偏淡青白。",
+              "笔触、颗粒与边缘：没有笔触方向或湿画法晕染；仅见极细数字渲染颗粒，暗空处轻微可见。金属和帆板轮廓是干净硬边，地球大气与云层为柔和边缘，不能统一模糊或统一锐化。",
+              "局部微对比与材质层级：舱段环缝、板缝、帆板网格和桁架节点清晰，迎光面有局部近白高光，背光面仍能读出金属折面；避免用平滑色块替代硬表面反射。",
+              "纹理密度：白色舱体细节细密而克制，帆板网格规则密集，细桁架线条最疏，地球云带为柔和涡旋，星空为极稀疏微小光点；各层密度不同。",
+              "前中后景与色阶：空间站为清晰近中景，地球与云层是稍柔远景，近黑星空为最深背景；上暗下亮的竖向色阶保持稳定，扩展区不出现亮度突变或第二个视觉中心。"
+            ],
+            "detailAnchors": [
+              "中央竖向舱段沿身体中轴由多节白色与浅灰圆柱串联，节间有深灰环缝和凸出的对接环，顶部收成带十字形小帆板的窄段；保持各节长度、直径变化和上下连接顺序。",
+              "横向大型舱段在中央偏上处穿过主轴，右侧粗舱有密集纵向肋和明亮高光，左侧舱段端头有圆形对接口与细密机械凸起；横向主承力桁架从其后方贯穿，遮挡关系不可互换。",
+              "左右多组深色矩形太阳能帆板以不同倾角向外展开，板面有规则电池片网格与银灰承力框，部分帆板互相重叠；迎光边有冷白反光，背光面近黑但仍读得出格线。",
+              "多条细长金属桁架、散热器与天线从主体横向、斜向伸出，由细杆、短横撑和小节点组成，左侧与右侧长度和角度不对称；局部有暖橙色小灯，不能复制成机械对称阵列。",
+              "底部对接飞船位于主站正下方，由窄连接颈、深灰墨绿锥柱形服务舱和两片小型矩形帆板组成，帆板水平展开在最低处；保持其悬挂位置和直径比例。",
+              "地球弧形地平线从画面左侧较高处向右侧缓缓下沉，边缘有细薄蓝白大气辉光；海洋由明亮钴蓝过渡到深蓝，分布成片白色涡旋云带与浅灰蓝陆地、冰盖纹理。",
+              "近黑背景上散布极稀疏的微小冷白星点，大小与亮度略有差异，分布不规则，上方更疏；不形成连续银河带或彩色星云。",
+              "中央主站与横向舱段、帆板、细桁架之间通过小型圆柱接头、圆形舱口和短杆连接，迎光侧有一小片近白高光自然溢到相邻结构；保留这些连接节点，不把杆件末端悬空或把高光扩成大光斑。"
+            ],
+            "preserveInstructions": "以已定位画布为输出构图基准，保持视觉主角“轨道空间站整体”整组已执行的等比缩放和平移，不再移动、旋转、拉伸、缩短或放大。中央垂直舱段与对接节点、横向大型舱段与主承力桁架、左侧大型太阳能帆板组、右侧大型太阳能帆板组、左侧横向细桁架与散热器、右侧横向细桁架与散热器均为不可替代结构，必须保持原数量、相对位置、倾斜角、遮挡、连接和材质；底部对接飞船是陪衬，保留原外观、悬挂位置和连接关系。保持深黑星空、地球弧形地平线、蓝色海洋、白色云带和蓝白大气辉光的连续曲率与色温，保持主光从上方偏右、舱体冷白高光与帆板深蓝黑反光。只允许在灰色占位区域生成与邻接像素连续的背景新细节；不重画健康主体，不新增舱段、卫星、宇航员、额外帆板、品牌文字或未知背面，也不为让所有结构进入内侧安全区而再次缩小主站。",
+            "extensionInstructions": "画布四周现为平灰色占位，必须补成同一场景，并让人看不出原图矩形边界。上方缺口紧邻原图顶部的近黑星空与最上方舱段的暗边：延续同色近黑背景和极稀疏微小星点，星点大小、亮度、密度与相邻区域一致，不加星云、光晕或第二个天体，也不额外压暗中上部。左右两侧缺口按各高度分别接续：星空段继续黑底星点；穿过地球边缘处沿原弧线延续细薄蓝白大气辉光，并向下接续钴蓝海洋与白色涡旋云带；不得出现垂直硬接缝、横向错位、亮度突变或灰色残留。下方缺口紧邻深蓝近黑的洋面与极淡云纹，延续同一暗部渐变和细柔云层，不生成新的地平线或陆块。扩展区是可信的新生成背景，不宣称恢复原图未记录的真实像素；原图内已有形状、模糊程度和焦平面保持不变，最终画面满幅且不透明。",
+            "repairInstructions": "实际可见主体未见明确结构破损：中央舱段、左右帆板、横向桁架、散热器和底部飞船均保持完整连接，不因扩图而重画或“修正”其造型。处理范围仅限灰色占位与旧图边界的连续性问题：补齐星空和地球背景，消除原矩形边界、平灰块和接缝。若生成结果在扩展区出现重复帆板、悬空杆件、错误新增舱段、文字或明显亮度断带，应删除并按相邻像素补回连续星空或海洋纹理；不得改变冻结角色表中的身份、数量、位置和遮挡，也不得把新增修复细节描述为原图真实信息的恢复。",
+            "negativeInstructions": [
+              "不要移动、旋转、缩放、拉伸或拆分已定位的空间站整组，尤其不要单独移动中央舱段、太阳能帆板、桁架或底部飞船。",
+              "不要为适配画布再次缩小或重排主体，也不要为填满边缘而放大主体，或为让陪衬进入内侧安全区而缩小主站。",
+              "不要新增舱段、卫星、飞船、宇航员、动物、行星或其他共同主体。",
+              "不要增加重复帆板、额外盘格、未知背面或无法解释的金属结构。",
+              "不要把写实硬表面太空场景改成水彩、油画、卡通、低多边形或平滑数码涂抹。",
+              "不要用平灰色、矩形边框、内嵌画框、渐变色块或保护线填充扩展区。",
+              "不要在扩展区制造垂直硬接缝、横向接缝、重复星点阵列或清晰度突变。",
+              "不要改变地球弧形地平线的曲率、海陆轮廓、云带走势和蓝白色温。",
+              "不要新增星云、银河带、彩色光晕、镜头耀斑或戏剧性体积光。",
+              "不要整体提亮、压暗或过度锐化，不要抹掉舱段暗部层次和局部自然过曝。",
+              "不要改变太阳能帆板的深色网格、倾斜角和冷色反光，或将其改成纯黑无纹理平面。",
+              "不要改变底部对接飞船的墨绿、深灰锥柱外形和两片小帆板。",
+              "不要添加日期、时间、假时钟、数字、文字、品牌标识、水印、界面或边框。",
+              "不要保留原图矩形边界、灰色画布、透明区域或空间站周围竞争视觉焦点的密集星点。"
+            ],
+            "generationPrompt": "生成一张 1845×3280 的竖版、满幅、不透明写实太空壁纸，以已定位画布为唯一构图母版。保持中央轨道空间站整组已应用的约 0.738 等比缩放、现有中心位置和视觉占比，不再做第二次移动、旋转、拉伸、缩短或缩小。空间站是唯一视觉主角：中央白色与浅灰竖向舱段沿垂直轴串联，节间环缝、对接环、顶部十字小帆板和上下连接保持原样；横向大型舱段与主承力桁架在中央形成宽十字，左右两侧深色网格太阳能帆板保持原有倾斜角、电池片网格、银灰边框和冷色反光；左侧与右侧细桁架、散热器和天线保留不对称走向、交叉节点与暖橙色小灯；底部对接飞船保留窄颈、深灰墨绿服务舱和两片小矩形帆板，与主站连接不脱节。主体材质为写实硬表面：白色舱体漆面、浅灰金属、深色光伏玻璃、近黑星空和蓝色地球。主光自上方偏右，舱段迎光面有冷白高光和一小片自然近白过曝，暗面保留蓝黑金属层次；帆板反光偏冷，地球为明亮钴蓝海洋、白色涡旋云带和细薄蓝白大气辉光。将画布四周的平灰色占位补成连续场景：上方延续与相邻星空同色的近黑背景和极稀疏微小冷白星点，不额外压暗；左右两侧在上段接续星空，在穿过地平线处沿原弧线接续大气辉光、海洋和云层；下方延续深蓝近黑洋面与极淡云纹。所有接缝两侧的颜色、纹理、亮度和景深必须连续，星点大小与密度一致，地球弧线不错位，看不到原图矩形边界或灰色块。保持清晰但自然的硬表面细节和地球远景柔焦，最终是一张干净、满幅、不透明的壁纸，不新增其他主体、舱段、额外帆板、文字、日期、时间、品牌、边框或界面。",
+            "clockText": {
+              "evidence": "absent",
+              "action": "background-only",
+              "reason": "原图与已定位画布均未见日期、时间、钟表或界面文字，属于纯净太空壁纸；扩展区也只生成星空与地球背景，不添加任何时钟或模拟文字。"
+            }
+          }
+        },
+        "nativeReviewCandidate": {
+          "nativeId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+          "nativeDigest": "1f0ef951716b9eff9c8e9c9fae87be3ef6820fa9c8d338c331d5a14b42f706fe",
+          "previewId": "wallpaper-analysis-aa6dbf0fc0498764046c4201c0b2010ee41aedb898a211ff132435715f242c03",
+          "simulationId": "wallpaper-simulation-89a073597698238cd9a86818efab9ac539780381e46b78f0fcfb275b216945e0"
+        },
+        "review": {
+          "subject": "轨道空间站与地球背景的竖屏壁纸，空间站为唯一视觉主角。",
+          "checks": {
+            "subject": {
+              "result": "satisfied",
+              "reason": "原图与实际成品的完整主体范围均有独立像素证据，且符合任务要求"
+            },
+            "protection": {
+              "result": "violated",
+              "reason": "safe-top-overlap:空间站主体整体可见范围；subject-overflow:空间站主体整体可见范围；safe-top-overlap:中央垂直舱段与上下连接节点；critical-outside:右侧横向细桁架与散热器"
+            },
+            "clock": {
+              "result": "satisfied",
+              "reason": "本任务未设置时间区域或白字对比门槛；主体位置由安全区与实际像素复审判定。"
+            },
+            "readability": {
+              "result": "satisfied",
+              "reason": "本任务未设置时间区域或白字对比门槛；主体位置由安全区与实际像素复审判定。"
+            },
+            "composition": {
+              "result": "satisfied",
+              "reason": "站体居中，竖向舱段与横向舱段、帆板的交叉关系和透视稳定，地球与星空前后层次清楚。"
+            },
+            "background": {
+              "result": "satisfied",
+              "reason": "星空、地球弧形地平线与云带连续自然，无接缝、镜像、重复站体、矩形贴片或新增时间日期。"
+            },
+            "style": {
+              "result": "satisfied",
+              "reason": "白色舱体、深色帆板网格、金属桁架和地球大气保持硬表面写实三维质感，细节未被统一模糊或改为绘画笔触。"
+            },
+            "clarity": {
+              "result": "satisfied",
+              "reason": "预览尺度下舱段环缝、帆板格线、桁架节点和底部飞船结构仍可辨，未见明显噪声、重影或异常光晕。"
+            }
+          },
+          "issues": [
+            {
+              "kind": "layout",
+              "reason": "空间站顶端十字帆板与中央舱段上端高于安全区上界，冻结主体及关键结构未落入保护范围。",
+              "check": "protection",
+              "code": "other",
+              "evidence": {
+                "kind": "safe-area-overflow",
+                "entityIds": [
+                  "source-1",
+                  "source-2"
+                ],
+                "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+                "outputRect": {
+                  "x": 0.44,
+                  "y": 0.21,
+                  "width": 0.19,
+                  "height": 0.125
+                }
+              }
+            },
+            {
+              "kind": "layout",
+              "reason": "右侧横向细桁架末端越过安全区右界，关键延伸结构未落入保护范围。",
+              "check": "protection",
+              "code": "other",
+              "evidence": {
+                "kind": "safe-area-overflow",
+                "entityIds": [
+                  "source-1",
+                  "source-7"
+                ],
+                "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+                "outputRect": {
+                  "x": 0.855,
+                  "y": 0.545,
+                  "width": 0.125,
+                  "height": 0.08
+                }
+              }
+            },
+            {
+              "kind": "layout",
+              "reason": "safe-top-overlap:空间站主体整体可见范围；subject-overflow:空间站主体整体可见范围；safe-top-overlap:中央垂直舱段与上下连接节点；critical-outside:右侧横向细桁架与散热器",
+              "check": "protection",
+              "code": "other"
+            }
+          ],
+          "styleResults": [],
+          "reviewVersion": "wallpaper-review-source-v4",
+          "subjectIntegrity": {
+            "mode": "single",
+            "source": {
+              "extent": "complete",
+              "reason": "原图空间站主体完整落在画幅内，顶部与底部均有黑色余量，左右帆板和桁架未被裁断。",
+              "imageVersionId": "7bd02d8e-1d39-43e5-bc88-42b8e20ef28b"
+            },
+            "output": {
+              "extent": "complete",
+              "reason": "成品空间站完整可见，顶端天线、左右帆板与桁架、底部飞船均未触及画框，无意外截断。",
+              "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258"
+            },
+            "task": {
+              "result": "satisfied",
+              "reason": "成品保留同一空间站主体、关键舱段、帆板和桁架，修复未更换健康内容；安全区偏差另见protection。"
+            }
+          },
+          "sourceRepair": {
+            "result": "satisfied",
+            "reason": "原图无sourceEdgeContinuation目标，成品未被裁切的帆板与桁架端头均有自然边和连接，未见浅弧盖顶、悬空平切或矩形接缝。"
+          },
+          "actualLayout": {
+            "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+            "regions": [
+              {
+                "name": "空间站主体整体可见范围",
+                "entityId": "source-1",
+                "role": "subject",
+                "rect": {
+                  "x": 0.21,
+                  "y": 0.21,
+                  "width": 0.77,
+                  "height": 0.5670000000000001
+                },
+                "scope": "core"
+              },
+              {
+                "name": "中央垂直舱段与上下连接节点",
+                "entityId": "source-2",
+                "role": "critical",
+                "rect": {
+                  "x": 0.44,
+                  "y": 0.21,
+                  "width": 0.192,
+                  "height": 0.512
+                },
+                "scope": "core"
+              },
+              {
+                "name": "横向大型舱段与主承力桁架",
+                "entityId": "source-3",
+                "role": "critical",
+                "rect": {
+                  "x": 0.245,
+                  "y": 0.389,
+                  "width": 0.505,
+                  "height": 0.139
+                },
+                "scope": "core"
+              },
+              {
+                "name": "左侧大型太阳能帆板组",
+                "entityId": "source-4",
+                "role": "critical",
+                "rect": {
+                  "x": 0.355,
+                  "y": 0.403,
+                  "width": 0.285,
+                  "height": 0.185
+                },
+                "scope": "core"
+              },
+              {
+                "name": "右侧大型太阳能帆板组",
+                "entityId": "source-5",
+                "role": "critical",
+                "rect": {
+                  "x": 0.61,
+                  "y": 0.358,
+                  "width": 0.25,
+                  "height": 0.173
+                },
+                "scope": "core"
+              },
+              {
+                "name": "左侧横向细桁架与散热器",
+                "entityId": "source-6",
+                "role": "critical",
+                "rect": {
+                  "x": 0.205,
+                  "y": 0.556,
+                  "width": 0.3,
+                  "height": 0.073
+                },
+                "scope": "core"
+              },
+              {
+                "name": "右侧横向细桁架与散热器",
+                "entityId": "source-7",
+                "role": "critical",
+                "rect": {
+                  "x": 0.5,
+                  "y": 0.545,
+                  "width": 0.48,
+                  "height": 0.07999999999999996
+                },
+                "scope": "core"
+              }
+            ]
+          },
+          "sourceCorrespondence": {
+            "result": "satisfied",
+            "reason": "抵消整组位置和尺度变化后，中央竖向舱段、横向舱段、左右帆板、上下桁架与底部飞船的数量、遮挡和材质关系保持，场景、色温与地球位置一致。"
+          },
+          "sourceRepairAuthorized": true,
+          "modelChecks": {
+            "subject": {
+              "result": "satisfied",
+              "reason": "成品中空间站完整可见，顶部十字帆板、中央舱段、左右太阳能帆板、横向细桁架和底部飞船均未在画框内被切断。"
+            },
+            "protection": {
+              "result": "violated",
+              "reason": "空间站整体顶端与中央舱段上端高于安全区上界，右侧横向细桁架末端越过安全区右界；左侧及底部结构仍在保护范围内。"
+            },
+            "clock": {
+              "result": "satisfied",
+              "reason": "未启用：未配置时钟对比规则。"
+            },
+            "readability": {
+              "result": "satisfied",
+              "reason": "未启用：未提供锁屏模拟文字对比规则。"
+            },
+            "composition": {
+              "result": "satisfied",
+              "reason": "站体居中，竖向舱段与横向舱段、帆板的交叉关系和透视稳定，地球与星空前后层次清楚。"
+            },
+            "background": {
+              "result": "satisfied",
+              "reason": "星空、地球弧形地平线与云带连续自然，无接缝、镜像、重复站体、矩形贴片或新增时间日期。"
+            },
+            "style": {
+              "result": "satisfied",
+              "reason": "白色舱体、深色帆板网格、金属桁架和地球大气保持硬表面写实三维质感，细节未被统一模糊或改为绘画笔触。"
+            },
+            "clarity": {
+              "result": "satisfied",
+              "reason": "预览尺度下舱段环缝、帆板格线、桁架节点和底部飞船结构仍可辨，未见明显噪声、重影或异常光晕。"
+            }
+          },
+          "modelReadabilityCheck": {
+            "result": "satisfied",
+            "reason": "未启用：未提供锁屏模拟文字对比规则。"
+          },
+          "layoutChecks": [
+            "safe-top-overlap:空间站主体整体可见范围",
+            "subject-overflow:空间站主体整体可见范围",
+            "safe-top-overlap:中央垂直舱段与上下连接节点",
+            "critical-outside:右侧横向细桁架与散热器"
+          ],
+          "layoutWarnings": [],
+          "modelProtectionCheck": {
+            "result": "violated",
+            "reason": "空间站整体顶端与中央舱段上端高于安全区上界，右侧横向细桁架末端越过安全区右界；左侧及底部结构仍在保护范围内。"
+          },
+          "modelIssues": [
+            {
+              "kind": "layout",
+              "reason": "空间站顶端十字帆板与中央舱段上端高于安全区上界，冻结主体及关键结构未落入保护范围。",
+              "check": "protection",
+              "code": "other",
+              "evidence": {
+                "kind": "safe-area-overflow",
+                "entityIds": [
+                  "source-1",
+                  "source-2"
+                ],
+                "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+                "outputRect": {
+                  "x": 0.44,
+                  "y": 0.21,
+                  "width": 0.19,
+                  "height": 0.125
+                }
+              }
+            },
+            {
+              "kind": "layout",
+              "reason": "右侧横向细桁架末端越过安全区右界，关键延伸结构未落入保护范围。",
+              "check": "protection",
+              "code": "other",
+              "evidence": {
+                "kind": "safe-area-overflow",
+                "entityIds": [
+                  "source-1",
+                  "source-7"
+                ],
+                "imageVersionId": "wallpaper-seed-5a2bfe7c72545c6c1c72bd1fd402a58168d2465539635e3e7ec302986a25c258",
+                "outputRect": {
+                  "x": 0.855,
+                  "y": 0.545,
+                  "width": 0.125,
+                  "height": 0.08
+                }
+              }
+            }
+          ]
+        },
+        "boundaryReview": {
+          "requestId": "663c3f6c31bd43f9510348383b39ed3f5e2624dccddfdadbe84d1d15bc7c0b77:7bd02d8e-1d39-43e5-bc88-42b8e20ef28b:review:1:boundary-detail",
+          "status": "pending"
+        },
+        "simulationId": "wallpaper-simulation-89a073597698238cd9a86818efab9ac539780381e46b78f0fcfb275b216945e0"
+      }
+    ],
+    "download": {
+      "attempts": 0,
+      "retrying": false,
+      "reused": true,
+      "savedAt": "2026-11-14T16:47:09.196Z",
+      "byteLength": 5008164
+    },
+    "originalId": "7bd02d8e-1d39-43e5-bc88-42b8e20ef28b"
+  },
+  "expected": {
+    "rendering": "completed",
+    "reviewing": "running",
+    "clarity": "idle",
+    "activeStages": [
+      "reviewing"
+    ],
+    "returnStage": "reviewing",
+    "returnPhase": "running",
+    "safeLeft": 258,
+    "badRightTrussX": 922.5
+  }
+}

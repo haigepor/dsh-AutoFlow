@@ -16,7 +16,7 @@ const checks = Object.fromEntries(['subject', 'protection', 'clock', 'readabilit
 
 test('review explanations identify estimated overflow and retain failed checks without issue rows', () => {
   const text = { wallpaperBoundaryEstimate: '{name}: estimated overflow · {edges}', wallpaperBoundaryRight: 'Right' }
-  const review = { checks: { ...checks, protection: { result: 'violated', reason: 'critical-outside:Vase' }, clarity: { result: 'unknown', reason: 'Fine edges could not be confirmed.' } }, issues: [{ reason: 'critical-outside:Vase' }], actualLayout: { regions: [{ name: 'Vase', rect: { x: 0.8, y: 0.4, width: 0.1, height: 0.2 } }] } }
+  const review = { checks: { ...checks, protection: { result: 'violated', reason: 'critical-outside:Vase' }, clarity: { result: 'unknown', reason: 'Fine edges could not be confirmed.' } }, issues: [{ reason: 'critical-outside:Vase；critical-outside:Vase' }], actualLayout: { regions: [{ name: 'Vase', rect: { x: 0.8, y: 0.4, width: 0.1, height: 0.2 } }] } }
   const settings = { width: 1845, height: 3280, safe: { left: 258, top: 1032, width: 1329, height: 1686 }, sideOverflow: 66, bottomOverflow: 84, topBuffer: 32 }
   assert.deepEqual(wallpaperReviewReasons(review, settings, key => text[key] ?? key), ['Vase: estimated overflow · Right 74 px', 'Fine edges could not be confirmed.'])
 })
@@ -43,3 +43,17 @@ test('older revisions keep resolution before review and show unknown event times
   assert.equal(entries.find(entry => entry.kind === 'review').time, undefined)
   assert.equal(entries.some(entry => entry.kind === 'final'), false)
 })
+test('pending candidate review shows composed pixels while the raw provider image remains separately saved', () => {
+  const item = { originalId: 'original', status: 'technical-failed', attempts: [{ revision: 2, plan: { subject: 'Station' }, generatedImageId: 'provider-raw', nativeReviewCandidate: { nativeId: 'locked-native', previewId: 'locked-preview', simulationId: 'locked-simulation', nativeDigest: 'digest' }, generation: { model: 'subscription-image-model' }, review: { checks: { ...checks, protection: { result: 'unknown', reason: 'Boundary request incomplete' } }, issues: [] } }] }
+  const entries = wallpaperImageHistory(item)
+  assert.equal(entries.find(entry => entry.kind === 'image').imageId, 'locked-native')
+  assert.equal(entries.find(entry => entry.kind === 'review').imageId, 'locked-native')
+  assert.equal(item.attempts[0].generatedImageId, 'provider-raw')
+})
+
+test('final quality review has its own image, verdict and timestamp after reconstruction', () => {
+  const item = { originalId: 'original', status: 'needs-review', attempts: [{ revision: 1, plan: { subject: 'Station' }, preResolutionReview: { nativeId: 'native' }, review: { checks, issues: [] }, reviewedAt: '2026-11-15T01:00:00.000Z', backgroundResolution: { enhancedId: 'enhanced' }, outputId: 'final', postResolutionReview: { imageVersionId: 'final', reviewedAt: '2026-11-15T01:02:00.000Z', review: { checks: { ...checks, background: { result: 'violated', reason: 'New reconstruction seam' } }, issues: [{ reason: 'New reconstruction seam' }] } } }] };
+  const entries = wallpaperImageHistory(item, { enhanced: '2026-11-15T01:01:00.000Z' });
+  assert.deepEqual(entries.filter(entry => entry.kind === 'review').map(entry => [entry.imageId, entry.verdict, entry.time]), [['native', 'pass', '2026-11-15T01:00:00.000Z'], ['final', 'reject', '2026-11-15T01:02:00.000Z']]);
+  assert.equal(entries.some(entry => entry.kind === 'final'), false);
+});

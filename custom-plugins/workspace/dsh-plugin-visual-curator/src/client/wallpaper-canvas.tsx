@@ -3,7 +3,8 @@
 /** @jsxFrag React.Fragment */
 /** Bounded live wallpaper reads and download, planning, rendering and review nodes use native controls. */
 import { z } from 'zod'
-import { wallpaperCanCancel, wallpaperImageWorkStatus, wallpaperPendingDecision, wallpaperExperienceSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperViewSchema, wallpaperFailedStep, wallpaperVerdict, wallpaperBackgroundReview, wallpaperDownloadProgress, type WallpaperDownloadProgress, type WallpaperExperience, type WallpaperView, type WallpaperPlan } from '../shared/wallpaper.ts'
+import { wallpaperProtectedBounds } from '../shared/wallpaper-geometry.ts'
+import { wallpaperAttemptReview, wallpaperCanCancel, wallpaperImageWorkStatus, wallpaperPendingDecision, wallpaperExperienceSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperViewSchema, wallpaperFailedStep, wallpaperVerdict, wallpaperBackgroundReview, wallpaperDownloadProgress, type WallpaperDownloadProgress, type WallpaperExperience, type WallpaperView, type WallpaperPlan, type WallpaperReview } from '../shared/wallpaper.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 import type { SearchBatch } from '../shared/search-batches.ts'
 import type { Json } from './contract.ts'
@@ -11,13 +12,14 @@ import { jsonSchema } from '../shared/model.ts'
 import type { WorkbenchText } from './workbench-locale.ts'
 import { safeResourcePath } from './store.ts'
 import { wallpaperStage, workflowPhaseKeys, type WallpaperStep } from './workflow-node-state.ts'
+import { createWallpaperImageViewer, wallpaperGuidePixels, type WallpaperInspectionGuides } from './wallpaper-image-viewer.tsx'
 import { createSelectField } from './select-field.tsx'
 import { defaultImageModel, imageModelsForRoute, imageOptionsSchema, imageRouteReady, type ImageOptions } from './image-sources.ts'
 import { wallpaperRecovery, wallpaperCanDecide } from './wallpaper-recovery.ts'
 import { createWallpaperPlanEditor } from './wallpaper-plan-editor.tsx'
 import { wallpaperImageHistory, wallpaperReviewReasons } from './wallpaper-history.ts'
 import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
-import { imageWorkflowDetail, imageWorkflowPreviousReview, imageWorkflowClarity, imageWorkflowArtifact, imageWorkflowStageReached, imageWorkflowPresentationStages, imageWorkflowDecisionRecord, planningWindowStart, planningImagePhase, imageNavigationPageSize, imageWorkflowPhase, imageWorkflowStagePhase, type ImageWorkflowStage } from './workflow-image-branches.ts'
+import { imageWorkflowGallery, imageWorkflowDetail, imageWorkflowPreviousReview, imageWorkflowClarity, imageWorkflowArtifact, imageWorkflowStageReached, imageWorkflowPresentationStages, imageWorkflowDecisionRecord, planningWindowStart, planningImagePhase, imageNavigationPageSize, imageWorkflowPhase, imageWorkflowStagePhase, type ImageWorkflowStage } from './workflow-image-branches.ts'
 
 /** Narrow operations used by canvas observation and explicit owner actions. */
 export type WallpaperOperation = 'local-reference-pick' | 'direct-crop-replace' | 'wallpaper-read' | 'wallpaper-start' | 'wallpaper-options' | 'wallpaper-control' | 'wallpaper-continue' | 'wallpaper-plan-update' | 'wallpaper-experience' | 'wallpaper-experience-action' | 'wallpaper-case'
@@ -59,6 +61,7 @@ function planValidationMessage(plan: WallpaperPlan, view: WallpaperView, origina
  */
 export function createWallpaperCanvas(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const SelectField = createSelectField(React, ui)
+  const ImageViewer = createWallpaperImageViewer(React, ui)
   const PlanEditor = createWallpaperPlanEditor(React, ui)
   const resource = (path: string | undefined) => path && safeResourcePath(path) ? new URL(path.slice(1), document.baseURI).href : undefined
   const saveImage = (src: string) => {
@@ -284,25 +287,111 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     </nav>
   }
 
-  function ImageStepPreview({ preview, full, label, waiting, generating = false, enhancing = false, progress, moving, control, t }: { preview: string | undefined; full: string | undefined; label: string; waiting: boolean; generating?: boolean; enhancing?: boolean; progress?: { completed: number; total: number; unit: 'tiles' | 'percent' } | undefined; moving: boolean; control: Controller; t: WorkbenchText }) {
+  function inspectionGuides({ attempt, review: storedReview, imageId, settings, t }: { attempt: NonNullable<Controller['attempt']>; review: WallpaperReview | undefined; imageId: string; settings: WallpaperView['settings']; t: WorkbenchText }) {
+    const review = storedReview && 'actualLayout' in storedReview && storedReview.actualLayout.imageVersionId === imageId ? storedReview : undefined
+    const bounds = wallpaperProtectedBounds(settings)
+    const supporting = new Set(attempt.plan.objectRoles?.filter(object => object.role === 'supporting').map(object => object.entityId))
+    const defects = review && 'reviewVersion' in review && review.reviewVersion === 'wallpaper-review-source-v4' ? review.issues.flatMap(issue => {
+      if (!issue.evidence || issue.evidence.imageVersionId !== imageId) return []
+      if (issue.evidence.kind === 'safe-area-overflow' && issue.evidence.entityIds.every(id => supporting.has(id))) return []
+      return [{ rect: issue.evidence.outputRect, reason: issue.reason }]
+    }) : []
+    const overflowing = review && review.checks.protection.result === 'violated' ? review.actualLayout.regions.filter(region => {
+      if (region.entityId && supporting.has(region.entityId) || 'scope' in region && region.scope === 'peripheral') return false
+      const rect = region.rect, allowed = region.role === 'subject' ? bounds.subject : bounds.critical
+      return rect.y * settings.height < bounds.top || rect.x * settings.width < allowed.left || (rect.x + rect.width) * settings.width > allowed.right || (rect.y + rect.height) * settings.height > allowed.bottom
+    }).map(region => ({ rect: region.rect, reason: region.name })) : []
+    return { width: settings.width, height: settings.height, safe: { x: settings.safe.left / settings.width, y: settings.safe.top / settings.height, width: settings.safe.width / settings.width, height: settings.safe.height / settings.height }, regions: [
+      ...review ? review.actualLayout.regions.map((region, index) => ({ id: 'region-' + index, name: region.name, rect: region.rect, layer: 'regions' as const, role: region.role })) : [],
+      ...[...overflowing, ...defects].map(({ rect, reason }, index) => ({ id: 'defect-' + index, name: reason, rect, layer: 'defects' as const })),
+    ] } satisfies WallpaperInspectionGuides
+  }
+  function ReviewOverlay({ guides, t, fitToImage = false }: { guides: WallpaperInspectionGuides; t: WorkbenchText; fitToImage?: boolean }) {
+    const safe = wallpaperGuidePixels(guides.safe, guides)
+    return <svg className="vc-review-overlay" viewBox={`0 0 ${guides.width} ${guides.height}`} preserveAspectRatio={fitToImage ? 'none' : 'xMidYMid meet'} role="img" aria-label={t('wallpaperReviewAnalysis')}>
+      <rect data-review-guide="safe" x={safe.x} y={safe.y} width={safe.width} height={safe.height}><title>{t('wallpaperInspectorSafe')} · {t('wallpaperCoordinateTemplate')} · X {safe.x} · Y {safe.y} · W {safe.width} · H {safe.height} px</title></rect>
+      <path data-review-separator="top" d={`M 0 ${safe.y} H ${guides.width}`} /><path data-review-separator="bottom" d={`M 0 ${safe.y + safe.height} H ${guides.width}`} /><path data-review-separator="sides" d={`M ${safe.x} 0 V ${guides.height} M ${safe.x + safe.width} 0 V ${guides.height}`} />
+      {guides.regions.map(region => { const rect = { x: region.rect.x * guides.width, y: region.rect.y * guides.height, width: region.rect.width * guides.width, height: region.rect.height * guides.height }; return <rect key={region.id} data-review-region={region.layer === 'regions' ? region.role : undefined} data-review-defect={region.layer === 'defects' ? region.id : undefined} x={rect.x} y={rect.y} width={rect.width} height={rect.height} role="img" aria-label={region.name}><title>{region.name}</title></rect> })}
+    </svg>
+  }
+  function ImageStepPreview({ preview, full, label, waiting, generating = false, enhancing = false, progress, moving, control, t, reviewImageId, reviewAttempt = control.attempt, onPreview }: { reviewImageId?: string | undefined; reviewAttempt?: Controller['attempt']; onPreview?: () => void; preview: string | undefined; full: string | undefined; label: string; waiting: boolean; generating?: boolean; enhancing?: boolean; progress?: { completed: number; total: number; unit: 'tiles' | 'percent' } | undefined; moving: boolean; control: Controller; t: WorkbenchText }) {
     const [loaded, setLoaded] = React.useState(''), [failed, setFailed] = React.useState(''), [aspect, setAspect] = React.useState({ width: 9, height: 16 })
     const ready = !!preview && loaded === preview, error = !!preview && failed === preview
     const pending = !error && (!enhancing && waiting && control.value?.status !== 'cancelled' || !!preview && !ready)
     const processing = !moving ? t(workflowPhaseKeys.paused) : !progress?.total ? t('wallpaperResolutionWaiting') : progress.completed === progress.total ? t('wallpaperResolutionFinalizing') : progress.unit === 'percent' ? t('wallpaperResolutionPercent').replace('{percent}', String(Math.floor(progress.completed / progress.total * 100))) : t('wallpaperResolutionTiles').replace('{completed}', String(progress.completed)).replace('{total}', String(progress.total))
-    return <button type="button" className="vc-image-step-preview" data-generating={generating && !enhancing || undefined} data-enhancing={enhancing || undefined} disabled={!full && !error} aria-label={error ? t('wallpaperEditorRetryImage') : label} aria-busy={pending || enhancing || undefined} onContextMenu={event => { if (full) control.openImageMenu(full, event) }} onClick={() => { if (error) { setLoaded(''); setFailed('') } else if (full) control.setPreview(full) }}>
+    return <button type="button" className="vc-image-step-preview" data-generating={generating && !enhancing || undefined} data-enhancing={enhancing || undefined} disabled={!full && !error} aria-label={error ? t('wallpaperEditorRetryImage') : label} aria-busy={pending || enhancing || undefined} onContextMenu={event => { if (full) control.openImageMenu(full, event) }} onClick={() => { if (error) { setLoaded(''); setFailed('') } else if (full) { if (onPreview) onPreview(); else control.setPreview(full) } }}>
       {pending && (generating ? <ui.ImageGenerationSkeleton active={moving} className="vc-generation-landscape" /> : <span className="vc-skeleton-fill vc-image-preview-skeleton" aria-hidden="true" />)}
       {preview && !error ? <img key={preview} data-loaded={ready || undefined} onLoad={event => { setLoaded(preview); setAspect({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }) }} onError={() => setFailed(preview)} src={preview} alt="" loading="lazy" decoding="async" draggable={false} /> : !pending && (error ? <span className="vc-flow-muted">{t('wallpaperEditorRetryImage')}</span> : <ui.IconBrowseOutlineRegular size={24} />)}
+      {ready && !error && reviewImageId && reviewAttempt && control.value && <ReviewOverlay guides={inspectionGuides({ attempt: reviewAttempt, review: reviewAttempt.postResolutionReview?.imageVersionId === reviewImageId ? reviewAttempt.postResolutionReview.review : reviewAttempt.review, imageId: reviewImageId, settings: control.value.settings, t })} t={t} />}
       {enhancing && preview && !error && <><svg className="vc-resolution-overlay" viewBox={`0 0 ${aspect.width} ${aspect.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-moving={moving || undefined}><g className="vc-resolution-scan"><rect x="0" y="-32" width="100%" height="64" fill="currentColor" opacity=".12" /><line x1="0" x2="100%" y1="0" y2="0" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" /></g></svg><span className="vc-resolution-badge" role="status" aria-live="polite">{processing}</span></>}
     </button>
   }
+  function StageGallery({ stage, control, t, attempt = control.attempt, history = false, showEvidence = true }: { stage: ImageWorkflowStage; control: Controller; t: WorkbenchText; attempt?: Controller['attempt']; history?: boolean; showEvidence?: boolean }) {
+    const [selected, select] = React.useState(''), [expanded, expand] = React.useState(false)
+    const touch = React.useRef<number | undefined>(undefined)
+    const value = control.value, item = control.item
+    if (!value || !item) return null
+    const slides = imageWorkflowGallery(stage, item, attempt, history).filter(slide => resource(value.resources[slide.id]))
+    if (!slides.length) return null
+    const key = (slide: typeof slides[number]) => `${slide.attempt?.revision ?? 0}:${slide.id}:${slide.annotated}`
+    const index = Math.max(0, slides.findIndex(slide => key(slide) === selected)), slide = slides[index]!
+    const dimensions = value.artifactDimensions?.[slide.id] ?? value.sourceImages[slide.id]
+    const label = `${t(slide.label)}${dimensions ? ` · ${dimensions.width} × ${dimensions.height}` : ''}${history && slide.attempt ? ` · ${t('wallpaperAttempt')} ${slide.attempt.revision}` : ''}`
+    const full = resource(value.resources[slide.id]), preview = resource(value.previewResources[slide.id]) ?? full
+    const move = (delta: number) => select(key(slides[Math.max(0, Math.min(slides.length - 1, index + delta))]!))
+    const paired = !history && ['planning', 'clarity'].includes(stage) && slides.length === 2
+    const selectedReview = slide.attempt?.postResolutionReview?.imageVersionId === slide.id ? slide.attempt.postResolutionReview.review : slide.attempt?.review
+    const reasons = slide.annotated && selectedReview ? wallpaperReviewReasons(selectedReview, value.settings, t) : []
+    const guides = slide.attempt && (stage === 'clarity' || slide.annotated || slide.id === slide.attempt.outputId || slide.id === slide.attempt.nativeReviewCandidate?.nativeId || slide.id === slide.attempt.preResolutionReview?.nativeId) ? inspectionGuides({ attempt: slide.attempt, review: selectedReview, imageId: slide.id, settings: value.settings, t }) : undefined
+    const overlay = guides ? <ReviewOverlay guides={guides} t={t} fitToImage /> : undefined
+    const safePixels = guides && dimensions ? wallpaperGuidePixels(guides.safe, dimensions) : undefined
+    return <section className="vc-stage-gallery nodrag nopan nowheel" data-paired={paired || undefined} aria-label={t('wallpaperGallery')} tabIndex={0} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); event.stopPropagation(); move(event.key === 'ArrowLeft' ? -1 : 1) } }} onTouchStart={event => { touch.current = event.touches[0]?.clientX }} onTouchEnd={event => { const start = touch.current; touch.current = undefined; if (start !== undefined && event.changedTouches[0] && Math.abs(event.changedTouches[0].clientX - start) > 40) move(event.changedTouches[0].clientX < start ? 1 : -1) }}>
+      {paired ? <div className="vc-stage-image-pair">{slides.map(entry => {
+        const entryFull = resource(value.resources[entry.id]), entryPreview = resource(value.previewResources[entry.id]) ?? entryFull
+        return <figure key={key(entry)}><ImageStepPreview preview={entryPreview} full={entryFull} label={t(entry.label)} waiting={false} moving={false} control={control} t={t} onPreview={() => { select(key(entry)); expand(true) }} /><figcaption>{t(entry.label)}</figcaption></figure>
+      })}</div> : <>
+        <ImageStepPreview key={key(slide)} preview={preview} full={full} label={label} waiting={false} moving={false} control={control} t={t} reviewAttempt={slide.attempt} reviewImageId={slide.annotated ? slide.id : undefined} onPreview={() => expand(true)} />
+        <div className="vc-stage-gallery-caption">{slides.length > 1 ? <SelectField label={t('wallpaperGallery')} value={key(slide)} options={slides.map(entry => ({ value: key(entry), label: t(entry.label) }))} onChange={select} /> : <strong>{t(slide.label)}</strong>}{slides.length > 1 && <div className="vc-stage-gallery-navigation"><ui.Tooltip portal label={t('wallpaperGalleryPrevious')} side="top"><ui.Button size="sm" variant="ghost" disabled={index === 0} aria-label={t('wallpaperGalleryPrevious')} onClick={() => move(-1)}><ui.IconChevronLeftOutlineRegular size={12} /></ui.Button></ui.Tooltip><span aria-live="polite">{index + 1} / {slides.length}</span><ui.Tooltip portal label={t('wallpaperGalleryNext')} side="top"><ui.Button size="sm" variant="ghost" disabled={index === slides.length - 1} aria-label={t('wallpaperGalleryNext')} onClick={() => move(1)}><ui.IconChevronRightOutlineRegular size={12} /></ui.Button></ui.Tooltip></div>}</div>
+        {dimensions && <small className="vc-flow-muted vc-stage-image-dimensions">{dimensions.width} × {dimensions.height} px</small>}{!history && slide.annotated && safePixels && <div className="vc-gallery-coordinate-summary"><span>{t('wallpaperInspectorSafe')} · {t('wallpaperCoordinateImage')} px</span><code>X {safePixels.x} · Y {safePixels.y} · W {safePixels.width} · H {safePixels.height}</code></div>}
+      </>}
+      {showEvidence && !history && !!reasons.length && <details className="vc-gallery-evidence"><summary>{t('wallpaperGalleryEvidence').replace('{count}', String(reasons.length))}</summary><ul>{reasons.map((reason, at) => <li key={at}>{reason}</li>)}</ul></details>}
+      {expanded && full && <ImageViewer src={full} label={label} annotated={slide.annotated} guides={guides} dimensions={dimensions} navigation={{ previous: index > 0 ? () => move(-1) : undefined, next: index < slides.length - 1 ? () => move(1) : undefined, label: `${index + 1} / ${slides.length}` }} onClose={() => expand(false)} onSave={() => saveImage(full)} onContextMenu={event => control.openImageMenu(full, event)} t={t}>{overlay}</ImageViewer>}
+    </section>
+  }
+  function ActionButton({ action, label, onClick, disabled = false, href }: { action: 'details' | 'history' | 'edit' | 'download' | 'retry' | 'pause' | 'preview'; label: string; onClick?: (() => void) | undefined; disabled?: boolean; href?: string | undefined }) {
+    const Icon = action === 'details' ? ui.IconInfoOutlineRegular : action === 'history' ? ui.IconClockOutlineRegular : action === 'edit' ? ui.IconEditOutlineRegular : action === 'download' ? ui.IconDownloadOutlineRegular : action === 'pause' ? ui.IconPauseOutlineRegular : action === 'preview' ? ui.IconFullscreenOutlineRegular : ui.IconRefreshOutlineRegular
+    const content = <><span className="vc-node-action-icon" aria-hidden="true"><Icon size={14} /></span><span className="vc-node-action-label">{label}</span></>
+    return <ui.Tooltip portal label={label} side="top"><span className="vc-node-action-anchor">{href ? <a className="vc-node-icon-action" data-action={action} aria-label={label} href={href} download>{content}</a> : <ui.Button size="sm" variant="ghost" className="vc-node-icon-action" data-action={action} aria-label={label} disabled={disabled} onClick={onClick}>{content}</ui.Button>}</span></ui.Tooltip>
+  }
+  function PreviewInspector({ src, control, t }: { src: string; control: Controller; t: WorkbenchText }) {
+    const id = new URL(src).searchParams.get('imageVersionId')
+    const attempt = id ? control.item?.attempts.findLast(row => row.outputId === id || row.nativeReviewCandidate?.nativeId === id || row.preResolutionReview?.nativeId === id || row.postResolutionReview?.imageVersionId === id) : undefined
+    const review = attempt?.postResolutionReview?.imageVersionId === id ? attempt.postResolutionReview.review : attempt?.review
+    const dimensions = id ? control.value?.artifactDimensions?.[id] ?? control.value?.sourceImages[id] : undefined
+    const guides = attempt && id && control.value ? inspectionGuides({ attempt, review, imageId: id, settings: control.value.settings, t }) : undefined
+    return <ImageViewer src={src} label={t('wallpaperWorkflow')} guides={guides} dimensions={dimensions} onClose={() => control.setPreview(null)} onSave={() => saveImage(src)} onContextMenu={event => control.openImageMenu(src, event)} t={t}>{guides && <ReviewOverlay guides={guides} t={t} fitToImage />}</ImageViewer>
+  }
   function GenerationBriefDetails({ control, t, detailed = false }: { control: Controller; t: WorkbenchText; detailed?: boolean }) {
+    const [open, setOpen] = React.useState(false), [tab, setTab] = React.useState('prompt'), id = React.useId()
     const brief = (detailed ? control.detailAttempt : control.attempt)?.generationBrief
     if (!brief) return null
-    return <section className="vc-generation-brief"><strong>{t(brief.status === 'saved' ? 'wallpaperGenerationPromptSaved' : 'wallpaperPreparingGenerationPrompt')}</strong><small className="vc-flow-muted">{t('wallpaperPromptEffort')} · {brief.reasoningEffort}</small>{detailed && brief.status === 'saved' && <><strong>{t('wallpaperStyleAnchors')}</strong><ul>{brief.result.styleAnchors.map((anchor, index) => <li key={index}>{anchor}</li>)}</ul><strong>{t('wallpaperDetailAnchors')}</strong><ul>{brief.result.detailAnchors.map((anchor, index) => <li key={index}>{anchor}</li>)}</ul><details><summary>{t('wallpaperAuthoredPrompt')}</summary><p className="vc-generation-prompt-text">{brief.result.generationPrompt}</p></details></>}</section>
+    if (!detailed) return <section className="vc-generation-brief"><strong>{t(brief.status === 'saved' ? 'wallpaperGenerationPromptSaved' : 'wallpaperPreparingGenerationPrompt')}</strong><small className="vc-flow-muted">{t('wallpaperPromptEffort')} · {brief.reasoningEffort}</small></section>
+    const documents = [
+      { value: 'prompt', label: t('wallpaperPromptDocument'), id: id + '-prompt', panelId: id + '-prompt-panel', text: brief.status === 'saved' ? brief.result.generationPrompt : '' },
+      { value: 'style', label: t('wallpaperStyleAnchors'), id: id + '-style', panelId: id + '-style-panel', text: brief.status === 'saved' ? brief.result.styleAnchors.join('\n\n') : '' },
+      { value: 'details', label: t('wallpaperDetailAnchors'), id: id + '-details', panelId: id + '-details-panel', text: brief.status === 'saved' ? brief.result.detailAnchors.join('\n\n') : '' },
+    ] as const
+    return <><ui.Button size="sm" variant="outline" onClick={() => setOpen(true)}><ui.IconCodeOutlineRegular size={14} />{t('wallpaperPromptDocument')}</ui.Button>
+      <ui.Modal open={open} onClose={() => setOpen(false)} title={t('wallpaperAuthoredPrompt')} closeLabel={t('close')} className="vc-wallpaper-modal vc-prompt-editor-modal" contentClassName="vc-prompt-editor-shell" footer={<ui.Button size="sm" variant="ghost" onClick={() => setOpen(false)}>{t('close')}</ui.Button>}>
+        <div className="vc-prompt-editor-context"><ui.Tag tone={brief.status === 'saved' ? 'success' : 'neutral'}>{t(brief.status === 'saved' ? 'wallpaperGenerationPromptSaved' : 'wallpaperPreparingGenerationPrompt')}</ui.Tag><span>{t('wallpaperPromptEffort')} · {brief.reasoningEffort}</span><span>{t('wallpaperPromptReadOnly')}</span></div>
+        {brief.status === 'saved' && <ui.SegmentedTabs className="vc-prompt-editor-tabs" variant="underline" label={t('wallpaperAuthoredPrompt')} value={tab} onChange={setTab} items={documents} />}
+        {documents.map(document => <section key={document.value} id={id + '-' + document.value + '-panel'} role="tabpanel" aria-labelledby={id + '-' + document.value} hidden={tab !== document.value} className="vc-prompt-editor-document"><pre tabIndex={0}>{document.text}</pre></section>)}
+      </ui.Modal>
+    </>
   }
   function issueMessage(item: Controller['item'], t: WorkbenchText): string {
     const failureMessage = (code: string | undefined) => code === 'vision-invalid-output' || code === 'vision-output-truncated' ? t('wallpaperStructuredFailure') : code === 'remote-timeout' || code === 'remote-idle-timeout' ? t('wallpaperFailureTimeout') : code === 'source-protocol-error' ? t('wallpaperFailureProtocol') : code === 'image-resolution-insufficient' ? t('wallpaperFailureResolution') : code && ['IMAGE_TOO_LARGE', 'IMAGES_TOO_LARGE', 'IMAGE_TOO_MANY_PIXELS', 'IMAGE_DIMENSION_TOO_LARGE'].includes(code) ? t('wallpaperFailureReference') : code === 'image-operation-failed' ? t('wallpaperFailureGeneration') : code === 'original-source-restricted' ? t('workflowSourceRestricted') : code === 'original-account-mismatch' ? t('workflowSourceAccount') : code === 'vision-image-too-large' ? t('workflowVisionTooLarge') : code === 'vision-image-digest-mismatch' ? t('workflowVisionDigest') : code?.startsWith('original-download-http-') ? t('workflowDownloadNetwork') : code === 'reference-unavailable' || code === 'original-source-unavailable' ? t('workflowSourceUnavailable') : undefined
-    const explanation = (text: string | undefined) => !text ? '' : text === 'boundary-review-unavailable' ? t('directCropBoundaryReviewRequired') : text === 'native-review-required' ? t('directCropNativeReviewRequired') : text === 'image-operation-failed' ? t('wallpaperFailureGeneration') : text === 'IMAGE_CREDITS_DISABLED' ? t('wallpaperCreditsDisabled') : text === 'image-operation-pruned' ? t('wallpaperReceiptPruned') : text === 'rework-limit' ? t('wallpaperReworkLimit') : text === 'edit-limit' ? t('wallpaperEditLimit') : text === 'image-capability-unavailable' ? t('wallpaperMissingCapability') : text === 'outcome-unknown' || text === 'image-outcome-unknown' || text === 'interrupted-after-send' ? t('wallpaperUnknown') : text === 'uncertain-subject' ? t('wallpaperUncertainReason') : text === 'vision-detail-unavailable' ? t('directCropDetailUnavailable') : text === 'unchanged-review-evidence' ? t('directCropUnchangedReview') : text
+    const explanation = (text: string | undefined) => !text ? '' : text === 'final-quality-review-required' ? t('wallpaperFinalReviewRequired') : text === 'candidate-background-protection-required' ? t('wallpaperBackgroundProtectionRequired') : text === 'boundary-review-unavailable' ? t('directCropBoundaryReviewRequired') : text === 'native-review-required' ? t('directCropNativeReviewRequired') : text === 'image-operation-failed' ? t('wallpaperFailureGeneration') : text === 'IMAGE_CREDITS_DISABLED' ? t('wallpaperCreditsDisabled') : text === 'image-operation-pruned' ? t('wallpaperReceiptPruned') : text === 'rework-limit' ? t('wallpaperReworkLimit') : text === 'edit-limit' ? t('wallpaperEditLimit') : text === 'image-capability-unavailable' ? t('wallpaperMissingCapability') : text === 'outcome-unknown' || text === 'image-outcome-unknown' || text === 'interrupted-after-send' ? t('wallpaperUnknown') : text === 'uncertain-subject' ? t('wallpaperUncertainReason') : text === 'vision-detail-unavailable' ? t('directCropDetailUnavailable') : text === 'unchanged-review-evidence' ? t('directCropUnchangedReview') : text
     return failureMessage(item?.errorCode) || explanation(item?.reason) || t('wallpaperGeometryFailed')
   }
   function ImageRecoveryAction({ control, t, pauseControl = false }: { control: Controller; t: WorkbenchText; pauseControl?: boolean }) {
@@ -311,8 +400,8 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     if (recovery.kind === 'none') return null
     if (recovery.kind === 'history') return <ui.Button size="sm" variant="outline" disabled={control.busy} onClick={() => { if (control.item?.attempts.at(-1)) control.setRevision({ image: control.item.imageVersionId, revision: control.item.attempts.at(-1)!.revision }) }}>{t('wallpaperRecoveryLatest')}</ui.Button>
     const reconstruct = control.item?.errorCode === 'image-resolution-insufficient' && !!control.attempt?.generationInput && control.attempt.compositionMode === 'protected-context-v2'
-    const label = recovery.kind === 'canvas' ? 'wallpaperGeneratedCanvasAction' : recovery.kind === 'rework' ? 'wallpaperRecoveryRework' : recovery.kind === 'download' ? control.item?.errorCode === 'original-source-restricted' || control.item?.errorCode === 'source-protocol-error' ? 'wallpaperOriginalRecheck' : 'wallpaperOriginalRetry' : recovery.kind === 'receipt' ? 'wallpaperRecoveryReceipt' : recovery.kind === 'reinspect' ? 'directCropReinspect' : recovery.kind === 'edit' ? 'wallpaperEditPlan' : recovery.kind === 'review' ? 'wallpaperReviewCurrent' : control.item?.status === 'technical-failed' ? 'wallpaperRecoveryRetry' : 'wallpaperRecoveryContinue'
-    return <React.Fragment><ui.Button size="sm" variant="primary" title={running ? t('wallpaperRecoveryPauseFirst') : undefined} disabled={control.busy || running} onClick={() => {
+    const label = recovery.kind === 'canvas' ? 'wallpaperGeneratedCanvasAction' : recovery.kind === 'rework' ? 'wallpaperRecoveryRework' : recovery.kind === 'download' ? control.item?.errorCode === 'original-source-restricted' || control.item?.errorCode === 'source-protocol-error' ? 'wallpaperOriginalRecheck' : 'wallpaperOriginalRetry' : recovery.kind === 'receipt' ? 'wallpaperRecoveryReceipt' : recovery.kind === 'reinspect' ? 'directCropReinspect' : recovery.kind === 'edit' ? 'wallpaperEditPlan' : recovery.kind === 'review' ? 'wallpaperReviewCurrent' : recovery.kind === 'retry' && recovery.step === 'reviewing' ? 'wallpaperReviewCurrent' : control.item?.status === 'technical-failed' ? 'wallpaperRecoveryRetry' : 'wallpaperRecoveryContinue'
+    return <React.Fragment><ActionButton action={recovery.kind === 'edit' ? 'edit' : 'retry'} label={t(reconstruct ? 'wallpaperBackgroundResolutionAction' : label)} disabled={control.busy || running} onClick={() => {
       if (recovery.kind === 'canvas') control.reviewGeneratedCanvas()
       else if (recovery.kind === 'rework') control.rework()
       else if (reconstruct) control.reconstructBackground()
@@ -322,7 +411,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       else if (recovery.kind === 'edit') control.editPlan()
       else if (recovery.kind === 'review') control.reviewCurrent()
       else if (recovery.kind === 'retry') control.retryImage(recovery.step)
-    }}>{t(reconstruct ? 'wallpaperBackgroundResolutionAction' : label)}</ui.Button>{running && pauseControl && <><ui.Button size="sm" variant="outline" disabled={control.busy} onClick={() => control.control('pause')}>{t('wallpaperPause')}</ui.Button><small className="vc-flow-muted vc-recovery-pause-hint">{t('wallpaperRecoveryPauseFirst')}</small></>}</React.Fragment>
+    }} />{running && pauseControl && <><ActionButton action="pause" label={t('wallpaperPause')} disabled={control.busy} onClick={() => control.control('pause')} /><small className="vc-flow-muted vc-recovery-pause-hint">{t('wallpaperRecoveryPauseFirst')}</small></>}</React.Fragment>
   }
   function BatchActions({ control, t }: { control: Controller; t: WorkbenchText }) {
     const [open, setOpen] = React.useState(false)
@@ -375,19 +464,21 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const latest = imageWorkflowDecisionRecord(item, attempt), records = detailed ? item.decisions?.filter(record => record.planRevision === attempt?.revision || record.targetRevision === attempt?.revision) ?? [] : latest ? [latest] : []
     const cancelled = value.status === 'cancelled', working = active(wallpaperImageWorkStatus(value, item.imageVersionId)), policy = value.settings.decision, decisionStopped = attempt === item.attempts.at(-1) && item.reason === 'decision-round-limit' && !(latest && imageWorkflowDetail(item, attempt)?.decisionId === latest.id)
     return <section className="vc-flow-node-body vc-decision-card nodrag nopan nowheel" data-detailed={detailed || undefined} data-decision-status={cancelled ? 'cancelled' : decisionStopped ? 'limited' : latest?.status ?? 'pending'} aria-busy={!decisionStopped && latest?.status === 'running' && working}>
+      <StageGallery stage="decision" control={control} t={t} />
+      {item.errorCode && <section className="vc-stage-issue" role="status"><strong>{t(item.failedStep === 'reviewing' ? 'wallpaperReviewTechnical' : 'workflowStageFailure')}</strong><p>{issueMessage(item, t)}</p></section>}
       {decisionStopped && <section className="vc-stage-issue" role="status"><ui.Tag tone="warning">{t('wallpaperDecisionLimit')}</ui.Tag><p>{t('wallpaperDecisionLimitHint')}</p></section>}
       {!records.length && <p>{t('wallpaperDecisionPending')}</p>}
       {decisionStopped && records.length > 0 && <strong>{t('wallpaperDecisionHistory')}</strong>}
       {records.map(record => <section key={record.id} className="vc-decision-record" data-decision-id={record.id}>
         <div className="vc-flow-node-badges"><ui.StateDot state={cancelled && record.status !== 'applied' ? 'idle' : record.status === 'running' ? working ? 'ongoing' : 'idle' : record.status === 'applied' ? 'done' : 'error'} /><ui.Tag tone={!cancelled && (record.status === 'failed' || record.status === 'manual') ? 'warning' : 'neutral'}>{t(cancelled && record.status !== 'applied' ? workflowPhaseKeys.cancelled : record.status === 'running' && !working ? 'wallpaperDecisionPaused' : decisionStatuses[record.status])}</ui.Tag><small>{t('wallpaperDecisionRound')} {record.round}{policy ? ` / ${policy.maxRoundsPerImage}` : ''}</small></div>
         {record.response && <strong>{t(decisionActions[record.response.action.kind])}</strong>}<p>{record.reason}</p>{detailed && record.response && <><p>{record.response.reason}</p><div className="vc-flow-facts"><span>{t('wallpaperDecisionExtent')}</span><p>{record.response.sourceExtent.reason}</p></div>{record.response.action.kind === 'replan' && <p>{record.response.action.guidance}</p>}{record.detailRect && <small className="vc-flow-muted">{record.detailRect.x}, {record.detailRect.y} · {record.detailRect.width} × {record.detailRect.height}</small>}</>}
-        {record.response && record.targetStage && !decisionStopped && !cancelled && <div className="vc-flow-facts"><span>{t('wallpaperDecisionNext')}</span><strong>{t(stepKeys[record.targetStage])}{record.targetRevision ? ` · ${t('wallpaperAttempt')} ${record.targetRevision}` : ''}</strong></div>}
+        {record.response && record.status === 'applied' && record.targetStage && record.targetStage !== 'decision' && !decisionStopped && !cancelled && <div className="vc-flow-facts"><span>{t('wallpaperDecisionNext')}</span><strong>{t(stepKeys[record.targetStage])}{record.targetRevision ? ` · ${t('wallpaperAttempt')} ${record.targetRevision}` : ''}</strong></div>}
         <ul className="vc-decision-findings">{record.response?.findings.slice(0, detailed ? undefined : 3).map(finding => <li key={finding.concernId}><div><ui.Tag tone={finding.blocking ? 'warning' : 'neutral'}>{t(finding.blocking ? 'wallpaperDecisionBlocking' : 'wallpaperDecisionNonblocking')}</ui.Tag><small>{t(decisionScopes[finding.scope])} · {t(decisionClassifications[finding.classification])}</small></div><p>{finding.reason}</p>{detailed && <small className="vc-flow-muted">{finding.evidenceImageVersionIds.join(' · ')}</small>}</li>)}</ul>
         {record.errorCode && <small className="vc-flow-muted">{record.errorCode}</small>}
       </section>)}
       <p className="vc-flow-muted">{t(cancelled ? 'wallpaperCancelledHint' : latest?.status === 'running' && !working ? 'wallpaperDecisionResumeHint' : 'wallpaperDecisionHint')}</p>
       {policy && !cancelled && <div className="vc-flow-facts"><span>{t('wallpaperDecisionRemaining')}</span><strong>{Math.max(0, policy.maxRoundsPerImage - (item.decisions?.at(-1)?.round ?? 0))}</strong><span>{t('wallpaperDecisionDetailLimit')} {policy.maxDetailRequests}</span></div>}
-      <div className="vc-flow-node-actions"><DecisionAction control={control} t={t} />{!detailed && records.length > 0 && <ui.Button size="sm" variant="outline" onClick={() => control.setDetails('decision')}>{t('wallpaperStepDetails')}</ui.Button>}</div>
+      <div className="vc-flow-node-actions"><DecisionAction control={control} t={t} />{!detailed && records.length > 0 && <ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails('decision')} />}</div>
     </section>
   }
   function StepHistory({ control, t, value, onChange }: { control: Controller; t: WorkbenchText; value: ImageWorkflowStage | undefined; onChange(stage: ImageWorkflowStage | undefined): void }) {
@@ -404,67 +495,69 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const rect = inspection.rect
     const reason = inspection.errorCode === 'vision-invalid-output' || inspection.errorCode === 'vision-output-truncated' ? t('directCropDetailInvalidOutput') : inspection.reason
     return <section className="vc-flow-node-body vc-decision-card nodrag nopan nowheel" data-detailed={detailed || undefined} aria-busy={phase === 'running'}>
+      <StageGallery stage="detail" control={control} t={t} />
       <div className="vc-flow-node-badges"><ui.Tag>{t(origin[inspection.origin])}</ui.Tag><small>{t('wallpaperAttempt')} {inspection.planRevision}</small></div>
       <strong>{t(phase === 'paused' || phase === 'cancelled' ? workflowPhaseKeys[phase] : outcomes[inspection.status])}</strong>
       {reason && <p>{reason}</p>}
       {!!attempt?.detailAnalysis?.retainedUncertainties?.length && <div className="vc-flow-facts"><span>{t('directCropRetainedUnknowns')}</span><ul>{attempt.detailAnalysis.retainedUncertainties.map(entry => <li key={entry.text}>{entry.text}</li>)}</ul></div>}
       {detailed && rect && <div className="vc-flow-facts"><span>{t('directCropDetailRegion')}</span><strong>{[rect.x, rect.y, rect.width, rect.height].map(value => (value * 100).toFixed(1) + '%').join(' · ')}</strong></div>}
       {inspection.errorCode && <small className="vc-flow-muted">{inspection.errorCode}</small>}
-      {!detailed && <div className="vc-flow-node-actions"><ui.Button size="sm" variant="outline" onClick={() => control.setDetails('detail')}>{t('wallpaperStepDetails')}</ui.Button>{['failed', 'attention'].includes(phase) && wallpaperRecovery(value, item, attempt).kind === 'reinspect' && <ImageRecoveryAction control={control} t={t} pauseControl />}</div>}
+      {!detailed && <div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails('detail')} />{['failed', 'attention'].includes(phase) && wallpaperRecovery(value, item, attempt).kind === 'reinspect' && <ImageRecoveryAction control={control} t={t} pauseControl />}</div>}
     </section>
   }
   function ImageStepCard({ kind, stage, control, t }: { kind: WallpaperStep; stage: ImageWorkflowStage; control: Controller; t: WorkbenchText }) {
     const { value, item, attempt } = control
     if (!value || !item) return <div className="vc-flow-node-body vc-image-step-card vc-image-step-loading" role="status" aria-busy="true"><ui.StateDot state="ongoing" /><span>{t('wallpaperLoadingImage')}</span></div>
     if (stage === 'detail') return <DetailInspectionCard control={control} t={t} />
-    const qualified = item.status === 'passed' && attempt === item.attempts.at(-1) && !!attempt?.outputId && !!attempt.review && wallpaperVerdict(attempt.review) === 'pass'
+    const review = wallpaperAttemptReview(attempt)
+    const qualified = item.status === 'passed' && attempt === item.attempts.at(-1) && !!attempt?.outputId && !!review && wallpaperVerdict(review) === 'pass'
     const id = stage === 'final' && !qualified ? undefined : imageWorkflowArtifact(stage, item, attempt)
     const originalPreview = item.originalId ? resource(value.sourceImages[item.originalId]?.previewPath) : undefined
     const sourcePreview = kind === 'downloading' && !item.originalId ? resource(value.itemIndex?.find(row => row.imageVersionId === item.imageVersionId)?.previewPath) : undefined
     const preview = resource(id ? value.previewResources[id] : undefined) ?? ((stage === 'original' || stage === 'planning') && originalPreview && new URL(originalPreview).searchParams.get('imageVersionId') !== item.originalId ? originalPreview : undefined) ?? sourcePreview
     const progress = value.downloads?.[item.imageVersionId] ?? wallpaperDownloadProgress(item, value.status)
     const full = resource(id ? value.resources[id] : undefined)
-    const phase = imageWorkflowStagePhase(stage, item, wallpaperImageWorkStatus(value, item.imageVersionId), attempt), checks = attempt?.review ? Object.entries(attempt.review.checks) : []
+    const phase = imageWorkflowStagePhase(stage, item, wallpaperImageWorkStatus(value, item.imageVersionId), attempt), checks = review ? Object.entries(review.checks) : []
     const clarity = imageWorkflowClarity(attempt)
     const passed = checks.filter(([, check]) => check.result === 'satisfied').length
-    const reviewPassed = checks.length > 0 && passed === checks.length
-    const reviewing = kind === 'reviewing' && stage !== 'final'
     const moving = active(value.status)
     const live = value.enhancements?.[item.imageVersionId]
     const resolutionProgress = live && live.revision === attempt?.revision ? live.progress : undefined
     const enhancing = (stage === 'rendering' || stage === 'clarity') && attempt === item.attempts.at(-1) && ['running', 'pausing', 'paused', 'interrupted'].includes(wallpaperImageWorkStatus(value, item.imageVersionId)) && (attempt?.backgroundResolution?.status === 'enhancing' || attempt?.clarity?.status === 'enhancing')
-    const reviewAnalysis = attempt?.outputId && attempt.simulationId ? attempt.analysisId : undefined
-    const analysisFull = resource(reviewAnalysis ? value.resources[reviewAnalysis] : undefined)
-    const analysisPreview = resource(reviewAnalysis ? value.previewResources[reviewAnalysis] : undefined)
     const ownIssue = ['failed', 'attention'].includes(phase) && !['geometry', 'final', 'clarity'].includes(stage)
     const previousReview = stage === 'rendering' ? imageWorkflowPreviousReview(item, attempt) : undefined
     const previewLabel = t(stage === 'final' ? 'wallpaperClean' : kind === 'downloading' ? 'wallpaperSource' : kind === 'planning' ? 'wallpaperAnalysis' : kind === 'rendering' ? 'wallpaperClean' : 'wallpaperSimulation')
-    return <div className="vc-flow-node-body vc-image-step-card nodrag nopan nowheel" data-step={stage}>
-      {reviewing ? <div className="vc-image-review-previews" data-passed={reviewPassed || undefined}>
-        <figure><ImageStepPreview preview={analysisPreview} full={analysisFull} label={t('wallpaperReviewAnalysis')} waiting={phase === 'running' && !analysisPreview} moving={moving} control={control} t={t} /><figcaption>{t('wallpaperReviewAnalysis')}</figcaption></figure>
-        {reviewPassed && <figure><ImageStepPreview preview={preview} full={full} label={t('wallpaperSimulation')} waiting={false} moving={moving} control={control} t={t} /><figcaption>{t('wallpaperSimulation')}</figcaption></figure>}
-      </div> : <ImageStepPreview preview={preview} full={full} label={previewLabel} waiting={kind === 'rendering' && !attempt?.outputId && item.status === 'rendering' && ['running', 'pausing', 'paused', 'interrupted'].includes(value.status)} generating={kind === 'rendering' && !!attempt?.needsOutpaint && !!attempt.generation && !id && item.status === 'rendering'} enhancing={enhancing} progress={resolutionProgress} moving={moving} control={control} t={t} />}
+    return <div className="vc-flow-node-body vc-image-step-card nodrag nopan nowheel" data-step={stage}><div className="vc-image-step-content">
+      {!enhancing && (stage !== 'final' || qualified) && imageWorkflowGallery(stage, item, attempt).some(slide => resource(value.resources[slide.id])) ? <StageGallery key={item.imageVersionId + ':' + stage + ':' + attempt?.revision} stage={stage} control={control} t={t} /> : <ImageStepPreview preview={preview} full={full} label={previewLabel} waiting={kind === 'rendering' && !attempt?.outputId && item.status === 'rendering' && ['running', 'pausing', 'paused', 'interrupted'].includes(value.status)} generating={kind === 'rendering' && !!attempt?.needsOutpaint && !!attempt.generation && !id && item.status === 'rendering'} enhancing={enhancing} progress={resolutionProgress} moving={moving} control={control} t={t} />}
       {sourcePreview && <small className="vc-flow-muted">{t('wallpaperOriginalPreview')}</small>}
       {stage === 'planning' && attempt?.detailAnalysis && <small className="vc-flow-muted">{t(attempt.detailAnalysis.outcome === 'ready-for-edit' ? 'directCropDetailReady' : attempt.detailAnalysis.outcome === 'resolved' ? 'directCropDetailResolved' : attempt.detailAnalysis.outcome === 'violated' ? 'directCropDetailViolated' : 'directCropDetailUnresolved')}</small>}
-      {ownIssue && <section className="vc-stage-issue" role="alert"><strong>{t('workflowStageFailure')}</strong><p>{stage === 'reviewing' && attempt?.review ? wallpaperReviewReasons(attempt.review, value.settings, t).join('；') || issueMessage(item, t) : issueMessage(item, t)}</p></section>}
+      {ownIssue && <section className="vc-stage-issue" role="alert"><strong>{t('workflowStageFailure')}</strong><p>{stage === 'reviewing' && review ? wallpaperReviewReasons(review, value.settings, t).join('；') || issueMessage(item, t) : issueMessage(item, t)}</p>{stage === 'reviewing' && attempt?.review && item.errorCode && <p>{t('wallpaperReviewTechnical')} · {issueMessage(item, t)}</p>}{item.errorCode && <code>{item.errorCode}</code>}</section>}
       {stage === 'rendering' && ownIssue && item.edits >= value.settings.maxEditsPerImage && <p className="vc-flow-muted">{t('wallpaperEditLimit')}</p>}
       {previousReview?.review && <section className="vc-stage-issue"><strong>{t('directCropPreviousReview')} · {t('wallpaperAttempt')} {previousReview.revision}</strong><p>{wallpaperReviewReasons(previousReview.review, value.settings, t).join('；')}</p></section>}
       <div key={item.imageVersionId} className="vc-image-step-meta">
-        {stage === 'clarity' ? <><strong>{t(!clarity ? 'wallpaperClarityHistorical' : clarity!.status === 'not-needed' ? 'wallpaperClarityNotNeeded' : clarity!.status === 'enhancing' ? 'wallpaperClarityEnhancing' : clarity!.status === 'reviewing' ? 'wallpaperClarityReviewing' : clarity!.status === 'passed' ? attempt?.preResolutionReview ? 'wallpaperClarityPostReviewPassed' : 'wallpaperClarityPassed' : clarity!.status === 'pending' ? 'wallpaperClarityPending' : 'wallpaperClarityAttention')}</strong><small>{attempt?.preResolutionReview && clarity?.status === 'passed' ? t('wallpaperClarityPostReviewHint') : clarity?.reason || t('wallpaperClarityHint')}</small></> : stage === 'geometry' ? <><div className="vc-flow-facts"><span>{t('wallpaperGeometryTarget')}</span><strong>{value.settings.width} × {value.settings.height}</strong></div>{attempt && <><div className="vc-flow-facts"><span>{t('wallpaperGeometryScale')}</span><strong>{attempt.plan.placement.scale}</strong></div><div className="vc-flow-facts"><span>{t('wallpaperGeometryOffset')}</span><strong>{attempt.plan.placement.left}, {attempt.plan.placement.top}</strong></div><small>{t(attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly')}</small></>}</> : stage === 'final' ? <><strong>{t(qualified ? 'wallpaperPassed' : 'wallpaperAttention')}</strong><small>{qualified ? t('wallpaperSize') : t('wallpaperFinalBlocked')}</small></> : kind === 'downloading' ? <><DownloadProgress progress={progress} t={t} />{item.originalId && value.sourceImages[item.originalId] && <div className="vc-flow-facts"><span>{t('wallpaperOriginalDimensions')}</span><strong>{value.sourceImages[item.originalId]!.width} × {value.sourceImages[item.originalId]!.height}</strong></div>}</> : kind === 'planning' ? <><p className="vc-planning-image-subject">{attempt?.plan.subject ?? t('wallpaperIdle')}</p>{attempt && <small>{t('wallpaperRound')} {attempt.revision} · {t('wallpaperPlanningRegions').replace('{count}', String(attempt.plan.regions.length))}</small>}</> : kind === 'rendering' ? <><strong>{attempt ? t(attempt.layoutCorrection ? 'wallpaperCandidatePlacement' : attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly') : t('wallpaperIdle')}</strong><small>{t('wallpaperEditCount')} {item.edits} / {value.settings.maxEditsPerImage}</small></> : <><strong>{checks.length ? t('wallpaperReviewSummary').replace('{passed}', String(passed)).replace('{total}', String(checks.length)) : t('wallpaperReviewPending')}</strong><div className="vc-image-check-summary">{checks.filter(([, check]) => check.result !== 'satisfied').map(([key, check]) => <ui.Tag key={key} tone={check.result === 'violated' ? 'warning' : 'neutral'}>{t(key === 'style' && value.state.version === 2 ? 'directCropFaithful' : checkKeys[key as keyof typeof checkKeys])} · {t(check.result === 'violated' ? 'wallpaperViolated' : 'wallpaperUnknownCheck')}</ui.Tag>)}</div></>}
+        {stage === 'clarity' ? <><strong>{t(!clarity ? 'wallpaperClarityHistorical' : clarity!.status === 'not-needed' ? 'wallpaperClarityNotNeeded' : clarity!.status === 'enhancing' ? 'wallpaperClarityEnhancing' : clarity!.status === 'reviewing' ? 'wallpaperClarityReviewing' : clarity!.status === 'passed' ? attempt?.preResolutionReview ? 'wallpaperClarityPostReviewPassed' : 'wallpaperClarityPassed' : clarity!.status === 'pending' ? 'wallpaperClarityPending' : 'wallpaperClarityAttention')}</strong><small>{attempt?.preResolutionReview && clarity?.status === 'passed' ? t('wallpaperClarityPostReviewHint') : clarity?.reason || t('wallpaperClarityHint')}</small></> : stage === 'geometry' ? <><div className="vc-flow-facts"><span>{t('wallpaperGeometryTarget')}</span><strong>{value.settings.width} × {value.settings.height}</strong></div>{attempt && <><div className="vc-flow-facts"><span>{t('wallpaperGeometryScale')}</span><strong>{(attempt.layoutCorrection?.plan ?? attempt.plan).placement.scale}</strong></div><div className="vc-flow-facts"><span>{t('wallpaperGeometryOffset')}</span><strong>{(attempt.layoutCorrection?.plan ?? attempt.plan).placement.left}, {(attempt.layoutCorrection?.plan ?? attempt.plan).placement.top}</strong></div><small>{t(attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly')}</small></>}</> : stage === 'final' ? <><strong>{t(qualified ? 'wallpaperPassed' : 'wallpaperAttention')}</strong><small>{qualified ? t('wallpaperSize') : t('wallpaperFinalBlocked')}</small></> : kind === 'downloading' ? <><DownloadProgress progress={progress} t={t} />{item.originalId && value.sourceImages[item.originalId] && <div className="vc-flow-facts"><span>{t('wallpaperOriginalDimensions')}</span><strong>{value.sourceImages[item.originalId]!.width} × {value.sourceImages[item.originalId]!.height}</strong></div>}</> : kind === 'planning' ? <><p className="vc-planning-image-subject">{attempt?.plan.subject ?? t('wallpaperIdle')}</p>{attempt && <small>{t('wallpaperRound')} {attempt.revision} · {t('wallpaperPlanningRegions').replace('{count}', String(attempt.plan.regions.length))}</small>}</> : kind === 'rendering' ? <><strong>{attempt ? t(attempt.layoutCorrection ? 'wallpaperCandidatePlacement' : attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly') : t('wallpaperIdle')}</strong><small>{t('wallpaperGenerationCount')} {new Set(item.attempts.flatMap(row => row.generation ? [row.generation.id] : [])).size} · {t('wallpaperEditCount')} {item.edits} / {value.settings.maxEditsPerImage}</small></> : <><strong>{checks.length ? t('wallpaperReviewSummary').replace('{passed}', String(passed)).replace('{total}', String(checks.length)) : t(item.errorCode ? 'wallpaperReviewTechnical' : attempt?.postResolutionReview ? 'wallpaperFinalReviewPending' : 'wallpaperReviewPending')}</strong><div className="vc-image-check-summary">{checks.filter(([, check]) => check.result !== 'satisfied').map(([key, check]) => <ui.Tag key={key} tone={check.result === 'violated' ? 'warning' : 'neutral'}>{t(key === 'style' && value.state.version === 2 ? 'directCropFaithful' : checkKeys[key as keyof typeof checkKeys])} · {t(check.result === 'violated' ? 'wallpaperViolated' : 'wallpaperUnknownCheck')}</ui.Tag>)}</div></>}
         {kind !== 'downloading' && ['failed', 'attention', 'blocked'].includes(phase) && <small className="vc-flow-muted">{t(phase === 'blocked' ? 'workflowStepBlocked' : 'wallpaperAttention')}</small>}
       </div>
+      {(stage === 'reviewing' || stage === 'final') && (attempt?.finalReviewRequired || attempt?.preResolutionReview?.finalId) && <small className="vc-flow-muted">{t(attempt.postResolutionReview?.review && wallpaperVerdict(attempt.postResolutionReview.review) === 'pass' ? 'wallpaperFinalReviewPassed' : attempt.finalReviewRequired ? 'wallpaperFinalReviewPending' : 'wallpaperHistoricalFinalReview')}</small>}
       {stage === 'rendering' && <GenerationBriefDetails control={control} t={t} />}
       {stage === 'rendering' && <BackgroundResolutionDetails control={control} t={t} />}
-       <div className="vc-flow-node-actions"><ui.Button size="sm" variant="outline" onClick={() => control.setDetails(stage === 'clarity' ? 'clarity' : kind)}>{t('wallpaperStepDetails')}</ui.Button>{stage === 'rendering' && <ui.Button size="sm" variant="outline" onClick={() => control.setHistoryOpen(true)}>{t('wallpaperHistoryTitle')}</ui.Button>}{ownIssue ? <><ImageRecoveryAction control={control} t={t} pauseControl />{kind === 'planning' && wallpaperRecovery(value, item, attempt).kind !== 'edit' && <ui.Button size="sm" variant="outline" disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan}>{t('wallpaperEditPlan')}</ui.Button>}</> : kind === 'planning' && stage !== 'geometry' && attempt && <ui.Button size="sm" variant="outline" disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan}>{t('wallpaperEditPlan')}</ui.Button>}{stage === 'final' && qualified && full && <a className="vc-wallpaper-download" href={full} download="wallpaper-1845x3280.png">{t('wallpaperDownload')}</a>}</div>
+      </div><div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails(stage === 'clarity' ? 'clarity' : kind)} />{stage === 'rendering' && <ActionButton action="history" label={t('wallpaperHistoryTitle')} onClick={() => control.setHistoryOpen(true)} />}{ownIssue ? <><ImageRecoveryAction control={control} t={t} pauseControl />{kind === 'planning' && wallpaperRecovery(value, item, attempt).kind !== 'edit' && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}</> : kind === 'planning' && stage !== 'geometry' && attempt && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}{stage === 'final' && qualified && full && <ActionButton action="download" label={t('wallpaperDownload')} href={full} />}</div>
     </div>
   }
 
   function ClarityDetails({ control, t }: { control: Controller; t: WorkbenchText }) {
-    const clarity = imageWorkflowClarity(control.attempt), value = control.value
+    const clarity = imageWorkflowClarity(control.attempt), value = control.value, resolution = control.attempt?.backgroundResolution
     if (!clarity || !value) return <p>{t('wallpaperClarityHistorical')}</p>
-    return <section className="vc-clarity-details"><p>{control.attempt?.preResolutionReview && clarity.status === 'passed' ? t('wallpaperClarityPostReviewPassed') : clarity.reason === 'clarity-no-visible-change' ? t('wallpaperClarityNoChange') : clarity.reason || t('wallpaperClarityPending')}</p><small className="vc-flow-muted">{t(control.attempt?.preResolutionReview ? 'wallpaperClarityPostReviewHint' : 'wallpaperClarityHint')}</small>
-      <div className="vc-image-review-previews"><Artifact path={clarity.originalOutputId ? value.resources[clarity.originalOutputId] : undefined} label={t('wallpaperClarityBaseline')} control={control} /><Artifact path={clarity.enhancedOutputId ? value.resources[clarity.enhancedOutputId] : undefined} label={t('wallpaperClarityEnhanced')} control={control} /></div>
-      {clarity.durationMs !== undefined && <div className="vc-flow-facts"><span>{t('wallpaperClarityTime')}</span><strong>{(clarity.durationMs / 1000).toFixed(2)} s</strong></div>}{clarity.pixels !== undefined && <div className="vc-flow-facts"><span>{t('wallpaperClarityPixels')}</span><strong>{clarity.pixels.toLocaleString()}</strong></div>}
+    const statusKeys = { passed: 'wallpaperClarityTechnicalPassed', 'not-needed': 'wallpaperClarityNotNeeded', pending: 'wallpaperClarityPending', enhancing: 'wallpaperClarityEnhancing', reviewing: 'wallpaperClarityReviewing', 'needs-review': 'wallpaperClarityAttention', failed: 'wallpaperClarityAttention' } as const
+    const duration = clarity.durationMs ?? resolution?.durationMs
+    return <section className="vc-clarity-details vc-clarity-overview">
+      <StageGallery stage="clarity" control={control} t={t} />
+      <div className="vc-clarity-inspector">
+        <section className="vc-detail-status"><ui.Tag tone={clarity.status === 'passed' || clarity.status === 'not-needed' ? 'success' : 'neutral'}>{t(statusKeys[clarity.status])}</ui.Tag><p>{control.attempt?.preResolutionReview && clarity.status === 'passed' ? t('wallpaperClarityTechnicalHint') : clarity.reason || t('wallpaperClarityHint')}</p></section>
+        {(control.attempt?.preResolutionReview || control.attempt?.finalReviewRequired) && <p className="vc-detail-review-note"><ui.IconInfoOutlineRegular size={16} /><span>{t(control.attempt.postResolutionReview?.review && wallpaperVerdict(control.attempt.postResolutionReview.review) === 'pass' ? 'wallpaperFinalReviewPassed' : control.attempt.finalReviewRequired ? 'wallpaperFinalReviewPending' : 'wallpaperHistoricalFinalReview')}</span></p>}
+        <dl className="vc-detail-metrics">{resolution && <div><dt>{t('wallpaperClarityBaseline')}</dt><dd>{resolution.input.width} × {resolution.input.height} px</dd></div>}{resolution?.output && <div><dt>{t('wallpaperClarityEnhanced')}</dt><dd>{resolution.output.width} × {resolution.output.height} px</dd></div>}{duration !== undefined && <div><dt>{t('wallpaperClarityTime')}</dt><dd>{(duration / 1000).toFixed(2)} s</dd></div>}</dl>
+        <small className="vc-flow-muted">{t('wallpaperDetailPreviewHint')}</small>
+      </div>
     </section>
   }
   function Artifact({ path, label, control }: { path: string | undefined; label: string; control: Controller }) {
@@ -489,7 +582,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
         })}
       </ol>}
       {item?.download && <div className="vc-flow-facts"><span>{t('workflowDownloadAttempts')} <b>{item.download.attempts}</b></span>{item.download.byteLength !== undefined && <span>{t('workflowDownloadBytes')} <b>{(item.download.byteLength / 1048576).toFixed(2)} MiB</b></span>}</div>}
-      {saved && <div className="vc-flow-node-actions"><ui.Button size="sm" variant="outline" onClick={() => control.setPreview(saved)}>{t('workflowDownloadPreview')}</ui.Button><a className="vc-wallpaper-download" href={saved} download={`source-${control.offset + 1}.png`}>{t('workflowDownloadFile')}</a></div>}
+      {saved && <div className="vc-flow-node-actions"><ActionButton action="preview" label={t('workflowDownloadPreview')} onClick={() => control.setPreview(saved)} /><ActionButton action="download" label={t('workflowDownloadFile')} href={saved} /></div>}
     </section>
   }
   function PlanningImageCard({ imageId, index, control, t, onSelect }: { imageId: string; index: number; control: Controller; t: WorkbenchText; onSelect?(): void }) {
@@ -605,11 +698,13 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const { item, attempt, value } = control
     if (!value || !item) return null
     const running = active(value.status), phase = control.details === 'clarity' || control.details === 'detail' || control.details === 'decision' ? imageWorkflowStagePhase(control.details, item, wallpaperImageWorkStatus(value, item.imageVersionId), attempt) : imageWorkflowPhase(control.details ?? 'planning', item, wallpaperImageWorkStatus(value, item.imageVersionId), attempt)
-    return <div className="vc-image-detail-context"><ui.Tag tone={phase === 'failed' || phase === 'attention' ? 'warning' : phase === 'completed' ? 'success' : 'neutral'}>{t(workflowPhaseKeys[phase])}</ui.Tag>{(control.details === 'planning' || control.details === 'downloading') && <ui.Tag tone="neutral">{t('wallpaperSource')}</ui.Tag>}
-      {item.attempts.length > 1 ? <SelectField label={t('wallpaperAttempt')} value={String(attempt?.revision)} options={item.attempts.map(row => ({ value: String(row.revision), label: t('wallpaperAttempt') + ' ' + row.revision }))} onChange={revision => control.setRevision({ image: item.imageVersionId, revision: Number(revision) })} /> : attempt && <span>{t('wallpaperAttempt')} {attempt.revision}</span>}
-      {attempt && <><ui.Tag tone="neutral">{t(modeKeys[attempt.plan.mode])}</ui.Tag><span>{t('wallpaperEditorRegions')} {attempt.plan.regions.length}</span></>}{running && <ui.StateDot state="ongoing" />}
+    return <div className="vc-image-detail-context">
+      <div className="vc-detail-context-selection"><ui.Tag tone={phase === 'failed' || phase === 'attention' ? 'warning' : phase === 'completed' ? 'success' : 'neutral'}>{t(workflowPhaseKeys[phase])}</ui.Tag>
+      {item.attempts.length > 1 ? <SelectField label={t('wallpaperAttempt')} value={String(attempt?.revision)} options={item.attempts.map(row => ({ value: String(row.revision), label: t('wallpaperAttempt') + ' ' + row.revision }))} onChange={revision => control.setRevision({ image: item.imageVersionId, revision: Number(revision) })} /> : attempt && <span>{t('wallpaperAttempt')} {attempt.revision}</span>}{running && <ui.StateDot state="ongoing" />}</div>
+      <div className="vc-detail-context-meta">{(control.details === 'planning' || control.details === 'downloading') && <span>{t('wallpaperSource')}</span>}{attempt && <><span>{t(modeKeys[attempt.plan.mode])}</span><span>{t('wallpaperEditorRegions')} <b>{attempt.plan.regions.length}</b></span></>}</div>
     </div>
   }
+
   function BackgroundResolutionDetails({ control, t }: { control: Controller; t: WorkbenchText }) {
     const saved = control.attempt?.backgroundResolution
     const resolution = saved && control.attempt?.review && !control.attempt.preResolutionReview ? { ...saved, ...wallpaperBackgroundReview(control.attempt.review) } : saved
@@ -621,24 +716,80 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     </section>
   }
   function RenderingDetails({ control, t }: { control: Controller; t: WorkbenchText }) {
+    const [notesOpen, showNotes] = React.useState(true)
     const { value, item, attempt } = control
     if (!value || !item || !attempt) return <WallpaperNode kind="rendering" control={control} t={t} single />
     const live = value.enhancements?.[item.imageVersionId]
     const enhancing = attempt === item.attempts.at(-1) && ['running', 'pausing', 'paused', 'interrupted'].includes(wallpaperImageWorkStatus(value, item.imageVersionId)) && (attempt.backgroundResolution?.status === 'enhancing' || attempt.clarity?.status === 'enhancing')
     const id = imageWorkflowArtifact('rendering', item, attempt), preview = resource(id ? value.previewResources[id] : undefined), full = resource(id ? value.resources[id] : undefined), waiting = item.status === 'rendering' && !id
-    return <div className="vc-image-result-grid"><figure className="vc-image-result-preview"><ImageStepPreview preview={preview} full={full} label={t('wallpaperClean')} waiting={waiting} generating={waiting && !!attempt.needsOutpaint && !!attempt.generation} enhancing={enhancing} progress={live?.revision === attempt.revision ? live.progress : undefined} moving={active(value.status)} control={control} t={t} /><figcaption>{t(id ? 'wallpaperClean' : 'wallpaperEditingWait')}</figcaption></figure><div className="vc-image-result-summary"><strong>{t(attempt.layoutCorrection ? 'wallpaperCandidatePlacement' : attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly')}</strong><dl><div><dt>{t('wallpaperEditCount')}</dt><dd>{item.edits} / {value.settings.maxEditsPerImage}</dd></div><div><dt>{t('wallpaperOutputSpec')}</dt><dd>{value.settings.width} × {value.settings.height}</dd></div></dl><BackgroundResolutionDetails control={control} t={t} />{attempt.backgroundResolution && <p className="vc-flow-muted">{t(attempt.generationBrief || attempt.preResolutionReview ? attempt.layoutCorrection ? 'wallpaperCandidatePlacementPreReviewHint' : 'wallpaperGeneratedCanvasPreReviewHint' : attempt.layoutCorrection ? 'wallpaperCandidatePlacementHint' : isGeneratedCanvasMode(attempt.compositionMode) ? 'wallpaperGeneratedCanvasHint' : 'wallpaperBackgroundResolutionHint')}</p>}{attempt.generation && <p className="vc-flow-muted">{t('wallpaperRecoveryReceiptHint')}</p>}</div></div>
+    const dimensions = id ? value.artifactDimensions?.[id] ?? value.sourceImages[id] : undefined
+    return <div className="vc-image-result-grid">
+      <figure className="vc-image-result-preview"><figcaption><strong>{t(id ? 'wallpaperClean' : 'wallpaperEditingWait')}</strong>{dimensions && <span>{dimensions.width} × {dimensions.height} px</span>}</figcaption>
+        <ImageStepPreview preview={preview} full={full} label={t('wallpaperClean')} waiting={waiting} generating={waiting && !!attempt.needsOutpaint && !!attempt.generation} enhancing={enhancing} progress={live?.revision === attempt.revision ? live.progress : undefined} moving={active(value.status)} control={control} t={t} />
+        <small className="vc-flow-muted">{t('wallpaperDetailPreviewHint')}</small>
+      </figure>
+      <aside className="vc-image-result-summary" aria-label={t('wallpaperRenderSummary')}>
+        <section className="vc-render-method"><h3>{t('wallpaperRenderSummary')}</h3><strong>{t(attempt.layoutCorrection ? 'wallpaperCandidatePlacement' : attempt.compositionMode === 'generated-canvas-v1' ? 'wallpaperGeneratedCanvasLabel' : attempt.needsOutpaint ? 'wallpaperOutpaint' : 'wallpaperCropOnly')}</strong></section>
+        <dl><div><dt>{t('wallpaperEditCount')}</dt><dd>{item.edits} / {value.settings.maxEditsPerImage}</dd></div><div><dt>{t('wallpaperOutputSpec')}</dt><dd>{value.settings.width} × {value.settings.height} px</dd></div></dl>
+        {attempt.backgroundResolution && <div className="vc-render-resolution"><BackgroundResolutionDetails control={control} t={t} /></div>}
+        {(attempt.backgroundResolution || attempt.generation) && <ui.DisclosureRow icon={<ui.IconInfoOutlineRegular size={14} />} title={t('wallpaperProcessingNotes')} open={notesOpen} expandable expandOnRowClick onToggle={() => showNotes(value => !value)}><div className="vc-render-notes">
+          {attempt.backgroundResolution && <p>{t(attempt.generationBrief || attempt.preResolutionReview ? attempt.layoutCorrection ? 'wallpaperCandidatePlacementPreReviewHint' : 'wallpaperGeneratedCanvasPreReviewHint' : attempt.layoutCorrection ? 'wallpaperCandidatePlacementHint' : isGeneratedCanvasMode(attempt.compositionMode) ? 'wallpaperGeneratedCanvasHint' : 'wallpaperBackgroundResolutionHint')}</p>}
+          {attempt.generation && <p>{t('wallpaperRecoveryReceiptHint')}</p>}
+        </div></ui.DisclosureRow>}
+      </aside>
+    </div>
   }
   function ReviewDetails({ control, t }: { control: Controller; t: WorkbenchText }) {
     const { value, item, attempt } = control
     if (!value || !item || !attempt) return <WallpaperNode kind="reviewing" control={control} t={t} single />
-    const checks = attempt.review ? Object.entries(attempt.review.checks) : [], passed = checks.filter(([, check]) => check.result === 'satisfied').length
-    const id = attempt.analysisId, preview = resource(id ? value.previewResources[id] : undefined), full = resource(id ? value.resources[id] : undefined)
-    return <div className="vc-image-review-detail"><div className="vc-image-result-grid">{preview && <figure className="vc-image-result-preview"><ImageStepPreview preview={preview} full={full} label={t('wallpaperReviewAnalysis')} waiting={false} moving={false} control={control} t={t} /><figcaption>{t('wallpaperReviewAnalysis')}</figcaption></figure>}<div className="vc-image-result-summary"><strong>{checks.length ? t('wallpaperReviewSummary').replace('{passed}', String(passed)).replace('{total}', String(checks.length)) : t('wallpaperReviewPending')}</strong>{attempt.review && wallpaperReviewReasons(attempt.review, value.settings, t).map(reason => <p key={reason}>{reason}</p>)}{attempt.review && 'layoutWarnings' in attempt.review && attempt.review.layoutWarnings.map((warning, index) => <p key={index} className='vc-flow-muted'>{t('wallpaperPeripheralWarning').replace('{name}', warning.slice('peripheral-outside:'.length))}</p>)}{!checks.length && <p className="vc-flow-muted">{active(value.status) ? t('wallpaperClarityPending') : issueMessage(item, t)}</p>}</div></div>{checks.length > 0 && <div className="vc-image-review-detail-checks">{checks.map(([key, check]) => <section key={key}><ui.Tag tone={check.result === 'satisfied' ? 'success' : check.result === 'violated' ? 'warning' : 'neutral'}>{t(key === 'style' && value.state.version === 2 ? 'directCropFaithful' : checkKeys[key as keyof typeof checkKeys])} · {t(check.result === 'satisfied' ? 'wallpaperSatisfied' : check.result === 'violated' ? 'wallpaperViolated' : 'wallpaperUnknownCheck')}</ui.Tag><p>{check.reason}</p></section>)}</div>}{attempt.review && 'reviewVersion' in attempt.review && (attempt.review.reviewVersion === 'wallpaper-review-source-v3' || attempt.review.reviewVersion === 'wallpaper-review-source-v4') && <section className="vc-clarity-details"><strong>{t('wallpaperActualRegions')}</strong><p>{t('wallpaperActualRegionsHint')}</p><dl>{attempt.review.actualLayout.regions.map((region, index) => <div key={index}><dt>{region.name}</dt><dd>{Math.round(region.rect.x * value.settings.width)}, {Math.round(region.rect.y * value.settings.height)} · {Math.round(region.rect.width * value.settings.width)} × {Math.round(region.rect.height * value.settings.height)}</dd></div>)}</dl><strong>{t('wallpaperSourceCorrespondence')}</strong><p>{attempt.review.sourceCorrespondence.reason}</p></section>}</div>
+    const review = wallpaperAttemptReview(attempt)
+    const checks = review ? Object.entries(review.checks) : [], passed = checks.filter(([, check]) => check.result === 'satisfied').length
+    const reasons = review ? wallpaperReviewReasons(review, value.settings, t) : []
+    return <div className="vc-image-review-detail">
+      <div className="vc-review-overview">
+        <aside className="vc-review-preview"><StageGallery stage="reviewing" control={control} t={t} showEvidence={false} /><small className="vc-flow-muted">{t('wallpaperDetailPreviewHint')}</small></aside>
+        <div className="vc-review-report">
+          <section className="vc-review-summary" data-result={review ? wallpaperVerdict(review) : undefined}><strong>{checks.length ? t('wallpaperReviewSummary').replace('{passed}', String(passed)).replace('{total}', String(checks.length)) : t('wallpaperReviewPending')}</strong>{reasons.length ? <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul> : null}{review && 'layoutWarnings' in review && review.layoutWarnings.map((warning, index) => <p key={index} className="vc-flow-muted">{t('wallpaperPeripheralWarning').replace('{name}', warning.slice('peripheral-outside:'.length))}</p>)}{!checks.length && <p>{active(value.status) ? t('wallpaperClarityPending') : issueMessage(item, t)}</p>}</section>
+          <div className="vc-review-findings">{checks.length > 0 && <div className="vc-image-review-detail-checks">{checks.map(([key, check]) => <section key={key} data-result={check.result}><div><strong>{t(key === 'style' && value.state.version === 2 ? 'directCropFaithful' : checkKeys[key as keyof typeof checkKeys])}</strong><ui.Tag tone={check.result === 'satisfied' ? 'success' : check.result === 'violated' ? 'warning' : 'neutral'}>{t(check.result === 'satisfied' ? 'wallpaperSatisfied' : check.result === 'violated' ? 'wallpaperViolated' : 'wallpaperUnknownCheck')}</ui.Tag></div><p>{check.reason}</p></section>)}</div>}
+      {review && 'reviewVersion' in review && (review.reviewVersion === 'wallpaper-review-source-v3' || review.reviewVersion === 'wallpaper-review-source-v4') && <details className="vc-review-observations"><summary>{t('wallpaperActualRegions')} · {review.actualLayout.regions.length}</summary><section className="vc-clarity-details"><p>{t('wallpaperActualRegionsHint')}</p><dl>{review.actualLayout.regions.map((region, index) => <div key={index}><dt>{region.name}</dt><dd>{Math.round(region.rect.x * value.settings.width)}, {Math.round(region.rect.y * value.settings.height)} · {Math.round(region.rect.width * value.settings.width)} × {Math.round(region.rect.height * value.settings.height)}</dd></div>)}</dl><strong>{t('wallpaperSourceCorrespondence')}</strong><p>{review.sourceCorrespondence.reason}</p></section></details>}
+          </div>
+        </div>
+      </div>
+
+    </div>
   }
 
   function ImageHistory({ control, t }: { control: Controller; t: WorkbenchText }) {
     const item = control.item, value = control.value
     const [selectedRevision, selectRevision] = React.useState<number | null>(item?.attempts.at(-1)?.revision ?? null)
+    const [compareOriginal, setCompareOriginal] = React.useState(true)
+    const [inspectionTab, selectInspectionTab] = React.useState<'review' | 'events'>('review')
+    const versionLayout = React.useRef<HTMLDivElement>(null), versionDrag = React.useRef<{ pointer: number; x: number; width: number; max: number; next: number }>()
+    const [versionLimit, limitVersionWidth] = React.useState(360)
+    React.useEffect(() => {
+      const element = versionLayout.current
+      if (!element) return
+      const observer = new ResizeObserver(entries => { const width = entries[0]?.contentRect.width; if (width !== undefined) limitVersionWidth(Math.max(184, Math.min(360, Math.floor(width * 0.35)))) })
+      observer.observe(element)
+      return () => observer.disconnect()
+    }, [item?.imageVersionId])
+    const versionWidthKey = 'visual-curator:history-version-width:v1'
+    const [versionWidth, setVersionWidth] = React.useState(() => {
+      try { const value = Number(window.localStorage.getItem(versionWidthKey)); return Number.isFinite(value) && value >= 184 && value <= 360 ? value : 224 }
+      catch (error) { return 224 }
+    })
+    const versionMax = () => versionLimit
+    const clampVersionWidth = (next: number, max = versionMax()) => Math.round(Math.max(184, Math.min(max, next)))
+    const saveVersionWidth = (next: number) => { setVersionWidth(next); try { window.localStorage.setItem(versionWidthKey, String(next)) } catch (error) { /* The local width preference is optional when browser storage is unavailable. */ } }
+    const finishVersionResize = (event: import('react').PointerEvent<HTMLDivElement>, cancel = false) => {
+      const start = versionDrag.current
+      if (!start || start.pointer !== event.pointerId) return
+      versionDrag.current = undefined
+      saveVersionWidth(cancel ? start.width : start.next)
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    const historyStyle: import('react').CSSProperties & { '--vc-history-rail-width': string } = { '--vc-history-rail-width': versionWidth + 'px' }
+    const inspectorId = React.useId()
     if (!item || !value) return <p className="vc-flow-muted">{t('wallpaperHistoryNoRecords')}</p>
     const entries = wallpaperImageHistory(item, value.artifactTimes)
     const labels = { original: 'wallpaperStageOriginal', plan: 'wallpaperHistoryPlan', image: 'wallpaperHistoryImage', review: 'wallpaperHistoryReview', resolution: 'wallpaperHistoryResolution', final: 'wallpaperHistoryFinal' } as const
@@ -646,37 +797,68 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const selected = entries.filter(entry => attempt ? entry.revision === attempt.revision : entry.kind === 'original')
     const imageId = selected.findLast(entry => entry.kind === 'final')?.imageId ?? selected.find(entry => entry.kind === 'review')?.imageId ?? selected.find(entry => entry.kind === 'image')?.imageId ?? (attempt ? undefined : item.originalId)
     const src = resource(imageId ? value.resources[imageId] : undefined)
-    const review = attempt?.review
+    const review = wallpaperAttemptReview(attempt)
     const verdict = review && wallpaperVerdict(review)
     const reasons = review ? wallpaperReviewReasons(review, value.settings, t) : []
-    return entries.length ? <div className="vc-image-history-layout">
-      <nav className="vc-image-history-versions" aria-label={t('wallpaperHistoryVersions')}>
-        <button type="button" aria-pressed={!attempt} onClick={() => selectRevision(null)}><span>{t('wallpaperStageOriginal')}</span><small>{t('wallpaperHistorySourceHint')}</small></button>
+    const originalPreview = item.originalId ? resource(value.previewResources[item.originalId] ?? value.resources[item.originalId]) : undefined
+    const originalDimensions = item.originalId ? value.sourceImages[item.originalId] : undefined
+    return entries.length ? <div className="vc-image-history-layout" ref={versionLayout} style={historyStyle}>
+      <nav id={inspectorId + '-versions'} className="vc-image-history-versions" aria-label={t('wallpaperHistoryVersions')}>
+        <div className="vc-image-history-rail-heading"><strong>{t('wallpaperHistoryVersions')}</strong><span>{item.attempts.length}</span></div>
+        <button type="button" aria-pressed={!attempt} onClick={() => selectRevision(null)}><span className="vc-image-history-thumbnail">{originalPreview && <img src={originalPreview} alt="" loading="lazy" decoding="async" />}</span><span>{t('wallpaperHistoryOriginal')}<small>{t('wallpaperHistorySourceHint')}</small></span></button>
         {item.attempts.map(row => {
-          const verdict = row.review && wallpaperVerdict(row.review)
+          const rowReview = wallpaperAttemptReview(row), verdict = rowReview && wallpaperVerdict(rowReview)
           const image = entries.find(entry => entry.revision === row.revision && entry.kind === 'image')?.imageId
           const preview = resource(image ? value.previewResources[image] : undefined)
           return <button type="button" key={row.revision} aria-pressed={attempt?.revision === row.revision} onClick={() => selectRevision(row.revision)}>
-            {preview && <img src={preview} alt="" loading="lazy" decoding="async" />}
-            <span>{t('wallpaperAttempt')} {row.revision}<small>{t(verdict === 'pass' ? 'wallpaperPassed' : verdict === 'reject' ? 'wallpaperReviewRejected' : verdict === 'needs-review' ? 'wallpaperAttention' : 'wallpaperReviewPending')}</small></span>
+            <span className="vc-image-history-thumbnail">{preview ? <img src={preview} alt="" loading="lazy" decoding="async" /> : <span>{row.revision}</span>}</span>
+            <span>{t('wallpaperAttempt')} {row.revision}<small data-verdict={verdict}>{t(verdict === 'pass' ? 'wallpaperPassed' : verdict === 'reject' ? 'wallpaperReviewRejected' : verdict === 'needs-review' ? 'wallpaperAttention' : 'wallpaperReviewPending')}</small></span>
           </button>
         })}
       </nav>
+      <div className="vc-history-version-resize" role="separator" aria-label={t('wallpaperHistoryResize')} aria-orientation="vertical" aria-controls={inspectorId + '-versions'} aria-valuemin={184} aria-valuemax={versionMax()} aria-valuenow={Math.min(versionWidth, versionLimit)} tabIndex={0} onDoubleClick={() => saveVersionWidth(224)} onKeyDown={event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+        event.preventDefault(); event.stopPropagation()
+        saveVersionWidth(event.key === 'Home' ? 184 : event.key === 'End' ? versionMax() : clampVersionWidth(Math.min(versionWidth, versionLimit) + (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 32 : 8)))
+      }} onPointerDown={event => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        const width = Math.min(versionWidth, versionLimit)
+        versionDrag.current = { pointer: event.pointerId, x: event.clientX, width, max: versionMax(), next: width }
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }} onPointerMove={event => { const start = versionDrag.current; if (start?.pointer === event.pointerId) { start.next = clampVersionWidth(start.width + event.clientX - start.x, start.max); setVersionWidth(start.next) } }} onPointerUp={event => finishVersionResize(event)} onPointerCancel={event => finishVersionResize(event, true)} onLostPointerCapture={event => finishVersionResize(event)} />
       <div className="vc-image-history-content">
-        <div className="vc-image-history-toolbar"><div><strong>{attempt ? `${t('wallpaperAttempt')} ${attempt.revision}` : t('wallpaperStageOriginal')}</strong>{verdict && <ui.Tag tone={verdict === 'pass' ? 'success' : 'warning'}>{t(verdict === 'pass' ? 'wallpaperPassed' : verdict === 'reject' ? 'wallpaperReviewRejected' : 'wallpaperAttention')}</ui.Tag>}</div><div>{src && <ui.Button size="sm" variant="outline" onClick={() => saveImage(src)}>{t('wallpaperSaveImage')}</ui.Button>}{attempt && <ui.Button size="sm" variant="outline" onClick={() => { control.setRevision({ image: item.imageVersionId, revision: attempt.revision }); control.setHistoryOpen(false) }}>{t('wallpaperHistoryViewRevision')}</ui.Button>}</div></div>
-        <div className="vc-image-history-comparison" data-comparing={!!attempt}>
-          {attempt && <Artifact path={item.originalId ? value.resources[item.originalId] : undefined} label={t('wallpaperStageOriginal')} control={control} />}
-          {imageId ? <Artifact path={value.resources[imageId]} label={attempt ? t('wallpaperHistoryImage') : t('wallpaperStageOriginal')} control={control} /> : <p className="vc-flow-muted">{t('wallpaperHistoryImagePending')}</p>}
+        <div className="vc-image-history-toolbar"><div><strong>{attempt ? `${t('wallpaperAttempt')} ${attempt.revision}` : t('wallpaperHistoryOriginal')}</strong>{verdict && <ui.Tag tone={verdict === 'pass' ? 'success' : 'warning'}>{t(verdict === 'pass' ? 'wallpaperPassed' : verdict === 'reject' ? 'wallpaperReviewRejected' : 'wallpaperAttention')}</ui.Tag>}</div><div>{attempt && <div className="vc-image-history-view-toggle" role="group" aria-label={t('wallpaperHistoryViewMode')}><button type="button" aria-pressed={compareOriginal} onClick={() => setCompareOriginal(true)}>{t('wallpaperHistoryCompare')}</button><button type="button" aria-pressed={!compareOriginal} onClick={() => setCompareOriginal(false)}>{t('wallpaperHistoryResultOnly')}</button></div>}</div></div>
+        <div className="vc-image-history-viewer">
+          <div className="vc-image-history-comparison" data-comparing={!!attempt && compareOriginal}>
+            {attempt && compareOriginal && <section className="vc-image-history-source"><strong>{t('wallpaperHistoryOriginal')}</strong><Artifact path={item.originalId ? value.resources[item.originalId] : undefined} label={t('wallpaperHistoryOriginal')} control={control} /><small>{originalDimensions ? `${originalDimensions.width} × ${originalDimensions.height} px` : t('wallpaperHistorySourceHint')}</small></section>}
+            {attempt && imageWorkflowGallery('reviewing', item, attempt).some(slide => value.resources[slide.id]) ? <StageGallery key={attempt.revision} stage="reviewing" control={control} t={t} attempt={attempt} history /> : imageId ? <Artifact path={value.resources[imageId]} label={attempt ? t('wallpaperHistoryResult') : t('wallpaperHistoryOriginal')} control={control} /> : <div className="vc-image-history-empty"><strong>{t('wallpaperHistoryImagePending')}</strong><p>{t('wallpaperHistoryVersionRetained')}</p></div>}
+          </div>
+          <p className="vc-image-history-preview-hint">{t('wallpaperHistoryPreviewHint')}</p>
         </div>
-        {review && <section className="vc-image-history-verdict" data-verdict={verdict}><strong>{t('wallpaperHistoryReview')}</strong>{reasons.length ? <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul> : <p>{t('wallpaperHistoryChecksPassed')}</p>}{'layoutWarnings' in review && review.layoutWarnings.map(warning => <p key={warning} className="vc-flow-muted">{t('wallpaperPeripheralWarning').replace('{name}', warning.slice('peripheral-outside:'.length))}</p>)}</section>}
-        <ol className="vc-image-history" aria-label={t('wallpaperHistoryTitle')}>
+        <aside className="vc-image-history-inspector" aria-label={t('wallpaperHistoryReviewHeading')}>
+          <ui.SegmentedTabs size="sm" variant="underline" label={t('wallpaperHistoryTitle')} value={inspectionTab} onChange={selectInspectionTab} items={[{ value: 'review', label: t('wallpaperHistoryReviewHeading'), id: inspectorId + '-review', panelId: inspectorId + '-review-panel' }, { value: 'events', label: t('wallpaperHistoryEvents') + ' · ' + selected.length, id: inspectorId + '-events', panelId: inspectorId + '-events-panel' }]} />
+          <div className="vc-image-history-inspection-scroll" key={selectedRevision}>
+            <div role="tabpanel" id={inspectorId + '-review-panel'} aria-labelledby={inspectorId + '-review'} hidden={inspectionTab !== 'review'}>
+              {review && <div className="vc-image-history-review-summary"><strong>{t('wallpaperReviewSummary').replace('{passed}', String(Object.values(review.checks).filter(check => check.result === 'satisfied').length)).replace('{total}', String(Object.keys(review.checks).length))}</strong><div className="vc-image-history-legend">{([['safe', 'wallpaperInspectorSafe'], ['regions', 'wallpaperInspectorRegions'], ['defects', 'wallpaperInspectorDefects']] as const).map(([layer, label]) => <span key={layer} data-layer={layer}>{t(label)}</span>)}</div></div>}
+          <section className="vc-image-history-verdict" data-verdict={verdict}>
+            <strong>{t('wallpaperHistoryReviewHeading')}</strong>
+            {review ? <>{reasons.length ? <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul> : <p>{t('wallpaperHistoryChecksPassed')}</p>}{'layoutWarnings' in review && review.layoutWarnings.map(warning => <p key={warning} className="vc-flow-muted">{t('wallpaperPeripheralWarning').replace('{name}', warning.slice('peripheral-outside:'.length))}</p>)}</> : <p className="vc-flow-muted">{t(attempt ? 'wallpaperHistoryAwaitingReview' : 'wallpaperHistorySourceHint')}</p>}
+          </section>
+            </div>
+            <div role="tabpanel" id={inspectorId + '-events-panel'} aria-labelledby={inspectorId + '-events'} hidden={inspectionTab !== 'events'}>
+            <ol className="vc-image-history" aria-label={t('wallpaperHistoryTitle')}>
         {selected.map(entry => <li key={entry.id} data-kind={entry.kind}>
         <div className="vc-image-history-heading"><strong>{entry.kind === 'image' ? t(!entry.imageId ? 'wallpaperHistoryImagePending' : entry.reused ? 'wallpaperHistoryReused' : 'wallpaperHistoryImage') : t(labels[entry.kind])}</strong><time dateTime={entry.time}>{entry.time ? new Date(entry.time).toLocaleString() : t('wallpaperHistoryTimeUnknown')}</time></div>
         {entry.kind !== 'review' && entry.reason && <p>{entry.reason}</p>}
         {entry.promptSaved && <small className="vc-flow-muted">{t('wallpaperHistoryPromptSaved')}</small>}
         {entry.model && <small className="vc-flow-muted">{t('wallpaperImageModel')} · {entry.model}</small>}
         </li>)}
-        </ol>
+            </ol>
+            </div>
+          </div>
+          <div className="vc-image-history-actions">{src && <ui.Button size="sm" variant="primary" onClick={() => saveImage(src)}>{t('wallpaperSaveImage')}</ui.Button>}{attempt && <ui.Button size="sm" variant="outline" onClick={() => { control.setRevision({ image: item.imageVersionId, revision: attempt.revision }); control.setHistoryOpen(false) }}>{t('wallpaperHistoryViewRevision')}</ui.Button>}</div>
+        </aside>
       </div>
     </div> : <p className="vc-flow-muted">{t('wallpaperHistoryNoRecords')}</p>
   }
@@ -701,14 +883,15 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const field = ([key, label, min, max]: (typeof numberFields)[number]) => <label key={key}><span>{t(label)}</span><input type="number" inputMode="numeric" step={1} min={min} max={max} value={control.settings[key]} onChange={event => control.setSettings({ ...control.settings, [key]: Number(event.currentTarget.value) })} /></label>
     const versionReason = (reason: string) => t(reason === 'benchmark-overlap' ? 'wallpaperOverlap' : reason === 'requires-new-generation' ? 'wallpaperNeedsGeneration' : reason === 'no-demonstrated-improvement' ? 'wallpaperNoImprovement' : reason === 'fixed-benchmarks-improved' ? 'wallpaperImproved' : 'wallpaperAwaitingBenchmarks')
     return <>
-      <ui.Modal open={control.historyOpen} onClose={() => control.setHistoryOpen(false)} title={`${t('wallpaperImage')} ${control.offset + 1} · ${t('wallpaperHistoryTitle')}`} closeLabel={t('close')} className="vc-wallpaper-modal vc-image-history-modal" contentClassName="vc-image-history-shell" footer={<ui.Button variant="outline" onClick={() => control.setHistoryOpen(false)}>{t('close')}</ui.Button>}>
+      <ui.Modal open={control.historyOpen} onClose={() => control.setHistoryOpen(false)} title={`${t('wallpaperImage')} ${control.offset + 1} · ${t('wallpaperHistoryTitle')}`} closeLabel={t('close')} className="vc-wallpaper-modal vc-image-history-modal" contentClassName="vc-image-history-shell">
         <ImageHistory key={control.item?.imageVersionId} control={baseControl} t={t} />
       </ui.Modal>
-      <ui.Modal open={control.details !== null} onClose={() => control.setDetails(null)} title={control.details ? `${t('wallpaperImage')} ${control.offset + 1} · ${t(control.details === 'clarity' ? 'wallpaperClarity' : stepKeys[control.details])}` : ''} closeLabel={t('close')} className={"vc-wallpaper-modal vc-image-details-modal" + (control.item && ['needs-review', 'technical-failed'].includes(control.item.status) ? ' vc-image-details-failure-modal' : '')} contentClassName="vc-image-details-shell" footer={<DetailsFooter control={control} t={t} />}>
-        <DetailContext control={control} t={t} />
+      <ui.Modal open={control.details !== null} onClose={() => control.setDetails(null)} title={control.details ? `${t('wallpaperImage')} ${control.offset + 1} · ${t(control.details === 'clarity' ? 'wallpaperClarity' : stepKeys[control.details])}` : ''} closeLabel={t('close')} className={"vc-wallpaper-modal vc-image-details-modal" + (control.details === 'rendering' ? ' vc-image-rendering-modal' : '') + (control.item && ['needs-review', 'technical-failed'].includes(control.item.status) ? ' vc-image-details-failure-modal' : '')} contentClassName="vc-image-details-shell" footer={<DetailsFooter control={control} t={t} />}>
+        <div className="vc-image-details-layout"><DetailContext control={control} t={t} /><div className="vc-image-details-content" data-step={control.details} key={`${control.item?.imageVersionId}:${control.details}:${control.attempt?.revision}`}>
         {control.details === 'decision' ? <DecisionCard control={control} t={t} detailed /> : control.details === 'detail' ? <DetailInspectionCard control={control} t={t} detailed /> : control.item && ['needs-review', 'technical-failed'].includes(control.item.status) && control.attempt === control.item.attempts.at(-1) && control.details !== 'planning' && control.details !== 'clarity' && control.details !== 'reviewing' && wallpaperFailedStep(control.item) === control.details ? <FailureDetails control={control} t={t} /> : control.details === 'planning' ? <PlanningDetails control={control} t={t} /> : control.details === 'rendering' ? <RenderingDetails control={control} t={t} /> : control.details === 'reviewing' ? <ReviewDetails control={control} t={t} /> : control.details === 'clarity' ? <ClarityDetails control={control} t={t} /> : control.details && <WallpaperNode kind={control.details} control={control} t={t} single />}
         {control.details === 'reviewing' && control.attempt?.outputId && <p className="vc-flow-muted">{t('wallpaperReviewCurrentHint')}</p>}
         {control.details === 'rendering' && !control.attempt?.backgroundResolution && (generatedCanvasReviewAvailable(control) || isGeneratedCanvasMode(control.attempt?.compositionMode)) && <p className="vc-flow-muted">{t(control.attempt?.generationBrief || control.attempt?.preResolutionReview ? 'wallpaperGeneratedCanvasPreReviewHint' : 'wallpaperGeneratedCanvasHint')}</p>}
+        </div></div>
       </ui.Modal>
       <ui.Modal open={control.settingsOpen} onClose={() => control.setSettingsOpen(false)} title={t('wallpaperSettings')} closeLabel={t('close')} className="vc-wallpaper-modal vc-wallpaper-settings-modal" contentClassName="vc-wallpaper-settings-shell" footer={<div className="vc-wallpaper-dialog-actions"><ui.Button variant="outline" onClick={() => control.setSettingsOpen(false)}>{t('close')}</ui.Button><ui.Button variant="primary" disabled={control.busy || !imageRouteReady({ providers: control.providers }, control.settings)} onClick={control.start}>{t('wallpaperStartBatch')}</ui.Button></div>}>
         <div className="vc-wallpaper-settings-content">
@@ -757,7 +940,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
         </>}
         {control.error && <p role="alert" className="vc-notice">{t('wallpaperFailed')}</p>}
       </ui.Modal>
-      {control.preview && <ui.ImageLightbox src={control.preview} alt={t('wallpaperWorkflow')} labels={{ dialog: t('wallpaperWorkflow'), close: t('close') }} loadingLabels={{ loading: t('galleryPreviewLoading'), error: t('galleryPreviewError'), retry: t('retry') }} contextMenuProps={{ onContextMenu: event => { if (control.preview) control.openImageMenu(control.preview, event) } }} onClose={() => control.setPreview(null)} />}
+      {control.preview && <PreviewInspector src={control.preview} control={control} t={t} />}
       <ui.Menu listClassName="vc-menu" open={!!control.imageMenu} anchor={null} portal autoFocus contextual returnFocus={() => control.imageMenu?.origin.isConnected ? control.imageMenu.origin : null} getAnchorRect={() => control.imageMenu ? new DOMRect(control.imageMenu.x, control.imageMenu.y, 0, 0) : null} items={[{ id: 'save', label: t('wallpaperSaveImage') }]} onClose={() => control.setImageMenu(null)} onSelect={() => { if (control.imageMenu) saveImage(control.imageMenu.src); control.setImageMenu(null) }} />
     </>
   }

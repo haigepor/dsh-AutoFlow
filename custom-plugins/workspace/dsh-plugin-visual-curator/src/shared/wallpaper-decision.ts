@@ -110,6 +110,7 @@ export function wallpaperDecisionOutputSchema(sourceId: string, planRevision: nu
     }
     if (concerns.some(concern => !seen.has(concern.id))) ctx.addIssue({ code: 'custom', path: ['findings'], message: 'decision-concerns-mismatch' })
     if (!allowedActions.includes(value.action.kind)) ctx.addIssue({ code: 'custom', path: ['action', 'kind'], message: 'decision-action-not-allowed' })
+    if (value.action.kind === 'skip_image' && allowedActions.includes('retry_saved_review') && value.findings.every(finding => !finding.blocking)) ctx.addIssue({ code: 'custom', path: ['action', 'kind'], message: 'decision-reusable-review-cannot-skip-resolved-image' })
     if (value.action.kind === 'inspect_region' && (new Set(value.action.concernIds).size !== value.action.concernIds.length || value.action.concernIds.some(concernId => !concerns.some(concern => concern.id === concernId)))) ctx.addIssue({ code: 'custom', path: ['action', 'concernIds'], message: 'decision-inspection-concerns-mismatch' })
     if (value.action.kind !== 'continue_current_plan') return
     const objectFinding = (scope: string) => scope === 'subject' || scope === 'critical'

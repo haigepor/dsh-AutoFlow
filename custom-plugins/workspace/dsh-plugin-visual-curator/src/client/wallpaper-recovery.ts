@@ -1,5 +1,5 @@
 /** The task bar and step dialog use the same current-image recovery decision. */
-import { wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
+import { wallpaperHasRendered, wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
 import { wallpaperPlanConcerns } from '../shared/wallpaper-detail.ts'
 
 /** Recovery never targets an older selected revision. */
@@ -36,6 +36,7 @@ export function wallpaperRecovery(value: WallpaperView, item: WallpaperItem | un
   if (item.status === 'cancelled') return !item.originalId ? { kind: 'download' } : attempt?.generation && !attempt.outputId ? { kind: 'receipt' } : attempt?.outputId ? { kind: 'review' } : { kind: 'retry', step: attempt ? 'rendering' : 'planning' }
   if (wallpaperPendingDecision(item, attempt)) return { kind: 'none' }
   const failed = wallpaperFailedStep(item)
+  if ((failed === 'reviewing' || attempt?.postResolutionReview) && wallpaperHasRendered(attempt)) return { kind: 'retry', step: 'reviewing' }
   if (!item.originalId) return failed === 'downloading' || item.status === 'queued' ? { kind: 'download' } : { kind: 'none' }
   if (item.status === 'rejected') return attempt?.outputId ? { kind: 'edit' } : attempt?.detailAnalysis?.protectedSubjectExtent === 'cut-off' ? { kind: 'reinspect' } : { kind: 'none' }
   if (attempt?.generation && !attempt.outputId && (item.status === 'needs-review' || item.status === 'technical-failed')) return { kind: 'receipt' }

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-review-evidence-gallery",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator workflow cards let you browse saved images, safety guides and review concerns by version, including failed and stopped attempts. Expanded previews retain annotations, and review recovery rejects skip decisions when no blocking concern remains and the saved image can still be reviewed.",
+    "zh-CN": "视觉策展流程节点可按版本切换已保存图片、安全区标注和复审问题，未通过或停止返工的证据仍可查看，放大预览保留标注。已有图片可继续复审且没有阻塞问题时，不再接受跳过图片的矛盾决策。"
+  }
+}

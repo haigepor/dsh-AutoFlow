@@ -26,13 +26,13 @@ export function wallpaperReviewReasons(review: WallpaperReview, settings: Wallpa
     }
     if (code === 'critical-outside' || code === 'subject-overflow') return t('wallpaperBoundaryOutside').replace('{name}', name)
     return part
-  }).join('；')
+  })
   return [...new Set([
     ...review.issues.map(issue => issue.reason),
     ...Object.values(review.checks).filter(check => check.result !== 'satisfied').map(check => check.reason),
     ...('sourceRepair' in review && review.sourceRepair.result !== 'satisfied' ? [review.sourceRepair.reason] : []),
     ...('sourceCorrespondence' in review && review.sourceCorrespondence.result !== 'satisfied' ? [review.sourceCorrespondence.reason] : []),
-  ].filter(Boolean).map(explain))]
+  ].filter(Boolean).flatMap(explain))]
 }
 
 export type WallpaperHistoryEntry = {
@@ -59,11 +59,11 @@ export function wallpaperImageHistory(item: WallpaperItem, artifactTimes: Readon
   for (const attempt of item.attempts) {
     const revision = attempt.revision
     entries.push({ id: `${revision}:plan`, revision, kind: 'plan', time: attempt.createdAt, reason: attempt.plan.subject, promptSaved: attempt.generationBrief?.status === 'saved' })
-    const reviewedImageId = attempt.preResolutionReview?.nativeId ?? attempt.clarity?.originalOutputId ?? attempt.generatedImageId ?? attempt.outputId
+    const reviewedImageId = attempt.preResolutionReview?.nativeId ?? attempt.nativeReviewCandidate?.nativeId ?? attempt.clarity?.originalOutputId ?? attempt.generatedImageId ?? attempt.outputId
     if (attempt.generation || reviewedImageId) entries.push({ id: `${revision}:image`, revision, kind: 'image', imageId: reviewedImageId, time: reviewedImageId ? artifactTimes[reviewedImageId] : undefined, model: attempt.generation?.model, reused: attempt.retryTarget === 'reviewing' })
     const resolutionId = attempt.clarity?.enhancedOutputId ?? attempt.backgroundResolution?.enhancedId
     const resolution = resolutionId ? { id: `${revision}:resolution`, revision, kind: 'resolution' as const, imageId: resolutionId, time: artifactTimes[resolutionId] } : undefined
-    const review = attempt.review ? { id: `${revision}:review`, revision, kind: 'review' as const, imageId: attempt.preResolutionReview?.nativeId ?? attempt.outputId, time: attempt.reviewedAt, verdict: wallpaperVerdict(attempt.review), reason: attempt.review.issues.map(issue => issue.reason).join('；') || undefined } : undefined
+    const review = attempt.review ? { id: `${revision}:review`, revision, kind: 'review' as const, imageId: attempt.preResolutionReview?.nativeId ?? attempt.nativeReviewCandidate?.nativeId ?? attempt.outputId, time: attempt.reviewedAt, verdict: wallpaperVerdict(attempt.review), reason: attempt.review.issues.map(issue => issue.reason).join('；') || undefined } : undefined
     if (attempt.preResolutionReview) {
       if (review) entries.push(review)
       if (resolution) entries.push(resolution)
@@ -71,6 +71,8 @@ export function wallpaperImageHistory(item: WallpaperItem, artifactTimes: Readon
       if (resolution) entries.push(resolution)
       if (review) entries.push(review)
     }
+    const final = attempt.postResolutionReview
+    if (final?.review) entries.push({ id: `${revision}:final-review`, revision, kind: 'review', imageId: final.imageVersionId, time: final.reviewedAt, verdict: wallpaperVerdict(final.review), reason: final.review.issues.map(issue => issue.reason).join('；') || undefined })
   }
   const latest = item.attempts.at(-1)
   if (item.status === 'passed' && latest?.outputId) entries.push({ id: `${latest.revision}:final`, revision: latest.revision, kind: 'final', imageId: latest.outputId, time: artifactTimes[latest.outputId] })

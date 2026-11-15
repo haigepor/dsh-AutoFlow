@@ -1,5 +1,5 @@
 /** Planning cards share one bounded page; immutable image identities survive navigation and task continuation. */
-import { wallpaperFailedStep, wallpaperVerdict, type WallpaperItem } from '../shared/wallpaper.ts'
+import { wallpaperAttemptReview, wallpaperFailedStep, wallpaperVerdict, type WallpaperItem } from '../shared/wallpaper.ts'
 import type { WorkflowPhase } from './workflow-node-state.ts'
 import type { WallpaperStep } from './workflow-node-state.ts'
 import { wallpaperCanDecide } from './wallpaper-recovery.ts'
@@ -62,6 +62,7 @@ function decisionHoldsProcessing(item: WallpaperItem | undefined, attempt = item
  * @returns Recorded clarity evidence; absent checks never imply completion.
  */
 export function imageWorkflowClarity(attempt: WallpaperItem['attempts'][number] | undefined): WallpaperItem['attempts'][number]['clarity'] {
+  if (attempt?.generationBrief && !attempt.preResolutionReview) return attempt.clarity
   if (attempt?.preResolutionReview) {
     const resolution = attempt.backgroundResolution
     return resolution ? { status: resolution.status === 'enhancing' ? 'enhancing' : resolution.status === 'passed' ? 'passed' : resolution.status === 'failed' ? 'failed' : 'reviewing', reason: resolution.reason } : attempt.preResolutionReview.finalId ? { status: 'not-needed', reason: '' } : { status: 'pending', reason: '' }
@@ -128,9 +129,9 @@ export function imageWorkflowStageReached(stage: ImageWorkflowStage, item: Wallp
   const failed = wallpaperFailedStep(item)
   if (stage === 'planning') return !!attempt || item.status === 'planning' || failed === 'planning'
   if (stage === 'geometry') return !!attempt
-  if (stage === 'rendering') return !!attempt && (!!attempt.canvasId || !!attempt.generation || !!attempt.outputId || item.status === 'rendering' || failed === 'rendering')
+  if (stage === 'rendering') return !!attempt && (!!attempt.canvasId || !!attempt.generation || !!attempt.outputId || !!attempt.nativeReviewCandidate || item.status === 'rendering' || failed === 'rendering')
   if (stage === 'clarity') return !!attempt?.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' || !!imageWorkflowClarity(attempt) && !attempt?.preResolutionReview
-  if (stage === 'reviewing') return !!attempt && (!!attempt.review || !!attempt.simulationId || item.status === 'reviewing' || failed === 'reviewing')
+  if (stage === 'reviewing') return !!attempt && (!!attempt.review || !!attempt.simulationId || !!attempt.nativeReviewCandidate || item.status === 'reviewing' || failed === 'reviewing')
   return !!attempt?.outputId && !!attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!attempt.preResolutionReview || attempt.preResolutionReview.finalId === attempt.outputId)
 }
 
@@ -142,10 +143,49 @@ export function imageWorkflowArtifact(stage: ImageWorkflowStage, item: Wallpaper
   if (stage === 'decision' || stage === 'detail') return item.originalId
   if (stage === 'original' || stage === 'planning') return item.originalId
   if (stage === 'geometry') return attempt?.layoutAnalysisId ?? attempt?.canvasId ?? (!attempt?.outputId && !attempt?.generation ? attempt?.analysisId : undefined)
-  if (stage === 'rendering') return attempt?.preResolutionReview?.nativeId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId ?? attempt?.backgroundResolution?.originalId ?? attempt?.generatedImageId
+  if (stage === 'rendering') return attempt?.preResolutionReview?.nativeId ?? attempt?.nativeReviewCandidate?.nativeId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId ?? attempt?.backgroundResolution?.originalId ?? attempt?.generatedImageId
   if (stage === 'clarity') return attempt?.preResolutionReview ? attempt.backgroundResolution?.enhancedId ?? attempt.preResolutionReview.nativeId : attempt?.clarity?.enhancedOutputId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId ?? attempt?.backgroundResolution?.enhancedId ?? attempt?.backgroundResolution?.originalId ?? attempt?.generatedImageId
   if (stage === 'reviewing') return attempt?.simulationId
   return attempt?.outputId
+}
+
+/** Saved stage views retain their own revision and reviewed pixels, including stopped failures.
+ * @param stage Displayed stage. @param item Source and version history. @param attempt Selected revision.
+ * @param includeNative Include native and delivered images together in selected-version history.
+ * @returns Ordered image slides; annotations never reuse coordinates from another candidate.
+ */
+export function imageWorkflowGallery(stage: ImageWorkflowStage, item: WallpaperItem, attempt = item.attempts.at(-1), includeNative = false) {
+  const slides: { id: string; label: 'wallpaperSource' | 'wallpaperAnalysis' | 'wallpaperReviewAnalysis' | 'wallpaperClean' | 'wallpaperSimulation' | 'wallpaperClarityBaseline' | 'wallpaperClarityEnhanced' | 'directCropPreviousReview' | 'wallpaperNativeCandidate' | 'wallpaperFinalOutput' | 'wallpaperNativeAnalysis' | 'wallpaperFinalAnalysis' | 'wallpaperNativeSimulation' | 'wallpaperFinalSimulation'; attempt: typeof attempt; annotated: boolean }[] = []
+  const add = (id: string | undefined, label: typeof slides[number]['label'], row = attempt, annotated = false) => {
+    if (id && !slides.some(slide => slide.id === id && slide.annotated === annotated)) slides.push({ id, label, attempt: label === 'wallpaperSource' ? undefined : row, annotated })
+  }
+  const review = (row: typeof attempt, previous = false) => {
+    if (!row) return
+    const final = row.postResolutionReview
+    if (final) {
+      add(final.imageVersionId, 'wallpaperFinalAnalysis', row, true)
+      add(final.imageVersionId, 'wallpaperFinalOutput', row)
+      add(final.simulationId, 'wallpaperFinalSimulation', row)
+      if (!includeNative) return
+    }
+    const actual = row.review && 'actualLayout' in row.review ? row.review.actualLayout.imageVersionId : undefined
+    const id = actual && [row.nativeReviewCandidate?.nativeId, row.preResolutionReview?.nativeId, row.outputId].includes(actual) ? actual : row.nativeReviewCandidate?.nativeId ?? row.preResolutionReview?.nativeId ?? row.outputId
+    const annotatedId = !row.review || actual === id ? id : undefined
+    const native = !!(row.nativeReviewCandidate || row.preResolutionReview)
+    add(annotatedId ?? row.analysisId, previous ? 'directCropPreviousReview' : native ? 'wallpaperNativeAnalysis' : 'wallpaperReviewAnalysis', row, !!annotatedId)
+    add(id, native ? 'wallpaperNativeCandidate' : 'wallpaperFinalOutput', row)
+    add(row.simulationId ?? row.nativeReviewCandidate?.simulationId, native ? 'wallpaperNativeSimulation' : 'wallpaperSimulation', row)
+    if (includeNative && row.preResolutionReview?.finalId === row.outputId) add(row.outputId, 'wallpaperFinalOutput', row)
+  }
+  if (stage === 'reviewing' || stage === 'decision') review(attempt)
+  else if (stage === 'clarity') {
+    add(attempt?.clarity?.originalOutputId ?? attempt?.backgroundResolution?.originalId ?? attempt?.preResolutionReview?.nativeId, 'wallpaperClarityBaseline')
+    add(attempt?.clarity?.enhancedOutputId ?? attempt?.backgroundResolution?.enhancedId, 'wallpaperClarityEnhanced')
+  } else add(imageWorkflowArtifact(stage, item, attempt), stage === 'original' || stage === 'planning' || stage === 'detail' ? 'wallpaperSource' : stage === 'geometry' ? 'wallpaperAnalysis' : stage === 'rendering' && !!(attempt?.nativeReviewCandidate || attempt?.preResolutionReview) ? 'wallpaperNativeCandidate' : 'wallpaperFinalOutput')
+  if (stage === 'geometry' || stage === 'planning' || stage === 'detail') add(attempt?.layoutAnalysisId ?? attempt?.canvasId, 'wallpaperAnalysis')
+  if (stage === 'final' && includeNative) review(attempt)
+  if (stage === 'decision' || stage === 'detail') add(item.originalId, 'wallpaperSource')
+  return slides
 }
 
 /** Keep failed review evidence beside the version being repaired until its new review commits.
@@ -170,6 +210,10 @@ export function imageWorkflowRework(item: WallpaperItem | undefined, status: str
   if (attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!current || item.status === 'passed')) return { stage: 'passed', phase: 'completed', flowing: false }
   if ((status === 'cancelled' || item.status === 'cancelled') && current) return { stage: attempt.outputId ? 'reviewing' : 'rendering', phase: 'cancelled', flowing: false }
   const active = current && ['created', 'running', 'pausing', 'cancelling'].includes(status)
+  if (current && item.status === 'reviewing' && attempt.boundaryReview?.status === 'pending') {
+    const phase = imageWorkflowPhase('reviewing', item, status, attempt)
+    return { stage: 'reviewing', phase, flowing: phase === 'running' }
+  }
   if (rejected || !attempt.outputId || current && item.status === 'rendering') {
     const flowing = active && item.status === 'rendering'
     return { stage: 'rendering', phase: flowing ? 'running' : current && ['paused', 'interrupted'].includes(status) ? 'paused' : 'attention', flowing }
@@ -183,13 +227,15 @@ export function imageWorkflowRework(item: WallpaperItem | undefined, status: str
  * @returns Progressive stage history plus the current step and its immediate successor.
  */
 export function imageWorkflowWindow(item: WallpaperItem | undefined, attempt = item?.attempts.at(-1), inspected?: ImageWorkflowStage) {
-  const failedReview = attempt?.review && wallpaperVerdict(attempt.review) !== 'pass'
+  const boundaryPending = attempt?.boundaryReview?.status === 'pending'
+  const failedReview = attempt?.review && !boundaryPending && wallpaperVerdict(attempt.review) !== 'pass'
   const repairing = item && attempt === item.attempts.at(-1) && item.attempts.some(prior => prior.revision < (attempt?.revision ?? 0) && prior.review && wallpaperVerdict(prior.review) !== 'pass') && (['rendering', 'reviewing'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing')
-  const repair = !inspected && (failedReview || repairing || imageWorkflowPreviousReview(item, attempt))
+  const repair = !inspected && !boundaryPending && (failedReview || repairing || imageWorkflowPreviousReview(item, attempt))
   const failed = item && wallpaperFailedStep(item)
   const newOrder = !!attempt?.generationBrief || !!attempt?.preResolutionReview
   const current: ImageWorkflowStage = !item?.originalId || failed === 'downloading' ? 'original'
     : failed === 'planning' || item.status === 'planning' || !attempt || attempt.checks.length || attempt.plan.mode === 'uncertain' ? 'planning'
+    : item.status === 'reviewing' && boundaryPending || attempt.postResolutionReview && item.status !== 'passed' ? 'reviewing'
     : attempt.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' && !attempt.preResolutionReview.finalId ? 'clarity'
     : attempt.clarity?.originalOutputId && !['not-needed', 'passed'].includes(attempt.clarity.status) ? 'clarity'
     : item.status === 'reviewing' && attempt.simulationId && !attempt.review ? 'reviewing'
@@ -258,9 +304,13 @@ export function imageWorkflowPhase(kind: WallpaperStep, item: WallpaperItem, sta
   if (failed === kind) return item.errorCode ? 'failed' : 'attention'
   if (kind === 'downloading' && item.originalId) return 'completed'
   if (kind === 'planning') return planningImagePhase(latest ? item : { ...item, attempts: attempt ? [attempt] : [] }, latest ? status : 'completed')
-  if (kind === 'rendering' && (attempt?.outputId || attempt?.preResolutionReview)) return 'completed'
+  if (kind === 'rendering' && (attempt?.outputId || attempt?.preResolutionReview || attempt?.nativeReviewCandidate)) return 'completed'
   if (latest && kind === 'rendering' && item.status === 'needs-review' && attempt?.generation && !attempt.outputId) return 'attention'
-  if (kind === 'reviewing' && attempt?.review) return wallpaperVerdict(attempt.review) === 'pass' ? 'completed' : 'attention'
+  if (latest && kind === 'reviewing' && item.status === 'reviewing' && attempt?.boundaryReview?.status === 'pending') return ['paused', 'interrupted'].includes(status) ? 'paused' : ['created', 'running', 'pausing', 'cancelling'].includes(status) ? 'running' : status === 'cancelled' ? 'cancelled' : 'attention'
+  if (kind === 'reviewing' && attempt?.postResolutionReview && !attempt.postResolutionReview.review) return latest && item.status === 'reviewing' && ['created', 'running', 'pausing', 'cancelling'].includes(status) ? 'running' : ['paused', 'interrupted'].includes(status) ? 'paused' : 'attention'
+  const effectiveReview = wallpaperAttemptReview(attempt)
+  if (kind === 'reviewing' && effectiveReview) return wallpaperVerdict(effectiveReview) === 'pass' ? 'completed' : 'attention'
+  if (latest && kind === 'reviewing' && item.status === 'needs-review' && attempt?.nativeReviewCandidate) return 'attention'
   if (kind !== 'downloading' && !item.originalId || kind === 'rendering' && (!attempt || attempt.checks.length > 0 || attempt.plan.mode === 'uncertain') || kind === 'reviewing' && !attempt?.outputId && !attempt?.simulationId) return 'blocked'
   if (latest && item.status === kind) {
     if (['created', 'running', 'pausing', 'cancelling'].includes(status)) return 'running'

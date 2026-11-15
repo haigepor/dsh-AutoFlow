@@ -53,6 +53,8 @@ test('frozen food subjects ignore companion safety overflow and reserve rework f
   }
   const unknown = structuredClone(review); unknown.checks.clarity = { result: 'unknown', reason: 'A detail remains unclear.' }
   const damaged = structuredClone(review); damaged.checks.clarity = { result: 'violated', reason: 'Fruit edges are visibly smeared.' }
+  const damage = { kind: 'preservation' as const, check: 'clarity' as const, code: 'other' as const, reason: damaged.checks.clarity.reason, evidence: { kind: 'detail-loss' as const, entityIds: [subject.entityId], imageVersionId: 'output', outputRect: subject.rect } }
+  damaged.modelIssues.push(damage); damaged.issues.push(damage)
   const outside = structuredClone(raw); outside.actualLayout.regions[0]!.rect = { x: 0.7, y: 0.45, width: 0.25, height: 0.2 }
   const outsideReview = applyWallpaperSourceReview(schema.parse(outside), true, settings)
   const actual = {

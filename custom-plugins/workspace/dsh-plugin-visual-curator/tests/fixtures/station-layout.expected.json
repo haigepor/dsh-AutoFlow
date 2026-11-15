@@ -1,0 +1,255 @@
+{
+  "settings": {
+    "width": 1845,
+    "height": 3280,
+    "safe": {
+      "left": 258,
+      "top": 1032,
+      "width": 1329,
+      "height": 1686
+    },
+    "topBuffer": 32,
+    "sideOverflow": 66,
+    "bottomOverflow": 84,
+    "processing": {
+      "version": "balanced-v1",
+      "reasoningEffort": "medium",
+      "criticalReasoningEffort": "high",
+      "layoutInsetPixels": 24,
+      "maxCanvasAspectCropRatio": 0.04,
+      "sourceSeam": {
+        "blendPixels": 64,
+        "segmentPixels": 256,
+        "minimumCrossMean": 18,
+        "minimumRelative": 4
+      },
+      "maxPeripheralOutsideAreaRatio": 0.005,
+      "maxTotalOutsideAreaRatio": 0.012
+    },
+    "repairPolicy": {
+      "version": "subject-repair-v1",
+      "mode": "repair-when-needed",
+      "maxRepeatedDefects": 2
+    }
+  },
+  "plan": {
+    "version": 1,
+    "imageVersionId": "1499d030-82a6-430a-9fec-e0535fabba8e",
+    "mode": "single",
+    "subject": "近地轨道上的大型空间站复合体，白色与浅灰舱段沿竖向和横向组合，连接多组深色太阳能电池翼、细长桁架和下方对接飞船；背景为黑色星空以及下方带蓝色大气辉光的地球弧面。",
+    "evidence": "空间站位于画面中央偏上至中下部，白色舱段的高光与深蓝黑色太阳翼形成主要对比，太阳翼、桁架和底部对接飞船清晰可辨；地球弧线横贯画面中部，海洋、云层与蓝色大气层位于下半部。主体和背景分离明确，在缩略图可辨范围内未见主体结构破洞、错接或大面积模糊。舱体小标识、极细外围杆件及不可见背面不足以确认细节。主体顶部在原图高位，应按整组等比缩放平移适配安全区，不能裁切。",
+    "priorities": [
+      "保持空间站舱段数量、相对位置、遮挡关系、主太阳翼展开角度和连接桁架，不新增或删除舱段、太阳板及天线。",
+      "完整保留顶部小舱段、底部对接飞船和两侧主太阳翼，整组等比缩放平移，不因进入安全区而裁切主体。",
+      "保持白色与浅灰舱体的金属和多层隔热材料质感、深蓝黑太阳能板的细网格及金属桁架结构。",
+      "保持来自画面上方偏右前侧的主光，维持舱段高光、太阳翼微弱反光和深空阴影方向。",
+      "保持地球弧线、蓝色大气辉光和云海位置连续，必要时只做保守背景扩边。",
+      "星空保持黑色、星点细小稀疏且亮度低，不增加星云、行星、光晕或额外光源。",
+      "不新增品牌、文字、编号或徽标；不可读的小标识继续保持不可读，不臆造真实信息。",
+      "健康像素尽量保留，仅在实际需要衔接画布边缘时做最小范围生成修复。"
+    ],
+    "anchors": [
+      "黑色深空背景占据画面上半部及四周，星点细小、稀疏、低亮度且分布较均匀。",
+      "地球弧线与地平线横贯画面约中部偏下，边缘有细窄的蓝色大气辉光，下方为蓝色海洋与白色云层，画面底部逐渐变暗。",
+      "地球曲率平缓，空间站位于地球前方，形成近地轨道俯视与远摄压缩的空间关系。",
+      "主光来自画面上方偏右前侧，白色舱段亮面朝右上，太阳翼深色网格仅保留微弱反光，阴影较深。",
+      "画面下部由暗色地球自然过渡到黑色太空，无其他明显前景物体。"
+    ],
+    "truncations": [],
+    "uncertainties": [
+      "两侧极细桁架或天线末端在缩略图中对比度极低，是否触及画框边缘无法可靠确认；当前不按主角截断处理，仅作为外围细线保留。",
+      "舱体表面的小字、编号或徽标不可读，无法确认具体型号或任务标识，不应臆造为真实信息。"
+    ],
+    "regions": [
+      {
+        "name": "空间站主要复合体",
+        "entityId": "source-1",
+        "role": "subject",
+        "rect": {
+          "x": 0.16,
+          "y": 0.13,
+          "width": 0.7,
+          "height": 0.67
+        }
+      },
+      {
+        "name": "空间站主要复合体 · complete-object core protection",
+        "entityId": "source-1",
+        "role": "critical",
+        "rect": {
+          "x": 0.16,
+          "y": 0.13,
+          "width": 0.7,
+          "height": 0.67
+        }
+      }
+    ],
+    "objectRoles": [
+      {
+        "entityId": "source-1",
+        "name": "空间站主要复合体（舱段、主太阳翼、桁架与对接飞船）",
+        "role": "primary",
+        "evidence": "画面唯一视觉主角，白色舱段与深色太阳翼形成最高对比并占据中央主要纵向空间；主太阳翼、连接桁架和底部对接飞船均属于同一空间站主体的可见结构。",
+        "rect": {
+          "x": 0.16,
+          "y": 0.13,
+          "width": 0.7,
+          "height": 0.67
+        },
+        "sourceEdges": []
+      },
+      {
+        "entityId": "source-2",
+        "name": "地球与大气层",
+        "role": "supporting",
+        "evidence": "作为背景占据画面下半部，蓝色海洋、白色云层和弧形大气辉光衬托空间站；不承担主体身份，不进入硬保护框。",
+        "rect": {
+          "x": 0,
+          "y": 0.49,
+          "width": 1,
+          "height": 0.51
+        },
+        "sourceEdges": [
+          "left",
+          "right",
+          "bottom"
+        ]
+      }
+    ],
+    "placement": {
+      "scale": 0.6867378048773389,
+      "left": 289,
+      "top": 764
+    },
+    "reason": "该图只有一个视觉主角：空间站复合体。舱段、主太阳翼、桁架和底部对接飞船均属于同一主体，因此整体作为一个primary，并完整框出其可辨范围；地球仅作为背景支撑，不进入硬保护。原图在可辨范围内未见明确结构破损，truncations为空；极细外围杆件和小标识无法确认之处列入uncertainties。按冻结的repair-when-needed策略，当前没有必须补画的主体缺陷，优先由Host整组等比缩放平移并做保守背景扩边。",
+    "editPrompt": "保留现有空间站主体，不重绘、不新增舱段、太阳能板、天线或文字标识。主体由白色与浅灰多层隔热材料舱段、深蓝黑细网格太阳能翼、金属桁架和底部对接飞船组成，采用写实3D渲染质感，主光来自上方偏右前侧，深空阴影清晰。需要适配画布时只做整组等比缩放平移，保持舱段相对尺寸、遮挡、连接关系和太阳翼角度，不单独移动任何舱段，也不裁切顶部小舱段或底部对接飞船。仅在画布边缘需要衔接时，以最小范围延展黑色星空与地球海洋、云层和蓝色大气辉光，保持星点密度、地球弧线、大气带和光照方向连续；若旧画框断口进入成品内部，应依据可见轴线、材质和透视补出连续外形，但不虚构未记录的背面结构、内部细节、品牌或可读文字。外围极细杆件和小标识保持原样或自然渐隐，不新增信息。"
+  },
+  "cases": [
+    {
+      "revision": 1,
+      "actualLayout": {
+        "imageVersionId": "wallpaper-seed-63069482faa0e1f4ffc56bbb5d941edb57d70b2cd94acb626123e8ae7a712ab3",
+        "regions": [
+          {
+            "name": "空间站主要复合体",
+            "entityId": "source-1",
+            "role": "subject",
+            "rect": {
+              "x": 0.2,
+              "y": 0.18,
+              "width": 0.79,
+              "height": 0.6
+            },
+            "scope": "core"
+          }
+        ]
+      },
+      "expectedPlacement": {
+        "scale": 0.8321646341455562,
+        "left": 43,
+        "top": 565
+      },
+      "alignment": 0.3387503308008605
+    },
+    {
+      "revision": 2,
+      "actualLayout": {
+        "imageVersionId": "wallpaper-seed-844a6bbca16e89a731f679fd765bff26f1de7444610b473058067130c984e5d3",
+        "regions": [
+          {
+            "name": "空间站主要复合体",
+            "entityId": "source-1",
+            "role": "subject",
+            "rect": {
+              "x": 0.18,
+              "y": 0.225,
+              "width": 0.71,
+              "height": 0.61
+            },
+            "scope": "core"
+          }
+        ]
+      },
+      "expectedPlacement": {
+        "scale": 0.8181402439022349,
+        "left": 168,
+        "top": 453
+      },
+      "alignment": 0.5369761205026178
+    },
+    {
+      "revision": 3,
+      "actualLayout": {
+        "imageVersionId": "wallpaper-seed-e24094f52d28ca38292390e6b96c500a31a15c247dbd52365fab35ada7992b3c",
+        "regions": [
+          {
+            "name": "空间站主要复合体",
+            "entityId": "source-1",
+            "role": "subject",
+            "rect": {
+              "x": 0.22,
+              "y": 0.27,
+              "width": 0.68,
+              "height": 0.52
+            },
+            "scope": "core"
+          }
+        ]
+      },
+      "expectedPlacement": {
+        "scale": 0.960213414633472,
+        "left": -32,
+        "top": 206
+      },
+      "alignment": 0.5071753963591025
+    },
+    {
+      "revision": 4,
+      "actualLayout": {
+        "imageVersionId": "wallpaper-seed-c8793a90ed28a5941807a5cc5844ff504316a6c222398a8e8026daf1db1a1ba1",
+        "regions": [
+          {
+            "name": "空间站主要复合体",
+            "entityId": "source-1",
+            "role": "subject",
+            "rect": {
+              "x": 0.135,
+              "y": 0.325,
+              "width": 0.77,
+              "height": 0.49
+            },
+            "scope": "core"
+          }
+        ]
+      },
+      "expectedPlacement": {
+        "scale": 0.9010840108394405,
+        "left": 58,
+        "top": 190
+      },
+      "alignment": 0.99539206318925
+    },
+    {
+      "revision": 5,
+      "actualLayout": {
+        "imageVersionId": "wallpaper-seed-fd915e31f69863c6d964da03294a2ed419312de621eee0ec36ccc7488b7d74f7",
+        "regions": [
+          {
+            "name": "空间站主要复合体",
+            "entityId": "source-1",
+            "role": "subject",
+            "rect": {
+              "x": 0.16,
+              "y": 0.335,
+              "width": 0.665,
+              "height": 0.45
+            },
+            "scope": "core"
+          }
+        ]
+      },
+      "expectedPlacement": null,
+      "alignment": 0.9952711872193715
+    }
+  ]
+}

@@ -100,16 +100,27 @@ export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'
   if (review.subjectIntegrity.output.extent !== 'complete' || review.sourceCorrespondence.result !== 'satisfied' || wallpaperReviewNeedsSubjectEdit(review)) return undefined
   const issues = review.modelIssues.length ? review.modelIssues : review.issues
   const layoutDefect = issues.some(issue => issue.kind === 'layout')
-  if (!issues.length || issues.some(issue => issue.kind !== 'layout' && issue.kind !== 'readability')) return undefined
-  if (Object.entries(review.checks).some(([key, check]) => !['subject', 'composition', 'protection', 'clock', 'readability'].includes(key) && check.result !== 'satisfied')) return undefined
+  if (!issues.length || issues.some(issue => !['layout', 'readability', 'background'].includes(issue.kind))) return undefined
+  if (Object.entries(review.checks).some(([key, check]) => !['subject', 'composition', 'protection', 'clock', 'readability', 'background'].includes(key) && check.result !== 'satisfied')) return undefined
   if ((review.subjectIntegrity.task.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') && !review.modelIssues.some(issue => issue.kind === 'layout')) return undefined
   if (review.actualLayout.regions.some(region => region.role === 'anchor' || region.role === 'critical' && region.scope !== 'core')) return undefined
   const region = ({ name, entityId, role, rect }: typeof review.actualLayout.regions[number]) => ({ name, ...(entityId ? { entityId } : {}), role, rect: { ...rect } })
   const core = review.actualLayout.regions.filter(region => region.scope === 'core').map(region)
   if (!core.some(region => region.role === 'subject')) return undefined
+  if (review.checks.background.result === 'violated') {
+    const defects = review.modelIssues.filter(issue => issue.check === 'background')
+    if (!defects.length || defects.some(issue => {
+      const fact = issue.evidence
+      if (!fact || fact.kind !== 'background-artifact' || fact.imageVersionId !== review.actualLayout.imageVersionId) return true
+      return core.some(region => {
+        const a = region.rect, b = fact.outputRect
+        return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+      })
+    })) return undefined
+  }
   const regions = [...wallpaperObjectProtectionRegions({ mode: 'group', regions: core }), ...review.actualLayout.regions.filter(region => region.scope === 'peripheral').map(region)]
   const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, objectRoles: prior.plan.objectRoles?.map(object => ({ ...object, sourceEdges: [] })), truncations: [], uncertainties: [],
-    editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。整幅画面已按实际主体框等比缩放定位，只补新露出的外围背景${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
+    editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。整幅画面已按实际主体框等比缩放定位，${review.checks.background.result === 'violated' ? '保护已验收主体和必要结构，仅修复已定位的背景缺陷并补全新露出的背景' : '只补新露出的外围背景'}${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
     reason: 'Uniform placement derived from independently reviewed candidate regions; subject and image quality remain subject to final review.' }
   const placement = layoutDefect ? fitWallpaperPlacement(settings, observed, settings, 'subject-first-v2') : { scale: 1, left: 0, top: 0 }
   if (layoutDefect && placement.scale === 1 && placement.left === 0 && placement.top === 0) return undefined
@@ -131,6 +142,19 @@ export function wallpaperLayoutCoordinates(settings: WallpaperSettings) {
   return { coordinateSystem: 'whole-output-top-left', canvas: { width: settings.width, height: settings.height },
     protectedPixels: { left: bounds.critical.left, top: bounds.top, right: bounds.critical.right, bottom: bounds.critical.bottom },
     protectedNormalized: { left: bounds.critical.left / settings.width, top: bounds.top / settings.height, right: bounds.critical.right / settings.width, bottom: bounds.critical.bottom / settings.height } }
+}
+
+/** Describe only positioned output regions; frozen object identities do not carry source rectangles into output coordinates.
+ * @param plan Effective original or complete-candidate placement. @param source Effective reference dimensions. @param settings Frozen output geometry.
+ * @returns Output-normalized protection regions and semantic object roles, with the applied source transform explicitly identified.
+ */
+export function wallpaperPositionedLayout(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings) {
+  const geometry = wallpaperGeometry(source, plan, settings)
+  return { ...wallpaperLayoutCoordinates(settings), sourceImageVersionId: plan.imageVersionId, referenceTransformAlreadyApplied: true,
+    appliedSourceTransform: plan.placement,
+    positionedRegions: geometry.regions.map(region => ({ name: region.name, entityId: region.entityId, role: region.role,
+      rect: { x: region.left / settings.width, y: region.top / settings.height, width: region.width / settings.width, height: region.height / settings.height } })),
+    objectRoles: plan.objectRoles?.map(({ entityId, name, role }) => ({ entityId, name, role })) }
 }
 
 /** Fit all inferred protected regions with the same rounded source geometry used by rendering.
@@ -190,7 +214,7 @@ export function wallpaperGeometry(source: { width: number; height: number }, pla
   if (target.width <= 0 || target.height <= 0) throw new CuratorError('invalid-input', 'wallpaper-layout', 'The source does not intersect the output canvas.')
   const regions = plan.regions.map(region => ({ ...region, left: left + region.rect.x * width, top: top + region.rect.y * height, width: region.rect.width * width, height: region.rect.height * height }))
   const checks: string[] = []
-  if (plan.mode === 'uncertain' || plan.uncertainties.length && !wallpaperGenerativeRepair(settings) || !regions.length) checks.push('uncertain-subject')
+  if (plan.mode === 'uncertain' || plan.uncertainties.length && !wallpaperGenerativeRepair(settings) || !regions.length && (plan.mode === 'single' || plan.mode === 'group')) checks.push('uncertain-subject')
   if ((plan.mode === 'single' || plan.mode === 'group') && (!regions.some(region => region.role === 'subject') || !regions.some(region => region.role === 'critical'))) checks.push('missing-protected-regions')
   for (const region of regions) {
     const right = region.left + region.width, bottom = region.top + region.height

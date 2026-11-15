@@ -1,4 +1,20 @@
 [
-  {"state":"rejected","labels":["成品安全区与保护标注"],"images":["https://fixture.invalid/api/visual-curator/resource?imageVersionId=annotated-preview"]},
-  {"state":"passed","labels":["成品安全区与保护标注","锁屏模拟图"],"images":["https://fixture.invalid/api/visual-curator/resource?imageVersionId=annotated-preview","https://fixture.invalid/api/visual-curator/resource?imageVersionId=clock-preview"]}
+  {
+    "state": "rejected",
+    "labels": [
+      "成品安全区与保护标注"
+    ],
+    "images": [
+      "https://fixture.invalid/api/visual-curator/resource?imageVersionId=annotated-preview"
+    ]
+  },
+  {
+    "state": "passed",
+    "labels": [
+      "成品安全区与保护标注"
+    ],
+    "images": [
+      "https://fixture.invalid/api/visual-curator/resource?imageVersionId=annotated-preview"
+    ]
+  }
 ]

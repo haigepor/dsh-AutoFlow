@@ -9,7 +9,7 @@ import type { AssetFiles } from '../media/assets.ts'
 import { wallpaperDecisionVisionSchema } from '../media/vision.ts'
 import { wallpaperGeometry } from '../media/wallpaper-render.ts'
 import { wallpaperPlanConcerns, wallpaperPlanDetailRect } from '../shared/wallpaper-detail.ts'
-import { wallpaperPlanSchema, wallpaperSourceRestricted, wallpaperVerdict, wallpaperReworkCount, wallpaperEdgeRepairAuthorized, type WallpaperItem, type WallpaperSettings } from '../shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperSourceRestricted, wallpaperVerdict, wallpaperReworkCount, wallpaperReviewNeedsEvidence, wallpaperEdgeRepairAuthorized, type WallpaperItem, type WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperFindingBlocksEditing } from '../shared/wallpaper-evidence.ts'
 import type { WallpaperDecisionActionKind, WallpaperDecisionConcern, WallpaperDecisionRecord, WallpaperDecisionResponse } from '../shared/wallpaper-decision.ts'
 import type { CuratorRecord, ImageVersion } from '../shared/model.ts'
@@ -21,7 +21,7 @@ const rectSchema = z.object({ x: z.number(), y: z.number(), width: z.number(), h
 const snapshotSchema = z.object({ usage: z.json(), detailRects: z.array(rectSchema) })
 const handleSchema = z.object({ id: z.string(), provider: z.string(), model: z.string(), taskId: z.string() })
 const referenceErrors = new Set(['IMAGE_TOO_LARGE', 'ATTACHMENT_WRITE_FAILED'])
-const reviewErrors = new Set(['vision-invalid-output', 'remote-timeout'])
+const reviewErrors = new Set(['vision-invalid-output', 'remote-timeout', 'vision-detail-unavailable'])
 
 /** The processing owner supplies persistence, model logging and the frozen source and task policy. */
 export interface WallpaperDecisionDependencies {
@@ -109,13 +109,13 @@ function allowedFor(deps: WallpaperDecisionDependencies, attempt: Attempt): Wall
     }
     if (!attempt.outputId && !receipt && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage) && (!item.errorCode || item.failedStep === 'planning')) actions.push('replan')
     if (!attempt.outputId && item.failedStep === 'rendering' && item.errorCode && referenceErrors.has(item.errorCode) && !attempt.generation && !attempt.generationInput) actions.push('retry_reference_preparation')
-    if (!attempt.outputId && receipt && deps.llm) actions.push('query_saved_generation')
+    if (!attempt.outputId && !attempt.generatedImageId && receipt && deps.llm) actions.push('query_saved_generation')
     if (attempt.generation && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {
       if (item.errorCode !== 'image-resolution-insufficient') actions.push('recompose_saved_background')
       if (settings.backgroundResolution?.enabled && attempt.compositionMode === 'protected-context-v2' && attempt.generationInput) actions.push('reconstruct_saved_background')
     }
-    if (attempt.outputId && !attempt.review && item.failedStep === 'reviewing' && item.errorCode && reviewErrors.has(item.errorCode)) actions.push('retry_saved_review')
-    if (attempt.review && wallpaperVerdict(attempt.review) === 'reject' && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage)) actions.push('replan')
+    if ((attempt.outputId && !attempt.review || attempt.generatedImageId && !attempt.preResolutionReview) && item.failedStep === 'reviewing' && item.errorCode && reviewErrors.has(item.errorCode)) actions.push('retry_saved_review')
+    if (attempt.review && !wallpaperReviewNeedsEvidence(attempt) && (!attempt.nativeReviewCandidate || attempt.preResolutionReview) && wallpaperVerdict(attempt.review) === 'reject' && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage)) actions.push('replan')
   }
   return [...new Set([...actions, 'skip_image', 'manual_review'] as WallpaperDecisionActionKind[])]
 }
@@ -152,7 +152,7 @@ async function inspectPlanningHold(deps: WallpaperDecisionDependencies, attempt:
 }
 function cloneFor(attempt: Attempt, item: WallpaperItem, stage: 'rendering' | 'reviewing'): Attempt {
   const next = { ...structuredClone(attempt), revision: (item.attempts.at(-1)?.revision ?? 0) + 1, createdAt: new Date().toISOString(), retryFrom: 'reviewing' as const, retryTarget: stage }
-  delete next.review; delete next.reviewedAt
+  delete next.review; delete next.reviewedAt; delete next.boundaryReview; delete next.reviewReserved
   if (stage === 'rendering') { delete next.outputId; delete next.analysisId; delete next.simulationId; delete next.clarity; delete next.clarityBaseReview }
   item.attempts.push(next)
   return next
@@ -180,7 +180,8 @@ export async function executeWallpaperDecision(deps: WallpaperDecisionDependenci
     const nativeRect = wallpaperPlanDetailRect(attempt.plan)
     const detailRects = deps.supportsDetail ? [...history.flatMap(record => record.detailRect ? [record.detailRect] : []).reverse(), ...(nativeRect ? [nativeRect] : [])] : []
     const uniqueRects = detailRects.filter((rect, index) => detailRects.findIndex(other => contentDigest(other) === contentDigest(rect)) === index)
-    const output = attempt.outputId ? deps.domain.require('imageVersion', attempt.outputId) : undefined
+    const outputId = attempt.nativeReviewCandidate && !attempt.preResolutionReview ? attempt.nativeReviewCandidate.nativeId : attempt.outputId ?? attempt.generatedImageId
+    const output = outputId ? deps.domain.require('imageVersion', outputId) : undefined
     const admittedRects = uniqueRects.slice(0, Math.max(0, deps.maxImages - (output ? 2 : 1)))
     const evidence = { source: source.blob.digest, placement: attempt.plan.placement, regions: attempt.plan.regions, checks: attempt.checks, concernIds: concerns.map(concern => concern.id), output: output?.blob.digest, generation: attempt.generation?.id ?? attempt.generationOperation, errorCode: item.errorCode, detailRects: admittedRects }
     const evidenceDigest = contentDigest(evidence).slice(10)
