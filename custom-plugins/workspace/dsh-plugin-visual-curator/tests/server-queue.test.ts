@@ -177,7 +177,8 @@ test('a failed independent quality check never sends an image to the server', as
   finally { await f.cleanup() }
 })
 
-test('five selected originals upload the three approved results together and keep failures selectable', { timeout: 30000 }, async () => {
+// Five full-resolution workflows and two reselected originals also pay native Intel media encoding costs.
+test('five selected originals upload the three approved results together and keep failures selectable', { timeout: 120000 }, async () => {
   const f = await fixture(5, { autoDeliver: true, rejectCount: 2 })
   try {
     const run = await f.start(), rows = f.queue.read(f.actor).items

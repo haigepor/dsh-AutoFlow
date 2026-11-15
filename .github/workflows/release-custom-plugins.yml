@@ -125,6 +125,26 @@ jobs:
       - name: Run native plugin regressions
         if: ${{ !(needs.select.outputs.package == 'dsh-plugin-visual-curator' && matrix.platform == 'macos-x64') }}
         run: pnpm --filter "${{ needs.select.outputs.package }}" run test
+      # Recovery uses the reviewed test budget; packaged source and every assertion stay pinned to the tag.
+      - name: Apply reviewed Intel media test budget for Visual Curator 0.2.22
+        if: ${{ needs.select.outputs.tag == 'visual-curator-v0.2.22' && matrix.platform == 'macos-x64' }}
+        shell: bash
+        env:
+          REGRESSION_COMMIT: ${{ github.workflow_sha }}
+        run: |
+          git fetch --depth=1 origin "$REGRESSION_COMMIT"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          import { execFileSync } from 'node:child_process'
+          const path = 'custom-plugins/workspace/dsh-plugin-visual-curator/tests/server-queue.test.ts'
+          const frozen = readFileSync(path, 'utf8')
+          const reviewed = execFileSync('git', ['show', process.env.REGRESSION_COMMIT + ':' + path], { encoding: 'utf8' })
+          const test = "test('five selected originals upload the three approved results together and keep failures selectable', { timeout: 30000 }, async () => {"
+          assert(frozen.includes(test))
+          assert.equal(reviewed, frozen.replace(test, '// Five full-resolution workflows and two reselected originals also pay native Intel media encoding costs.\n' + test.replace('30000', '120000')))
+          writeFileSync(path, reviewed, 'utf8')
+          NODE
       # The five-image media fixture must not compete with other test files on Intel runners.
       - name: Run Intel Visual Curator media regressions without competing test files
         if: ${{ needs.select.outputs.package == 'dsh-plugin-visual-curator' && matrix.platform == 'macos-x64' }}
