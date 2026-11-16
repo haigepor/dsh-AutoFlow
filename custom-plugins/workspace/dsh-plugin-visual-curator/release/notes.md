@@ -1,3 +1,21 @@
+## Visual Curator 0.2.23
+
+- Preview image storage usage and unreferenced files, then confirm cleanup explicitly. Saved originals, outputs and hidden history remain protected; active image tasks block cleanup.
+- Increase the storage allowance without removing saved images. The redesigned dialog groups usage, reclaimable space and the limit form, with light, dark and narrow-screen layouts.
+- Remember each image provider's account and model within the current profile.
+- Support rc.2 and rc.3 Hosts while retaining existing settings and task history.
+
+Included with AutoFlow Desktop 0.2.2-rc.3.20261116.1. Restart after active tasks finish to load the matching Host and Client.
+
+## Visual Curator 0.2.23 更新说明
+
+- 先预览图片存储占用与未引用文件，再二次确认清理；保留已保存原图、成品及隐藏历史，图片任务执行期间禁止清理。
+- 支持调高存储上限，已有图片保持不变；新版弹窗按占用、可释放空间和额度表单分区，适配亮暗主题与窄屏。
+- 按当前 profile 记住各生图来源的账号和模型。
+- 支持 rc.2、rc.3 宿主，保留现有设置和任务历史。
+
+随 AutoFlow Desktop 0.2.2-rc.3.20261116.1 提供；待当前任务结束后重启，以加载配套 Host 和 Client。
+
 ## Visual Curator 0.2.22
 
 Local, gallery and server imports confirm the selected account and model before admission. The dialog closes on submission; progress, errors and retry actions stay in the batch table. Only the latest approved and confirmed uploaded output is complete; incomplete originals can be selected again with history retained. Approved results upload together after their batch finishes. Selected image catalogs preload without waiting for unrelated providers.

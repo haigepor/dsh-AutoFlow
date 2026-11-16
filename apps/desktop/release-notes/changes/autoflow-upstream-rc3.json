@@ -1,0 +1,8 @@
+{
+  "id": "autoflow-upstream-rc3",
+  "category": "other",
+  "text": {
+    "en": "Integrate the official dsh-v0.2.2-rc.3 features and fixes while retaining AutoFlow's interface and custom plugins.",
+    "zh-CN": "集成官方 dsh-v0.2.2-rc.3 的功能与修复，保留 AutoFlow 界面样式和自定义插件。"
+  }
+}

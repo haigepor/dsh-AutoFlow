@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.22: Local, gallery and server imports confirm the selected account and model before admission. The dialog closes on submission; progress, errors and retry actions stay in the batch table. Only the latest approved and confirmed uploaded output is complete; incomplete originals can be selected again with history retained. Approved results upload together after their batch finishes. Selected image catalogs preload without waiting for unrelated providers.
+Release 0.2.23: Image storage management previews usage and reclaimable files, increases the storage allowance and requires a second confirmation before cleanup. Saved originals, outputs and hidden task history stay protected; active image tasks block cleanup. The compact dialog supports light and dark themes and narrow screens. Direct import remembers each provider's account and model within the current profile. This release supports rc.2 and rc.3 Hosts while retaining existing settings and history; restart after active tasks finish.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 
