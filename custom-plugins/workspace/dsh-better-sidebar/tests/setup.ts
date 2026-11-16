@@ -13,6 +13,8 @@
  * environment exposes its instance as `globalThis.jsdom`; node-only suites
  * (no jsdom global) keep Node's accessor untouched.
  */
+import { afterAll } from 'vitest'
+
 const jsdomWindow = (globalThis as { jsdom?: { window?: Window } }).jsdom?.window
 const storage = jsdomWindow?.localStorage ?? (typeof window === 'undefined' ? undefined : window.localStorage)
 if (storage !== undefined) {
@@ -20,5 +22,26 @@ if (storage !== undefined) {
     value: storage,
     configurable: true,
     writable: true,
+  })
+}
+
+// jsdom has no layout notifications; resize-sensitive specs install recording observers.
+if (storage !== undefined && typeof globalThis.ResizeObserver === 'undefined') {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    writable: true,
+    value: class {
+      observe = () => undefined
+      unobserve = () => undefined
+      disconnect = () => undefined
+    },
+  })
+  afterAll(() => {
+    if (descriptor !== undefined) {
+      Object.defineProperty(globalThis, 'ResizeObserver', descriptor)
+      return
+    }
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 }

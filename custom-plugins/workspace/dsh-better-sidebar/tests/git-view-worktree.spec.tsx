@@ -124,7 +124,7 @@ function openMoreSubmenu(container: HTMLElement, label: string): HTMLButtonEleme
   const parent = menuItem(label)
   expect(parent.getAttribute('aria-haspopup')).toBe('menu')
   act(() => { parent.click() })
-  return [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menu"] button[role="menuitem"]')]
+  return [...document.querySelectorAll<HTMLButtonElement>('[role="menu"][data-submenu-layout] button[role="menuitem"]')]
 }
 
 async function chooseMoreOption(container: HTMLElement, submenu: string, label: string): Promise<void> {
@@ -285,6 +285,9 @@ describe('GitLens (changes tab, git lens) linked-worktree consistency', () => {
       expect(openMoreSubmenu(container, t('worktree')).map(button => button.textContent))
         .toEqual(['b-main · b (0)', 'b-agent · b-agent (2)'])
       act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+      expect(document.querySelector('[role="menu"][data-submenu-layout]')).toBeNull()
+      act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+      expect(document.querySelector('[role="menu"]')).toBeNull()
 
       await chooseMoreOption(container, t('gitRepository'), 'a')
       expect(branchButton(container).title).toBe(`${t('branch')}: a-main*`)

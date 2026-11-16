@@ -119,7 +119,7 @@ function menuItems(): HTMLElement[] {
 }
 
 function submenuRows(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menu"] [role="menuitem"]')]
+  return [...document.querySelectorAll<HTMLElement>('[role="menu"][data-submenu-layout] [role="menuitem"]')]
 }
 
 function submenuParent(): HTMLElement {
@@ -198,7 +198,7 @@ describe('FileTree plugin open-with menu', () => {
     expect(harness.onToggleOpenWithPin).toHaveBeenCalledWith('cursor')
     expect(harness.onOpenWith).not.toHaveBeenCalled()
     // The menu (and the submenu) stayed open.
-    expect(document.querySelector('[role="menu"] [role="menu"]')).not.toBeNull()
+    expect(document.querySelector('[role="menu"][data-submenu-layout]')).not.toBeNull()
   })
 
   it('selecting a submenu child invokes onOpenWith with the row path and closes the menu', async () => {
@@ -209,7 +209,7 @@ describe('FileTree plugin open-with menu', () => {
     act(() => { zedRow.click() })
     expect(harness.onOpenWith).toHaveBeenCalledWith('zed', '/tmp/a.ts')
     // Selecting closes the row menu entirely.
-    expect(document.querySelector('[role="menu"] [role="menu"]')).toBeNull()
+    expect(document.querySelector('[role="menu"][data-submenu-layout]')).toBeNull()
     expect(menuItems()).toHaveLength(0)
   })
 
