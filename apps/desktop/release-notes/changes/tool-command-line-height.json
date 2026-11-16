@@ -1,0 +1,8 @@
+{
+  "id": "tool-command-line-height",
+  "category": "fixes",
+  "text": {
+    "en": "Wrapped commands in conversation tool cards keep their line spacing when the code font size changes.",
+    "zh-CN": "修复调整代码字号后，会话工具卡片中的多行命令行距未同步变化的问题。"
+  }
+}
