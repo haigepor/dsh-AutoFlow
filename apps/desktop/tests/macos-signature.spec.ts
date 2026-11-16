@@ -18,7 +18,8 @@ import {
 // 配置测试不加载 NSIS 编译器；安装器适配由专门的 installer 测试验证。
 vi.mock('../scripts/windows-directory-installer.mjs', () => ({ installWindowsDirectoryInstaller: vi.fn() }))
 const require = createRequire(import.meta.url)
-const { validateConfiguration } = require('app-builder-lib/out/util/config/config.js') as {
+const builderRequire = createRequire(require.resolve('electron-builder/package.json'))
+const { validateConfiguration } = builderRequire('app-builder-lib/out/util/config/config.js') as {
   validateConfiguration: (config: object, logger: { isEnabled: false }) => Promise<void>
 }
 
