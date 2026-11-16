@@ -92,8 +92,8 @@ const PEER_REQUIRED_HOST_EXPORTS = {
   // The forge panel matches ctx.fs failures with `instanceof FsError`.
   '@deepseek-ai/dsh-fs': ['FsError'],
   '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'createScope', 'scopeOf', 'scopeTarget'],
-  // Imported message and tool-call ids use the installed runtime's brands.
-  '@deepseek-ai/dsh-llm': ['MessageId', 'ToolCallId'],
+  // Chunk assembly and imported message and tool-call ids must match the installed LLM runtime.
+  '@deepseek-ai/dsh-llm': ['BlockAssembler', 'MessageId', 'ToolCallId'],
   // appendPluginRecord writes through the Session class's private log; pluginRecordOf is stateless.
   // The DeepSeek chat importer validates its seed with the installed Session class before storing it.
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION', 'Session', 'SessionLogOffset', 'SessionSeq', 'appendPluginRecord', 'pluginRecordOf'],
