@@ -474,7 +474,7 @@ interface PanelLaunch {
  * @param options - desktop transport, checkout branch, browser input, sandbox runner availability, and diff output limit.
  * @returns the scaffold, page, and checkout.
  */
-async function launchPanel(failureShot: string, scenario: 'normal' | 'follow-up' | 'reference' = 'normal',
+async function launchPanel(failureShot: string, scenario: 'normal' | 'follow-up' | 'reference' | 'git-message' = 'normal',
   options: { desktop?: 'darwin' | 'win32'; branch?: string; hasTouch?: boolean; missingSandbox?: boolean; maxDiffBytes?: number } = {}): Promise<PanelLaunch> {
   const { desktop } = options
   const resources: { scaffold?: WebScaffold; browser?: Browser } = {}
@@ -500,6 +500,7 @@ async function launchPanel(failureShot: string, scenario: 'normal' | 'follow-up'
   const override = join(root, 'replay.override.json')
   // The borrowed scenario records one model call, so index 1 appends the reply to the follow-up.
   if (scenario === 'follow-up') await writeFile(override, JSON.stringify({ patches: [{ at: 1, entry: { kind: 'chunks', chunks: textReply(FOLLOW_UP_REPLY) } }] }))
+  if (scenario === 'git-message') await writeFile(override, JSON.stringify({ patches: [{ at: 1, entry: { kind: 'chunks', chunks: textReply('更新工作区说明') } }] }))
   if (scenario === 'reference') {
     const command = `PATH=${JSON.stringify(`.fixture-bin:${process.env.PATH ?? ''}`)} gh pr view 7 --repo octo/demo --json number,title 2>&1 | head -200`
     const call = { type: 'tool-call', id: 'view-pr', name: 'bash', arguments: JSON.stringify({ command, description: 'View PR metadata' }) }
@@ -2535,4 +2536,65 @@ it.skipIf(MODE === 'record')('writes a left and a right comment at once, each in
   expect(await left.count()).toBe(0)
   expect(await right.getByRole('textbox').inputValue()).toBe('右侧的评论')
   expect(tripwire.pageErrors).toEqual([])
+})
+
+
+it.skipIf(MODE === 'record')('uses the composer Git entry to generate a message, review changes, commit, push, and switch branches', async () => {
+  const { scaffold, page, project, tripwire } = await launchPanel('web-e2e-forge-git-actions', 'git-message')
+  const remote = join(project, '.git', 'ui-remote.git')
+  await git(project, 'init', '--bare', remote)
+  await git(project, 'remote', 'set-url', 'origin', remote)
+  const { settled } = await sendPrompt(page, scaffold)
+  await settled
+  await page.getByText('LIGHTHOUSE', { exact: true }).waitFor()
+  const permission = page.locator('button[aria-label^="访问模式"]').first()
+  await permission.click()
+  await page.getByRole('menuitem', { name: '完全权限', exact: true }).click()
+  const confirmation = page.getByRole('dialog', { name: '确认启用完全权限？' })
+  await confirmation.getByRole('checkbox', { name: '我已了解风险，并愿意继续' }).check()
+  await confirmation.getByRole('button', { name: '启用完全权限' }).click()
+  await writeFile(join(project, 'README.md'), 'demo\nDescribe the Git workflow.\n')
+  const head = await git(project, 'rev-parse', 'HEAD')
+  await page.locator('[data-forge-git]').click()
+  const panel = page.locator('[data-forge-git-panel]')
+  await panel.getByRole('checkbox', { name: 'README.md', exact: true }).check()
+  await panel.getByRole('button', { name: '操作说明', exact: true }).click()
+  await page.getByRole('tooltip').getByText(/使用当前会话模型/).waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('tooltip').waitFor({ state: 'hidden' })
+  await panel.getByRole('button', { name: '生成提交信息', exact: true }).click()
+  const message = panel.getByRole('textbox', { name: '提交说明', exact: true })
+  await expect.poll(async () => ({ message: await message.inputValue(), errors: await panel.getByRole('alert').allTextContents() }), { timeout: 20_000 })
+    .toEqual({ message: '更新工作区说明', errors: [] })
+  expect(await git(project, 'rev-parse', 'HEAD')).toBe(head)
+  await message.fill('更新工作区说明：补充 Git 流程')
+  await compareOrRefreshGolden(join(EXPECTED, 'git-commit-panel.expected.md'),
+    await captureStableAria(page, '[data-forge-git-panel]', scaffold.workspaceCwd), MODE)
+  await panel.getByRole('button', { name: '查看改动', exact: true }).click()
+  const changes = page.locator('[data-forge-changes="local"]')
+  await changes.locator('[data-forge-diff-file="README.md"]').getByText('Describe the Git workflow.', { exact: true }).waitFor()
+  await page.locator('[data-forge-git]').click()
+  await panel.getByRole('button', { name: '提交并推送', exact: true }).click()
+  await expect.poll(async () => ({
+    message: await git(remote, 'log', '-1', '--format=%s', 'main').catch(() => null),
+    errors: await panel.getByRole('alert').allTextContents(),
+  }), { timeout: 30_000 }).toEqual({ message: '更新工作区说明：补充 Git 流程', errors: [] })
+  await panel.getByText('工作区干净', { exact: true }).waitFor()
+  await panel.getByRole('button', { name: '切换分支', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'release', exact: true }).click()
+  await expect.poll(async () => ({ branch: await git(project, 'branch', '--show-current'), errors: await panel.getByRole('alert').allTextContents() }),
+    { timeout: 30_000 }).toEqual({ branch: 'release', errors: [] })
+  await page.getByRole('dialog', { name: 'Git 分支与改动' }).getByRole('button', { name: '关闭', exact: true }).click()
+  await expect.poll(() => page.locator('[data-forge-git]').getAttribute('aria-label'), { timeout: 30_000 }).toBe('Git 分支：release')
+  await page.getByRole('button', { name: '收起右侧边栏', exact: true }).click()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.locator('[data-forge-git]').click()
+  const dialog = page.getByRole('dialog', { name: 'Git 分支与改动' })
+  expect(await dialog.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    return box.left >= 0 && box.right <= innerWidth && box.height <= innerHeight
+  })).toBe(true)
+  await page.keyboard.press('Escape')
+  expect(tripwire.pageErrors).toEqual([])
+  expect(tripwire.warnings).toEqual([])
 })

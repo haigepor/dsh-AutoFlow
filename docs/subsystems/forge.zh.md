@@ -4,6 +4,10 @@
 
 实验性的 forge 能力 seam 从代码托管平台读取变更请求（change request，即 pull request 与 merge request）。[`dsh-experimental-forge`](../../packages/experimental/forge/README.zh.md) 是 Service Definition，提供 `ctx.forge`；[`dsh-experimental-forge-github`](../../packages/experimental/forge-github/README.zh.md) 是服务 GitHub 主机的 Service Provider；[`dsh-experimental-forge-session`](../../packages/experimental/forge-session/README.zh.md) 是把变更请求绑定到 Session 的 Consumer，提供 `ctx.forgeSession`；[`dsh-experimental-client-ui-forge`](../../packages/experimental/client-ui-forge/README.zh.md) 是提供 `ctx.forgePanel` 的 GUI Consumer。默认禁用的 [forge Bundle](../../packages/experimental/forge-bundle/README.zh.md) 可从插件页面组合这四个包，同时加载[工作树模型工具](../../packages/experimental/tool-worktree/README.zh.md)，并为面板附带一个隔离的 [worktree 服务](../../packages/experimental/worktree/README.zh.md)；除此之外，它们只能通过显式组合加载。
 
+## 本地检出操作
+
+面板的本地 Git 操作通过 `ForgeGitTarget` 标识用户已查看的检出：规范路径 `root`、当前 `branch` 和完整提交 `head`；分离 HEAD 时 `branch` 为 null，首次提交前 `head` 为 null。`ForgeGitStatus` 还包含文件的暂存区与工作区状态、重命名前路径、本地已知的上游计数、已配置远端及 Session 的写入限制。暂存、提交、推送或切换前，目标已变化的写操作会被拒绝。[面板参考](../../packages/experimental/client-ui-forge/README.zh.md)说明用户控件和辅助提交信息生成。
+
 ## 提供方与变更请求
 
 一个提供方服务一个 forge 家族，例如 `github`。它把 Git 远端 URL 映射为仓库，把变更请求 URL 映射为引用，构造规范的变更请求 URL，按 head 分支查找打开状态的变更请求，并批量读取状态。`changeRequestKey` 从引用派生一个不区分大小写的键，因此 URL 拼写不同的监听方共享同一个轮询循环。
@@ -1517,6 +1521,54 @@ Serves the forge panel. Following a Session inspects the checkout of its current
  * @throws when the current directory is not inside a checkout or Git fails.
  */
 @Remote async branches(session: Session, signal: AbortSignal): Promise<ForgeBranches>
+
+/**
+ * Read current changed files and locally known tracking counts without fetching.
+ * @param session - Session whose current checkout is inspected.
+ * @param signal - cancellation.
+ * @returns checkout identity, changed files, remotes, and write permissions.
+ */
+@Remote async gitStatus(session: Session, signal: AbortSignal): Promise<ForgeGitStatus>
+
+/**
+ * Generate editable commit text through the Session's selected model, logging its exact auxiliary input.
+ * @param session - Session owning the checkout, model route, and generation record.
+ * @param target - inspected checkout identity.
+ * @param paths - selected changed files; their complete uncommitted diffs are sent to the model.
+ * @param locale - application language for the generated message.
+ * @param signal - cancellation.
+ * @returns editable plain text; Git is not changed.
+ */
+@Remote async gitMessage( session: Session, target: ForgeGitTarget, paths: readonly string[], locale: string, signal: AbortSignal, ): Promise<string>
+
+/**
+ * Commit selected files' complete current contents, preserving unrelated staged files and running repository hooks.
+ * A rejected hook may leave selected files staged. Writes reserve the checkout's loaded Agents while they run.
+ * @param session - Session whose checkout is changed.
+ * @param target - checkout, branch, and HEAD displayed to the user.
+ * @param paths - selected changed paths, using rename destinations.
+ * @param message - nonempty commit message.
+ * @param signal - cancellation; an interrupted write must be checked before retrying.
+ */
+@Remote async gitCommit(session: Session, target: ForgeGitTarget, paths: readonly string[], message: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Push this checkout's inspected HEAD to one configured remote without force, establishing its upstream.
+ * @param session - Session whose branch is pushed.
+ * @param target - checkout identity displayed to the user.
+ * @param remote - selected configured remote; its existing upstream destination is retained.
+ * @param signal - cancellation; an interrupted push requires checking the remote before retrying.
+ */
+@Remote async gitPush(session: Session, target: ForgeGitTarget, remote: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Switch a clean checkout to an existing local branch while reserving its loaded Agents.
+ * @param session - Session whose checkout is changed.
+ * @param target - checkout identity displayed to the user.
+ * @param branch - exact local branch name; no remote branch guessing occurs.
+ * @param signal - cancellation.
+ */
+@Remote async gitSwitch(session: Session, target: ForgeGitTarget, branch: string, signal: AbortSignal): Promise<void>
 
 /**
  * List the branches the `branch` scope of the Session's current checkout can compare with.

@@ -1472,6 +1472,33 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['when the current directory is not inside a checkout or Git fails.'],
       },
       {
+        signature: '@Remote async gitStatus(session: Session, signal: AbortSignal): Promise<ForgeGitStatus>',
+        description: 'Read current changed files and locally known tracking counts without fetching.',
+        parameters: [{ name: 'session', description: 'Session whose current checkout is inspected.' }, { name: 'signal', description: 'cancellation.' }],
+        returns: 'checkout identity, changed files, remotes, and write permissions.',
+      },
+      {
+        signature: '@Remote async gitMessage( session: Session, target: ForgeGitTarget, paths: readonly string[], locale: string, signal: AbortSignal, ): Promise<string>',
+        description: 'Generate editable commit text through the Session\'s selected model, logging its exact auxiliary input.',
+        parameters: [{ name: 'session', description: 'Session owning the checkout, model route, and generation record.' }, { name: 'target', description: 'inspected checkout identity.' }, { name: 'paths', description: 'selected changed files; their complete uncommitted diffs are sent to the model.' }, { name: 'locale', description: 'application language for the generated message.' }, { name: 'signal', description: 'cancellation.' }],
+        returns: 'editable plain text; Git is not changed.',
+      },
+      {
+        signature: '@Remote async gitCommit(session: Session, target: ForgeGitTarget, paths: readonly string[], message: string, signal: AbortSignal): Promise<void>',
+        description: 'Commit selected files\' complete current contents, preserving unrelated staged files and running repository hooks. A rejected hook may leave selected files staged. Writes reserve the checkout\'s loaded Agents while they run.',
+        parameters: [{ name: 'session', description: 'Session whose checkout is changed.' }, { name: 'target', description: 'checkout, branch, and HEAD displayed to the user.' }, { name: 'paths', description: 'selected changed paths, using rename destinations.' }, { name: 'message', description: 'nonempty commit message.' }, { name: 'signal', description: 'cancellation; an interrupted write must be checked before retrying.' }],
+      },
+      {
+        signature: '@Remote async gitPush(session: Session, target: ForgeGitTarget, remote: string, signal: AbortSignal): Promise<void>',
+        description: 'Push this checkout\'s inspected HEAD to one configured remote without force, establishing its upstream.',
+        parameters: [{ name: 'session', description: 'Session whose branch is pushed.' }, { name: 'target', description: 'checkout identity displayed to the user.' }, { name: 'remote', description: 'selected configured remote; its existing upstream destination is retained.' }, { name: 'signal', description: 'cancellation; an interrupted push requires checking the remote before retrying.' }],
+      },
+      {
+        signature: '@Remote async gitSwitch(session: Session, target: ForgeGitTarget, branch: string, signal: AbortSignal): Promise<void>',
+        description: 'Switch a clean checkout to an existing local branch while reserving its loaded Agents.',
+        parameters: [{ name: 'session', description: 'Session whose checkout is changed.' }, { name: 'target', description: 'checkout identity displayed to the user.' }, { name: 'branch', description: 'exact local branch name; no remote branch guessing occurs.' }, { name: 'signal', description: 'cancellation.' }],
+      },
+      {
         signature: '@Remote async diffBases(session: Session, query: string, signal: AbortSignal): Promise<ForgeBaseBranches>',
         description: 'List the branches the `branch` scope of the Session\'s current checkout can compare with.',
         parameters: [{ name: 'session', description: 'Session whose checkout is read.' }, { name: 'query', description: 'text the branch names must contain, ignoring case; empty for every branch.' }, { name: 'signal', description: 'request cancellation.' }],
@@ -7325,6 +7352,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ForgeFileLayer',
     declaration: 'export type ForgeFileLayer = \'interface\' | \'implementation\' | \'test\';',
+  },
+  {
+    name: 'ForgeGitFile',
+    declaration: 'export interface ForgeGitFile {\n    readonly path: string;\n    readonly originalPath: string | null;\n    readonly index: string;\n    readonly worktree: string;\n    readonly conflicted: boolean;\n}',
+  },
+  {
+    name: 'ForgeGitStatus',
+    declaration: 'export interface ForgeGitStatus extends ForgeGitTarget {\n    readonly files: readonly ForgeGitFile[];\n    readonly upstream: string | null;\n    readonly ahead: number | null;\n    readonly behind: number | null;\n    readonly remotes: readonly string[];\n    readonly blocker: \'read-only\' | \'outside-writable-root\' | null;\n}',
+  },
+  {
+    name: 'ForgeGitTarget',
+    declaration: 'export interface ForgeGitTarget {\n    readonly root: string;\n    readonly branch: string | null;\n    readonly head: string | null;\n}',
   },
   {
     name: 'ForgeLineComment',

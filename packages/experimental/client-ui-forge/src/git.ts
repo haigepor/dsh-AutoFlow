@@ -201,18 +201,19 @@ export async function hasBranch(
 /**
  * Bind the Git runner to one Session and directory: every command
  * runs under the Session's sandbox policy with the
- * scrubbed environment, the fixed command prefix, and `config`'s limits.
+ * scrubbed environment and `config`'s limits. Queries disable hooks; writes retain the repository's hooks.
  * @param ctx - context that provides `subprocess`, `sandbox`, and `sandboxPolicy`.
  * @param config - executable and process limits.
  * @param session - Session whose sandbox policy and execution world apply.
  * @param directory - working directory of every command.
  * @param signal - cancellation of every command.
+ * @param purpose - writes retain repository hooks and disable interactive credential prompts.
  * @returns the runner.
  */
-export function gitIn(ctx: Context, config: GitConfig, session: Session, directory: string, signal: AbortSignal): Git {
+export function gitIn(ctx: Context, config: GitConfig, session: Session, directory: string, signal: AbortSignal, purpose: 'read' | 'write' = 'read'): Git {
   const policy = ctx.sandboxPolicy.resolve({ session })
   return (name, args, allowedExitCodes = [0], configOverrides = {}) =>
-    runGit(ctx, config, policy, directory, name, args, signal, allowedExitCodes, configOverrides)
+    runGit(ctx, config, policy, directory, name, args, signal, allowedExitCodes, configOverrides, purpose)
 }
 
 /** Read the checked-out branch, including an unborn one; null when HEAD is detached. */
@@ -237,10 +238,11 @@ async function runGit(
   signal: AbortSignal,
   allowedExitCodes: readonly number[],
   configOverrides: Readonly<Record<string, string>>,
+  purpose: 'read' | 'write',
 ): Promise<GitOutput> {
   using timeout = deadline(signal, config.gitTimeoutMs, 'FORGE_PANEL_GIT_TIMEOUT')
   const program = await ctx.subprocess.resolveExecutable(config.gitCommand, undefined, timeout.signal)
-  const command = [program, ...GIT_PREFIX, ...args]
+  const command = [program, ...(purpose === 'read' ? GIT_PREFIX : []), ...args]
   const argv = policy.mode === 'danger-full-access'
     ? command
     : (await ctx.sandbox.confine(command, { ...policy, mode: policy.mode }, timeout.signal)).argv
@@ -256,6 +258,9 @@ async function runGit(
     cwd,
     env: {
       ...GIT_ENV,
+      ...(purpose === 'write' ? {
+        GIT_LITERAL_PATHSPECS: '1', GCM_INTERACTIVE: 'never', GIT_ASKPASS: '', SSH_ASKPASS: '', SSH_ASKPASS_REQUIRE: 'never',
+      } : {}),
       GIT_CONFIG_COUNT: String(overrides.length),
       ...Object.fromEntries(overrides.flatMap(([key, value], index) => [
         [`GIT_CONFIG_KEY_${index}`, key], [`GIT_CONFIG_VALUE_${index}`, value],

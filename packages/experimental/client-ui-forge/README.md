@@ -29,6 +29,7 @@ Enable the [forge bundle](../forge-bundle/README.md) on the Plugins page; it com
 
 Panel text follows the application language: Chinese, English, Japanese, Spanish, French, German, Russian, or Portuguese.
 
+- **Composer Git entry** — below the conversation input, the branch and dirty-file count open a Git dialog. View changes opens the existing changes view at Uncommitted. Select files and enter a message to commit their complete current contents, or use Generate commit message to call the Session’s selected model with only the selected diffs and fill an editable draft. Commit and push performs these steps in order; if pushing fails, the commit remains and can be pushed separately. Push targets one configured remote, establishes upstream, and never forces. Switching selects a recent existing local branch and requires a clean checkout. Git writes reserve loaded Agents sharing the checkout, check the displayed branch and HEAD again, and preserve repository hooks and unrelated staged files. A failed hook may leave selected files staged. Read-only permissions and Git metadata outside the writable root block writes.
 - **Worktree option** — on the New Session screen, New worktree sits beside the current branch at the right end of the row with the workspace and mode pickers. Both stay hidden outside a Git checkout. The branch is read-only until New worktree is checked, when it becomes the base branch selector; the menu lists recent local branches. If permissions block an existing request, its selected base stays visible without a selector and the request can still be withdrawn. Hovering, focusing, or tapping the read-only branch or base shows its full description. The option is disabled, with the reason in its tooltip, in a read-only Session and when the checkout or its Git directory lies outside the Session's writable root, as for a project that is itself a linked worktree. Sending the first message hands it to the Session at once, and it waits there while the branch `dsh-<first 8 hexadecimal digits of the Session id>-<4 random hexadecimal digits>` is created from the base under the repository's `.agents/worktrees/` and its checkout becomes the Session's working directory; the message's turn starts once the worktree exists.
 - **Archive cleanup** — archiving a Session lets the [worktree service](../worktree/README.md) reclaim the clean, unreferenced worktree it created, whether through the New Session option or the model's `create_worktree` tool, while retaining the branch and its commits. A scheduled cleanup uses the archive notice “Archived; the worktree will be cleaned up”; one that ends retained returns to the ordinary notice, and one that fails replaces it with a warning while the Session stays archived. Undo cancels deletion before admission or waits for an admitted deletion; a removed checkout uses the existing Restore worktree flow. The bundle's worktree row on the Plugins page offers Keep worktrees when archiving: once saved, archiving keeps every worktree and shows the ordinary archive notice; the switch is read at each archive, so it does not affect a cleanup already scheduled.
 - **Creation card** — while the worktree is created, a card above the composer shows the new branch and its two steps, creating the branch and checking out files; More details adds the branch and base. Cancel stops the attempt. After a stopped or failed attempt the message keeps waiting, and the card shows the reason of a failure: Retry tries again with a new branch name, and Continue without a worktree withdraws the request so the message goes on in the current checkout.
@@ -129,11 +130,34 @@ The browser entry mounts the Remote, then the UI. One stream per Session feeds t
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the working-directory service and the Session's conversation: the notice about a Session's new worktree joins the first request's messages, Continue in the project queues the same kind of notice for the next request, and Create change request sends a user message that asks the Agent for a change request. Add to input contributes a frozen `## User Comment N` quote containing File, Side, Lines, Source, the diff hunk, and Comment; PR quotes also name the reviewed commit, local Branch quotes the base the view compared with, and quotes from chosen commits name them. These quotes enter the normal logged user message only when the composer is sent. Inspection, status, restoring, the Session list, and GitHub review submission add no model context. Add to input on a review thread contributes a frozen `## Review Thread N` quote with File, Side, Lines, the commit those lines number, State, Source, the recorded diff hunk, and every comment's author, time, and body quoted line by line.
+### Conversation requests
+
+#### What the model sees
+
+The model receives context through the working-directory service and the Session's conversation: the notice about a Session's new worktree joins the first request's messages, Continue in the project queues the same kind of notice for the next request, and Create change request sends a user message that asks the Agent for a change request. Add to input contributes a frozen `## User Comment N` quote containing File, Side, Lines, Source, the diff hunk, and Comment; PR quotes also name the reviewed commit, local Branch quotes the base the view compared with, and quotes from chosen commits name them. These quotes enter the normal logged user message only when the composer is sent. Inspection, status, restoring, the Session list, and GitHub review submission add no model context. Add to input on a review thread contributes a frozen `## Review Thread N` quote with File, Side, Lines, the commit those lines number, State, Source, the recorded diff hunk, and every comment's author, time, and body quoted line by line.
+
+#### Token effect
+
+Directory notices and diff quotes submitted with a user message contribute input tokens to ordinary conversation requests. Local Git status and writes add no model input.
 
 #### KV Cache effect
 
 None for a new worktree, as its notice belongs to the first request of the Session, before any cached prefix exists. A notice after Continue in the project and the message Create change request sends, and submitted review quotes are appended after the cached prefix.
+
+### Commit message generation
+
+#### What the model sees
+
+The Session’s selected model receives a system instruction to write a plain-text commit message in the application language, and a JSON user message containing the branch and only the selected file diffs, including untracked text. File contents are identified as data rather than instructions. The exact resolved call configuration, system instruction, JSON input, and accepted output are logged as ignorable `plugin:client-ui-forge/git-message` records. The result fills an editable draft; generation starts no conversation turn and changes no files or Git index.
+
+#### Token effect
+
+One auxiliary call consumes input tokens for the selected diffs and output tokens for the message. `commitMessageMaxInputBytes`, `commitMessageMaxTokens`, and `commitMessageTimeoutMs` bound it; oversized selections are rejected without a model call. The model’s lowest declared reasoning effort is used when available.
+
+#### KV Cache effect
+
+The auxiliary call sends no conversation history and adds no message to it. Its own request may reuse a provider cache; the conversation’s model-visible history stays unchanged.
+
 
 ## Known Limitations and Deferred Work
 

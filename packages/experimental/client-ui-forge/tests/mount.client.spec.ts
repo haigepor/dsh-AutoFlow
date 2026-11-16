@@ -25,6 +25,7 @@ import { ChangesTabTitle } from '../src/client/ChangesTabTitle.tsx'
 import { ForgeTab, type ForgeTabInjected } from '../src/client/ForgeTab.tsx'
 import { ForgeTabTitle } from '../src/client/ForgeTabTitle.tsx'
 import { HeaderButton, type HeaderButtonInjected } from '../src/client/HeaderButton.tsx'
+import { GitBranch } from '../src/client/GitBranch.tsx'
 import { en, NS, zh } from '../src/client/locales.ts'
 import { inject, mountForgePanel, TAB_ID, TAB_KIND, WORKTREE_NS, WORKTREE_ROW_KEY } from '../src/client/mount.ts'
 import type { SessionListInjected } from '../src/client/session-list.ts'
@@ -232,6 +233,7 @@ async function base() {
       'conversation.session.header.actions': { kind: 'list', scope: 'session' },
       'conversation.hero.options': { kind: 'list', scope: 'session' },
       'conversation.input.dock': { kind: 'list', scope: 'session' },
+      'conversation.composer.dock': { kind: 'list', scope: 'session' },
       'conversation.input.left': { kind: 'list', scope: 'session' },
       'shell.overlay': { kind: 'list', scope: 'root' },
       'sidebar.session.row.trailing': { kind: 'list', scope: 'root', inline: true },
@@ -367,6 +369,7 @@ describe('mountForgePanel registration', () => {
       ['conversation.session.header.utilities', HeaderButton],
       ['conversation.hero.options', WorktreeToggle],
       ['conversation.input.dock', WorktreeProgress],
+      ['conversation.composer.dock', GitBranch],
       ['shell.overlay', ActionToast],
       ['sidebar.session.row.trailing', SessionRowForge],
       ['sidebar.session.row.hover', SessionHoverForge],

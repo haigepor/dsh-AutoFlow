@@ -15,8 +15,8 @@
   en: d152484eb41ac6b4
   zh: 2f8a621b991260a1
 /deepseek-ai-dsh-experimental-client-ui-forge/use-this-package:
-  en: c3fa707a638717e4
-  zh: dfeba8a57c58a8aa
+  en: c433c58725b6a36e
+  zh: 93e0e5b14ff98a64
 /deepseek-ai-dsh-experimental-client-ui-forge/understand-the-implementation:
   en: c9541603ea971f46
   zh: 15c41326e3fb29e4
@@ -24,11 +24,32 @@
   en: fa4d8c579ffc49ff
   zh: 5856ed7469e4585b
 /deepseek-ai-dsh-experimental-client-ui-forge/model-experience:
-  en: 795766e162ebf4df
-  zh: 893de3302798330a
-/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/kv-cache-effect:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/conversation-requests:
+  en: f9a5261cbec23f1e
+  zh: 12c2eae7bf223deb
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/conversation-requests/what-the-model-sees:
+  en: b1c9561b0bb90495
+  zh: 7b2b85c45c87df59
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/conversation-requests/token-effect:
+  en: f90a3c2d4345f668
+  zh: 6498395f5a94bd17
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/conversation-requests/kv-cache-effect:
   en: 2bc25a99e17789c4
   zh: 4bec723fbf249d28
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/commit-message-generation:
+  en: 0ea879f52dd00634
+  zh: 50c8564fb4f6c184
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/commit-message-generation/what-the-model-sees:
+  en: 7cadf019da40fc18
+  zh: 39ab08e6a497c9e1
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/commit-message-generation/token-effect:
+  en: 2e5cec894dcca4b8
+  zh: e7b9086b9b88cf53
+/deepseek-ai-dsh-experimental-client-ui-forge/model-experience/commit-message-generation/kv-cache-effect:
+  en: 3b7513f87d8f8187
+  zh: babcb7d380dc8a18
 /deepseek-ai-dsh-experimental-client-ui-forge/known-limitations-and-deferred-work:
   en: 913b4dd2cc8f2a40
   zh: 2794e247c0063717

@@ -17,6 +17,7 @@ export type { DiffFileAction, DiffFileProps, DiffFileText } from './DiffFile.tsx
 export type { LocalChangesCardProps } from './LocalChangesCard.tsx'
 export type { ForgeTabInjected, ForgeTabProps } from './ForgeTab.tsx'
 export type { HeaderButtonInjected, HeaderButtonProps } from './HeaderButton.tsx'
+export type { GitBranchInjected, GitBranchProps } from './GitBranch.tsx'
 export type { WorktreeProgressInjected, WorktreeProgressProps } from './WorktreeProgress.tsx'
 export type { WorktreeToggleInjected, WorktreeToggleProps } from './WorktreeToggle.tsx'
 export type { ActionNotice, NoticeOptions, PanelSnapshot } from './source.ts'

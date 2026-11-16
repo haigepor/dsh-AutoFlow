@@ -216,6 +216,33 @@ export interface ForgeBranches {
   readonly branches: readonly string[]
 }
 
+/** Checkout identity the user inspected before a Git write; an unborn branch has no HEAD. */
+export interface ForgeGitTarget {
+  readonly root: string
+  readonly branch: string | null
+  readonly head: string | null
+}
+
+/** One changed file, including both paths of a rename. Paths are repository-relative. */
+export interface ForgeGitFile {
+  readonly path: string
+  readonly originalPath: string | null
+  readonly index: string
+  readonly worktree: string
+  readonly conflicted: boolean
+}
+
+/** Current working-tree status, independent of a branch's comparison base or code host. */
+export interface ForgeGitStatus extends ForgeGitTarget {
+  readonly files: readonly ForgeGitFile[]
+  readonly upstream: string | null
+  /** Counts relative to locally stored upstream refs; no fetch is performed. */
+  readonly ahead: number | null
+  readonly behind: number | null
+  readonly remotes: readonly string[]
+  readonly blocker: 'read-only' | 'outside-writable-root' | null
+}
+
 /** A branch the `branch` scope can compare with. */
 export interface ForgeBaseBranch {
   /** Full ref name: `refs/heads/<branch>` or `refs/remotes/<remote>/<branch>`. */
@@ -383,6 +410,14 @@ export interface Config {
   gitCommand?: string
   /** Deadline in milliseconds for one Git command, including confinement. */
   gitTimeoutMs?: number
+  /** Deadline in milliseconds for a Git commit or push, including hooks and credential helpers. */
+  gitWriteTimeoutMs?: number
+  /** Maximum UTF-8 bytes of selected diffs sent to the commit-message model. */
+  commitMessageMaxInputBytes?: number
+  /** Output-token cap for commit-message generation. */
+  commitMessageMaxTokens?: number
+  /** Deadline in milliseconds for one commit-message model call. */
+  commitMessageTimeoutMs?: number
   /** Termination grace period in milliseconds for each Git process. */
   graceMs?: number
   /** Maximum captured bytes per Git output stream. */
@@ -425,6 +460,18 @@ export interface Config {
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
+    /** No model runtime or model selection is available for commit-message generation. */
+    'forgePanel/git-message-unavailable': Record<string, never>
+    /** The model call failed or returned no complete commit message; the user's draft is retained. */
+    'forgePanel/git-message-failed': Record<string, never>
+    /** The inspected checkout, branch, or HEAD changed before the Git write. */
+    'forgePanel/git-stale': Record<string, never>
+    /** The Session's sandbox does not permit writes to the checkout and its Git directory. */
+    'forgePanel/git-read-only': Record<string, never>
+    /** A write request has invalid files, branch, message, or remote, or unresolved changes prevent it. */
+    'forgePanel/git-invalid': Record<string, never>
+    /** A Git write failed or was interrupted; inspect the checkout and remote before retrying. */
+    'forgePanel/git-write-failed': Record<string, never>
     /** No registered provider serves the change request URL. */
     'forgePanel/unrecognized-url': Record<string, never>
     /** A turn of the Session has started, or its worktree was created, so its worktree request can no longer change. */

@@ -22,6 +22,8 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { gitIn, inspectCheckout, listBranches } from './git.ts'
 import type { Inspection } from './git.ts'
+import { checkGitTarget, checkoutStatus, commitFiles, pushBranch, switchBranch } from './checkout-actions.ts'
+import { generateCommitMessage, type CommitMessageConfig } from './commit-message.ts'
 import { parseDiff } from './diff.ts'
 import {
   aheadOf, BaseMissing, baseBranches, chosenForkPoint, CommitsMissing, CommitsNotLinear, DiffTooLarge, FilterConfigError, forkPoint,
@@ -36,7 +38,8 @@ import { ChangeRequestStates, changeRequestStatesDomain } from './states.ts'
 import type { PanelConfig } from './panel.ts'
 import type {
   Config, ForgeBaseBranches, ForgeBranches, ForgeChangeRequestDiff, ForgeChangeRequestStatesFrame, ForgeCommitRange, ForgeLocalCommits,
-  ForgeLocalDiff, ForgeLocalScope, ForgeMissingWorktree, ForgePanelState, ForgeSessionWorktree, ForgeWorktreeState,
+  ForgeGitStatus, ForgeGitTarget, ForgeLocalDiff, ForgeLocalScope, ForgeMissingWorktree, ForgePanelState,
+  ForgeSessionWorktree, ForgeWorktreeState,
 } from './types.ts'
 import { forgeWorktreeProjection, messageOf, within, WORKTREE_RECORD, WorktreeCreations } from './worktree.ts'
 import type { HeldWork } from './worktree.ts'
@@ -51,7 +54,12 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Panel limits plus the branch and commit listing limits and the worktree branch prefix. */
-type ControllerConfig = PanelConfig & { readonly maxBranches: number; readonly maxCommits: number; readonly worktreePrefix: string }
+type ControllerConfig = PanelConfig & CommitMessageConfig & {
+  readonly maxBranches: number
+  readonly maxCommits: number
+  readonly worktreePrefix: string
+  readonly gitWriteTimeoutMs: number
+}
 
 /**
  * Serves the forge panel. Following a Session inspects the checkout of its
@@ -76,6 +84,10 @@ export class ForgePanelController extends TypertRemoteService {
   static Config: z<Config> = z.object({
     gitCommand: z.string().default('git'),
     gitTimeoutMs: z.number().default(10_000),
+    gitWriteTimeoutMs: z.number().default(120_000),
+    commitMessageMaxInputBytes: z.number().default(65_536),
+    commitMessageMaxTokens: z.number().default(512),
+    commitMessageTimeoutMs: z.number().default(60_000),
     graceMs: z.number().default(1_000),
     maxOutputBytes: z.number().default(1_048_576),
     readinessTimeoutMs: z.number().default(15_000),
@@ -94,6 +106,7 @@ export class ForgePanelController extends TypertRemoteService {
   private readonly home: Context
   private readonly config: ControllerConfig
   private readonly panels = new Map<Session, SessionPanel>()
+  private readonly gitWrites = new Set<string>()
   private worktreeStates!: ProjectionHandle<ForgeWorktreeState>
   private creations!: WorktreeCreations
   private readonly patches: PatchCache
@@ -107,13 +120,13 @@ export class ForgePanelController extends TypertRemoteService {
     super(ctx, 'forgePanel')
     const resolved = config as Required<Config>
     if (resolved.gitCommand.trim().length === 0) throw new Error('forge-panel: gitCommand must not be empty')
-    for (const key of ['gitTimeoutMs', 'graceMs', 'maxOutputBytes', 'readinessTimeoutMs', 'reviewRefreshMs'] as const) {
+    for (const key of ['gitTimeoutMs', 'gitWriteTimeoutMs', 'commitMessageTimeoutMs', 'graceMs', 'maxOutputBytes', 'readinessTimeoutMs', 'reviewRefreshMs'] as const) {
       const value = resolved[key]
       if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMER_DELAY_MS) {
         throw new Error(`forge-panel: ${key} must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
       }
     }
-    for (const key of ['maxBranches', 'maxDiffBytes', 'maxUntrackedFiles', 'maxCachedDiffBytes', 'maxCommits', 'maxCachedReviewBytes'] as const) {
+    for (const key of ['commitMessageMaxInputBytes', 'commitMessageMaxTokens', 'maxBranches', 'maxDiffBytes', 'maxUntrackedFiles', 'maxCachedDiffBytes', 'maxCommits', 'maxCachedReviewBytes'] as const) {
       if (!Number.isSafeInteger(resolved[key]) || resolved[key] <= 0) throw new Error(`forge-panel: ${key} must be a positive integer`)
     }
     if (!branchPrefix(resolved.worktreePrefix)) throw new Error('forge-panel: worktreePrefix must start a valid Git branch name')
@@ -221,6 +234,97 @@ export class ForgePanelController extends TypertRemoteService {
   @Remote
   async branches(session: Session, signal: AbortSignal): Promise<ForgeBranches> {
     return await listBranches(this.home, this.config, session, this.home.workingDirectory.get(session), this.config.maxBranches, signal)
+  }
+
+  /**
+   * Read current changed files and locally known tracking counts without fetching.
+   * @param session - Session whose current checkout is inspected.
+   * @param signal - cancellation.
+   * @returns checkout identity, changed files, remotes, and write permissions.
+   */
+  @Remote
+  async gitStatus(session: Session, signal: AbortSignal): Promise<ForgeGitStatus> {
+    return await checkoutStatus(this.home, this.config, session, await this.checkoutOf(session, signal), signal)
+  }
+
+  /**
+   * Generate editable commit text through the Session's selected model, logging its exact auxiliary input.
+   * @param session - Session owning the checkout, model route, and generation record.
+   * @param target - inspected checkout identity.
+   * @param paths - selected changed files; their complete uncommitted diffs are sent to the model.
+   * @param locale - application language for the generated message.
+   * @param signal - cancellation.
+   * @returns editable plain text; Git is not changed.
+   */
+  @Remote
+  async gitMessage(
+    session: Session, target: ForgeGitTarget, paths: readonly string[], locale: string, signal: AbortSignal,
+  ): Promise<string> {
+    let message = ''
+    await this.maintain(session, async (_agent, work) => {
+      const control = AbortSignal.any([signal, work])
+      const status = await this.gitStatus(session, control)
+      if (status.root !== target.root || status.branch !== target.branch || status.head !== target.head) {
+        throw new RemoteError('forgePanel/git-stale', 'The checkout changed; refresh before generating a commit message', {})
+      }
+      if (paths.length === 0 || paths.some(path => !status.files.some(file => file.path === path))) {
+        throw new RemoteError('forgePanel/git-invalid', 'Select changed files before generating a commit message', {})
+      }
+      const diff = await this.localDiff(session, { kind: 'uncommitted' }, control)
+      const files = diff.files.filter(file => paths.includes(file.path))
+      if (files.length !== new Set(paths).size) throw new RemoteError('forgePanel/git-invalid', 'Some selected diffs could not be read; select fewer files', {})
+      try {
+        message = await generateCommitMessage(this.home, this.config, session, status.branch, files, locale, control)
+      } catch (error) {
+        if (error instanceof RemoteError) throw error
+        throw new RemoteError('forgePanel/git-message-failed', messageOf(error), {}, { cause: error })
+      }
+    })
+    return message
+  }
+
+  /**
+   * Commit selected files' complete current contents, preserving unrelated staged files and running repository hooks.
+   * A rejected hook may leave selected files staged. Writes reserve the checkout's loaded Agents while they run.
+   * @param session - Session whose checkout is changed.
+   * @param target - checkout, branch, and HEAD displayed to the user.
+   * @param paths - selected changed paths, using rename destinations.
+   * @param message - nonempty commit message.
+   * @param signal - cancellation; an interrupted write must be checked before retrying.
+   */
+  @Remote
+  async gitCommit(session: Session, target: ForgeGitTarget, paths: readonly string[], message: string, signal: AbortSignal): Promise<void> {
+    await this.writeGit(session, target, signal, async (status, work) => {
+      await commitFiles(this.home, { ...this.config, gitTimeoutMs: this.config.gitWriteTimeoutMs }, session, status, paths, message, work)
+    })
+  }
+
+  /**
+   * Push this checkout's inspected HEAD to one configured remote without force, establishing its upstream.
+   * @param session - Session whose branch is pushed.
+   * @param target - checkout identity displayed to the user.
+   * @param remote - selected configured remote; its existing upstream destination is retained.
+   * @param signal - cancellation; an interrupted push requires checking the remote before retrying.
+   */
+  @Remote
+  async gitPush(session: Session, target: ForgeGitTarget, remote: string, signal: AbortSignal): Promise<void> {
+    await this.writeGit(session, target, signal, async (status, work) => {
+      await pushBranch(this.home, { ...this.config, gitTimeoutMs: this.config.gitWriteTimeoutMs }, session, status, remote, work)
+    })
+  }
+
+  /**
+   * Switch a clean checkout to an existing local branch while reserving its loaded Agents.
+   * @param session - Session whose checkout is changed.
+   * @param target - checkout identity displayed to the user.
+   * @param branch - exact local branch name; no remote branch guessing occurs.
+   * @param signal - cancellation.
+   */
+  @Remote
+  async gitSwitch(session: Session, target: ForgeGitTarget, branch: string, signal: AbortSignal): Promise<void> {
+    await this.writeGit(session, target, signal, async (status, work) => {
+      await switchBranch(this.home, { ...this.config, gitTimeoutMs: this.config.gitWriteTimeoutMs }, session, status, branch, work)
+    })
   }
 
   /**
@@ -985,6 +1089,55 @@ export class ForgePanelController extends TypertRemoteService {
       throw new RemoteError('forgePanel/session-busy', 'The Session is busy', {}, { cause: error })
     }
     await running
+  }
+
+  /** Reserve repository metadata and loaded Agents sharing this checkout before checking the user's target again. */
+  private async writeGit(
+    session: Session, target: ForgeGitTarget, signal: AbortSignal, write: (status: ForgeGitStatus, signal: AbortSignal) => Promise<void>,
+  ): Promise<void> {
+    const inspection = await this.checkoutOf(session, signal)
+    if (this.gitWrites.has(inspection.commonDir)) throw new RemoteError('forgePanel/session-busy', 'Another Git operation is running in this repository', {})
+    this.gitWrites.add(inspection.commonDir)
+    try {
+      await this.maintain(session, async (agent, work) => {
+        const control = AbortSignal.any([signal, work])
+        const others: Agent[] = []
+        for (const other of this.home.agents.list()) {
+          if (other === agent) continue
+          const cwd = this.home.workingDirectory.get(other.session)
+          if (!within(inspection.checkout.root, cwd)) continue
+          // Linked worktrees can live below the project root while owning different working trees.
+          if (cwd === inspection.checkout.root
+            || (await inspectCheckout(this.home, this.config, other.session, cwd, control))?.checkout.root === inspection.checkout.root) {
+            others.push(other)
+          }
+        }
+        const access = this.ctx.get('remoteAccess')
+        if (access !== undefined && others.some(other => !access.allows({ kind: 'session', id: other.id }))) {
+          throw new RemoteError('forgePanel/session-busy', 'Another Session is using this checkout', {})
+        }
+        const reserve = (index: number, held: AbortSignal): Promise<void> => {
+          const other = others[index]
+          if (other === undefined) return (async () => {
+            const status = await this.gitStatus(session, held)
+            checkGitTarget(status, target)
+            await write(status, held)
+          })()
+          try {
+            return other.runMaintenance(async (next) => { await reserve(index + 1, AbortSignal.any([held, next])) })
+          } catch (error) {
+            throw new RemoteError('forgePanel/session-busy', 'Another Session is using this checkout', {}, { cause: error })
+          }
+        }
+        await reserve(0, control)
+      })
+    } catch (error) {
+      if (error instanceof RemoteError) throw error
+      throw new RemoteError('forgePanel/git-write-failed', messageOf(error), {}, { cause: error })
+    } finally {
+      this.gitWrites.delete(inspection.commonDir)
+      for (const panel of this.panels.values()) panel.reinspect()
+    }
   }
 
   /** The shared change request states, created for the first stream from the Host's Session and storage services. */

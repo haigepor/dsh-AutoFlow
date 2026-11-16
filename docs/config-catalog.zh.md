@@ -1158,7 +1158,7 @@ export interface CotTranslationPreferences {
 ## `@deepseek-ai/dsh-experimental-client-ui-forge`
 
 - `inject`: `forge` · `forgeSession` · `sessionProjections` · `workingDirectory` · `fs` · `subprocess` · `sandbox` · `sandboxPolicy` · `agents`
-- `source`: [`packages/experimental/client-ui-forge/src/types.ts:381`](../packages/experimental/client-ui-forge/src/types.ts)
+- `source`: [`packages/experimental/client-ui-forge/src/types.ts:408`](../packages/experimental/client-ui-forge/src/types.ts)
 
 ```ts config-catalog
 /** Host settings of the forge panel Remote. */
@@ -1167,6 +1167,14 @@ export interface Config {
   gitCommand?: string
   /** Deadline in milliseconds for one Git command, including confinement. */
   gitTimeoutMs?: number
+  /** Deadline in milliseconds for a Git commit or push, including hooks and credential helpers. */
+  gitWriteTimeoutMs?: number
+  /** Maximum UTF-8 bytes of selected diffs sent to the commit-message model. */
+  commitMessageMaxInputBytes?: number
+  /** Output-token cap for commit-message generation. */
+  commitMessageMaxTokens?: number
+  /** Deadline in milliseconds for one commit-message model call. */
+  commitMessageTimeoutMs?: number
   /** Termination grace period in milliseconds for each Git process. */
   graceMs?: number
   /** Maximum captured bytes per Git output stream. */

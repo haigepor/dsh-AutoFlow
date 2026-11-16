@@ -448,6 +448,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   ForgeReviewResult: 'forge.md',
   ForgeBaseBranches: 'forge.md',
   ForgeBranches: 'forge.md',
+  ForgeGitStatus: 'forge.md',
+  ForgeGitTarget: 'forge.md',
   ForgeChangeRequestDiff: 'forge.md',
   ForgeCommit: 'forge.md',
   ForgeCommitList: 'forge.md',

@@ -4,6 +4,10 @@ English | [中文](forge.zh.md)
 
 The experimental forge capability seam reads change requests, meaning pull requests and merge requests, from code hosts. [`dsh-experimental-forge`](../../packages/experimental/forge/README.md) is the Service Definition and provides `ctx.forge`; [`dsh-experimental-forge-github`](../../packages/experimental/forge-github/README.md) is the Service Provider for GitHub hosts; [`dsh-experimental-forge-session`](../../packages/experimental/forge-session/README.md) is the Consumer that binds change requests to Sessions and provides `ctx.forgeSession`; [`dsh-experimental-client-ui-forge`](../../packages/experimental/client-ui-forge/README.md) is the GUI Consumer that provides `ctx.forgePanel`. The default-disabled [forge bundle](../../packages/experimental/forge-bundle/README.md) composes all four, with the [worktree model tool](../../packages/experimental/tool-worktree/README.md) and one shared [worktree service](../../packages/experimental/worktree/README.md), from the Plugins page; otherwise they load only through explicit composition.
 
+## Local checkout operations
+
+The panel's local Git operations use `ForgeGitTarget` to identify the inspected checkout by canonical `root`, checked-out `branch`, and full `head` commit; `branch` is null for detached HEAD, and `head` is null before the first commit. `ForgeGitStatus` adds changed files with index/worktree status and rename origins, locally known upstream counts, configured remotes, and the Session's write blocker. Writes reject a changed target before staging, committing, pushing, or switching. The [panel reference](../../packages/experimental/client-ui-forge/README.md) owns user controls and auxiliary commit-message generation.
+
 ## Providers and change requests
 
 A provider serves one forge family, such as `github`. It maps Git remote URLs to repositories and change request URLs to references, builds canonical change request URLs, finds open change requests by head branch, and reads status in batches. `changeRequestKey` derives one case-insensitive key from a reference, so watchers of differently spelled URLs share one polling loop.
@@ -1515,6 +1519,54 @@ Serves the forge panel. Following a Session inspects the checkout of its current
  * @throws when the current directory is not inside a checkout or Git fails.
  */
 @Remote async branches(session: Session, signal: AbortSignal): Promise<ForgeBranches>
+
+/**
+ * Read current changed files and locally known tracking counts without fetching.
+ * @param session - Session whose current checkout is inspected.
+ * @param signal - cancellation.
+ * @returns checkout identity, changed files, remotes, and write permissions.
+ */
+@Remote async gitStatus(session: Session, signal: AbortSignal): Promise<ForgeGitStatus>
+
+/**
+ * Generate editable commit text through the Session's selected model, logging its exact auxiliary input.
+ * @param session - Session owning the checkout, model route, and generation record.
+ * @param target - inspected checkout identity.
+ * @param paths - selected changed files; their complete uncommitted diffs are sent to the model.
+ * @param locale - application language for the generated message.
+ * @param signal - cancellation.
+ * @returns editable plain text; Git is not changed.
+ */
+@Remote async gitMessage( session: Session, target: ForgeGitTarget, paths: readonly string[], locale: string, signal: AbortSignal, ): Promise<string>
+
+/**
+ * Commit selected files' complete current contents, preserving unrelated staged files and running repository hooks.
+ * A rejected hook may leave selected files staged. Writes reserve the checkout's loaded Agents while they run.
+ * @param session - Session whose checkout is changed.
+ * @param target - checkout, branch, and HEAD displayed to the user.
+ * @param paths - selected changed paths, using rename destinations.
+ * @param message - nonempty commit message.
+ * @param signal - cancellation; an interrupted write must be checked before retrying.
+ */
+@Remote async gitCommit(session: Session, target: ForgeGitTarget, paths: readonly string[], message: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Push this checkout's inspected HEAD to one configured remote without force, establishing its upstream.
+ * @param session - Session whose branch is pushed.
+ * @param target - checkout identity displayed to the user.
+ * @param remote - selected configured remote; its existing upstream destination is retained.
+ * @param signal - cancellation; an interrupted push requires checking the remote before retrying.
+ */
+@Remote async gitPush(session: Session, target: ForgeGitTarget, remote: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Switch a clean checkout to an existing local branch while reserving its loaded Agents.
+ * @param session - Session whose checkout is changed.
+ * @param target - checkout identity displayed to the user.
+ * @param branch - exact local branch name; no remote branch guessing occurs.
+ * @param signal - cancellation.
+ */
+@Remote async gitSwitch(session: Session, target: ForgeGitTarget, branch: string, signal: AbortSignal): Promise<void>
 
 /**
  * List the branches the `branch` scope of the Session's current checkout can compare with.

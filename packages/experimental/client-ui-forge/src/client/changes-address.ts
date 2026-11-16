@@ -37,6 +37,8 @@ export interface ChangesTarget {
 
 /** Navigation parameters of a changes tab. */
 export interface ChangesParams {
+  /** Explicit local scope on navigation from the composer's Git panel. */
+  readonly scope?: 'uncommitted'
   /** File to scroll to, by its path in the diff. */
   readonly path?: string
 }
