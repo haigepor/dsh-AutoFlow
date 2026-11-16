@@ -210,7 +210,7 @@ Loader 结算后，app-boot 在仅 optional 条目未激活时输出警告。如
 
 这些限制说明此启动库在何时不合适，或何时需要特别注意。它们是当前包约束，不是任务积压。
 
-- **运行时解析依赖 Node 内部机制**——受支持的 Node 版本需要 native builtin access addon 和可执行兼容验证。只有构建后的 Harness 自有 Worker 接收 runtime resolution bootstrap；第三方 Worker 与自定义 `vm` linker 保持原生解析。
+- **运行时解析依赖 Node 内部机制**——带 `--expose-internals` 的启动优先使用 Node 模块访问；其他启动和无法直接访问的内部模块使用 native builtin access addon。受支持的运行时仍需可执行兼容验证。只有构建后的 Harness 自有 Worker 接收 runtime resolution bootstrap；第三方 Worker 与自定义 `vm` linker 保持原生解析。
 - **移动 profile 包需要先卸载**——`replace()` 以 `ResolutionRestartRequired` 拒绝移动到其他目录或链接目标的保留 profile 映射；卸载该包后重新安装，即映射到新目录。linked root 的 profile 映射被移除后，它可以指向其他目录。Node 保留其解析过的每个链接的真实路径；链接指向别处后，或其名称作为目录重新安装后，原生查询为原目标之外的导入方选中原目标之下的文件时，若当前目标之下存在同一文件，会改为选中该文件，包括指向原目标的显式绝对路径。安装映射和本地覆盖仍需要重启。
 - **链接作用域以记录的真实目录为准**——提升后的依赖若在所有 linked root 之外，就使用原生 Node。每次读取 peer 都不会使 Node 缓存失效，也不会改变被监视的文件。
 - **源码启动只安装 ESM 钩子**——CommonJS 请求仍需要 package exports 选中的 JavaScript 文件，解析器不会补出缺失的构建产物。
