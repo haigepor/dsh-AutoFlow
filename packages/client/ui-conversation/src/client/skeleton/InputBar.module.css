@@ -405,7 +405,7 @@
   border-radius: 999px;
   corner-shape: round;
   background: var(--dsw-alias-button-info-fill);
-  /* Static white, not the foreground token: the arrow stays white on the blue
+  /* On-color ink, not the foreground token: the arrow stays white on the blue
      fill in both themes (design 34:10465). */
   cursor: pointer;
   transition: background-color 100ms ease;
@@ -414,6 +414,11 @@
      margin, so flex centering math is untouched. */
   transform: translateY(-2px);
   color: var(--dsw-alias-label-primary-foreground);
+}
+
+/* Solid artwork uses a smaller footprint than the thin send arrow. */
+.continueIcon {
+  transform: scale(1.5);
 }
 
 @media (hover: hover) {

@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.3/autoflow-plugin-management/guide.md
+/:
+  en: 2d15bcb6c533993b
+  zh: 6268111dbdca1a4a
+/autoflow-plugin-management:
+  en: 222cf264fbcc61b2
+  zh: d31d867d68024421
+/autoflow-plugin-management/change:
+  en: 1cc09ee12015c0f7
+  zh: f231800b4f5e5d11
+/autoflow-plugin-management/migration:
+  en: cd3d40a4d3efd3f7
+  zh: 886a9de18613d383

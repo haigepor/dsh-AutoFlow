@@ -62,6 +62,26 @@ it('builds a platform feed with explicit desktop Release URLs and retains the pr
   await expect(prepareDesktopGithubPublication('win-x64', { ...options, minimumSupportedVersion: '1.0.0' })).rejects.toThrow('exceeds latest')
 })
 
+it('prepares and publishes stable metadata without writing the development feed or policy', async () => {
+  const { root, record, metadata, options } = await fixture()
+  const stable = { ...options, environment: { ...options.environment, DSH_DESKTOP_UPDATE_CHANNEL: 'stable' } }
+  await expect(prepareDesktopGithubPublication('win-x64', stable)).rejects.toThrow('completion record')
+  await writeFile(join(root, 'win-x64-release.json'), JSON.stringify({ ...record, channel: 'stable' }))
+  await writeFile(join(root, 'stable.yml'), dump(metadata))
+  const plan = await prepareDesktopGithubPublication('win-x64', stable)
+  expect(plan.feedName).toBe('stable.yml')
+  expect(plan.policy.channel).toBe('stable')
+  const { request, publicRequest } = network(plan)
+  expect(await publishDesktopGithub(plan, undefined, request, publicRequest)).toMatchObject({ policy: `${plan.pagesUrl}policy-stable.json` })
+  const tree: unknown = request.mock.calls.find(([path]) => path.endsWith('/git/trees'))?.[2]
+  expect(tree).toHaveProperty('tree', expect.arrayContaining([
+    expect.objectContaining({ path: 'desktop/unsigned/policy-stable.json' }),
+    expect.objectContaining({ path: 'desktop/unsigned/feeds/win-x64/stable.yml' }),
+  ]))
+  expect(JSON.stringify(tree)).not.toMatch(/nightly|unsigned\/policy\.json/)
+  await expect(prepareDesktopGithubPublication('win-x64', { ...stable, previousPolicy: { ...plan.policy, channel: 'nightly' } })).rejects.toThrow('another channel')
+})
+
 it('refuses missing, placeholder and version-mismatched notes before remote publication', async () => {
   const { options } = await fixture()
   for (const notes of [undefined, { schemaVersion: 1, version: '9.0.0', items: [] },

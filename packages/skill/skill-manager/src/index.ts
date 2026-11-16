@@ -10,7 +10,8 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
-import { FileSystemSkillProvider, parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem'
+import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
+import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem/document'
 import type { SkillDirectory } from '@deepseek-ai/dsh-skill'
 import {
   assertUnlinked,
@@ -53,7 +54,7 @@ export interface Config {
   requestTimeoutMs?: number
 }
 /** Validated archive and network limits. */
-export const Config: z<Config> = z.object({
+const Config: z<Config> = z.object({
   maxBytes: z
     .number()
     .min(1)

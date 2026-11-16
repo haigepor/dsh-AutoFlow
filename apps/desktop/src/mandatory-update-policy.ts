@@ -1,15 +1,16 @@
 /** Mandatory-update policy, independent of local business traffic and updater artifacts. */
 
 import { lt, valid } from 'semver'
-import { platformClientHeaders, type AccountClientMetadata } from '@deepseek-ai/dsh-deepseek-account'
-import { parseDesktopStaticUpdatePolicy } from './static-update-policy.ts'
+import type { AccountClientMetadata } from '@deepseek-ai/dsh-deepseek-account'
+import { platformClientHeaders } from '@deepseek-ai/dsh-deepseek-account/client-metadata'
+import { desktopStaticPolicyFilename, parseDesktopStaticUpdatePolicy } from './static-update-policy.ts'
 
 /** Installed release identity; no field is supplied by a renderer. */
 export interface DesktopPolicyIdentity {
   readonly platform: 'win32' | 'darwin'
   readonly bundledDshVersion: string
   readonly arch: 'x64' | 'arm64'
-  readonly channel: 'nightly' | 'latest'
+  readonly channel: 'nightly' | 'stable'
 }
 
 /** Validated deployment choices; test authentication is explicitly enabled, never inferred from a redirect. */
@@ -149,6 +150,7 @@ function parsePolicy(body: unknown, ok: boolean, config: DesktopPolicyConfig): D
 export class DesktopMandatoryUpdatePolicy {
   private current: DesktopPolicyState = { blocking: false, checking: false }
   private pending: Promise<DesktopPolicyState> | undefined
+  private pendingChannel: DesktopPolicyIdentity['channel'] | undefined
   private controller: AbortController | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
@@ -157,7 +159,7 @@ export class DesktopMandatoryUpdatePolicy {
 
   /**
    * @param config - Resolved deployment settings.
-   * @param identity - Installed software identity, fixed for this application build.
+   * @param identity - Installed software identity; a channel getter may follow an explicit user selection.
    * @param publish - Receives policy changes without controlling downloads or existing tasks.
    * @param request - Anonymous Fetch or the dedicated test-authentication Session transport.
    * @param client - Installed application version, active language, and UTC offset, sampled for every check.
@@ -176,10 +178,10 @@ export class DesktopMandatoryUpdatePolicy {
   }
 
   /** Platform headers for one check; the calling UI's language and UTC offset are read now. */
-  private requestHeaders(): Record<string, string> {
+  private requestHeaders(channel: DesktopPolicyIdentity['channel']): Record<string, string> {
     return {
       ...platformClientHeaders(this.identity.platform, this.client()),
-      'x-client-arch': this.identity.arch, 'x-client-update-channel': this.identity.channel,
+      'x-client-arch': this.identity.arch, 'x-client-update-channel': channel,
       'x-client-bundled-dsh-version': this.identity.bundledDshVersion,
     }
   }
@@ -195,9 +197,12 @@ export class DesktopMandatoryUpdatePolicy {
    */
   check(scenario: string, manual = false): Promise<DesktopPolicyState> {
     if (this.disposed) return Promise.reject(new Error('desktop policy: disposed'))
-    if (this.pending !== undefined) return this.pending
+    if (this.pending !== undefined) return this.pendingChannel === this.identity.channel
+      ? this.pending : this.pending.then(() => this.check(scenario, true))
     if (!manual && Date.now() < this.nextCheck) return Promise.resolve(this.current)
     clearTimeout(this.timer)
+    const channel = this.identity.channel
+    this.pendingChannel = channel
     this.pending = Promise.resolve().then(async () => {
       if (this.disposed) return this.current
       const controller = new AbortController()
@@ -207,9 +212,12 @@ export class DesktopMandatoryUpdatePolicy {
       try {
         const isStatic = this.config.source === 'static-json'
         const url = this.config.source === 'static-json'
-          ? new URL(this.config.policyUrl) : new URL('/api/v0/check_client_update', this.config.origin)
+          ? channel === 'nightly' ? new URL(this.config.policyUrl)
+            : new URL(desktopStaticPolicyFilename(channel), this.config.policyUrl)
+          : new URL('/api/v0/check_client_update', this.config.origin)
         if (!isStatic) url.searchParams.set('scenario', scenario)
-        const response = await this.request(url, { ...(isStatic ? {} : { headers: this.requestHeaders() }), signal: controller.signal,
+        const response = await this.request(url, {
+          ...(isStatic ? {} : { headers: this.requestHeaders(channel) }), signal: controller.signal,
           credentials: this.config.authentication === 'feishu-test' ? 'include' : 'omit', cache: 'no-store', redirect: 'error' })
         const body: unknown = await response.json()
         if (this.config.authentication === 'feishu-test' && response.status === 401
@@ -222,6 +230,7 @@ export class DesktopMandatoryUpdatePolicy {
         if (isStatic) {
           if (!response.ok) throw new Error('desktop policy: static policy request failed')
           const policy = parseDesktopStaticUpdatePolicy(body)
+          if (policy.channel !== channel) throw new Error('desktop policy: response belongs to another channel')
           const target = policy.targets[this.identity.platform === 'win32' ? 'win-x64' : this.identity.arch === 'arm64' ? 'mac-arm64' : 'mac-x64']
           if (target === undefined) throw new Error('desktop policy: installed target is absent')
           const page = desktopPolicyPage(target.downloadPage, this.config.allowedPageOrigins)
@@ -232,9 +241,11 @@ export class DesktopMandatoryUpdatePolicy {
               ...(target.detail === undefined ? {} : { detail: target.detail }) }
             : { blocking: false, checking: false }
         } else state = parsePolicy(body, response.ok, this.config)
+        if (channel !== this.identity.channel) return this.current
         this.failures = 0
         this.setState(state)
       } catch {
+        if (channel !== this.identity.channel) return this.current
         // Transport, JSON, and protocol failures retain any previously established block.
         this.failures++
         this.setState({ ...this.current, checking: false, error: 'unavailable' })

@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-settings-skills",
   "description": "Native skill settings, local management and repository discovery",
-  "version": "0.2.2-rc.1",
+  "version": "0.2.2-rc.3",
   "type": "module",
   "license": "MIT",
   "publishConfig": {
@@ -77,6 +77,9 @@
     "lib/index.js",
     "lib/client.js",
     "lib/assets",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "lib/**/*.js.map",
+    "src"
   ]
 }

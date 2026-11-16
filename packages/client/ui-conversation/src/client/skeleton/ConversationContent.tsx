@@ -146,6 +146,7 @@ export function ConversationContent(props: ConversationContentProps) {
   const blocked = !inert && composerBlock !== undefined
   const inputBar = renderSlot('conversation.composer.bar', {
     variant: hero ? 'hero' : 'composer',
+    occurrence: props.variant,
     ...(inert
       ? {
         disabled: true,
@@ -221,10 +222,14 @@ export function ConversationContent(props: ConversationContentProps) {
         data-conversation-region="chat"
         data-content-phase={phase}
       >
-        <div className={css.scrollBody} data-conversation-scroll="">
-          {sessionId === undefined ? null : <Views />}
-          {composerSeat}
-        </div>
+        {renderSlot('conversation.hero.frame', { hero: hero && props.variant !== 'embedded' }, {
+          children: (
+            <div className={css.scrollBody} data-conversation-scroll="">
+              {sessionId === undefined ? null : <Views />}
+              {composerSeat}
+            </div>
+          ),
+        })}
         {sessionId !== undefined && <div className={css.bodyOverlay} data-conversation-body-overlay=""><div className={css.bodyOverlayStack}>{renderSlot('conversation.body.overlay', {})}</div></div>}
         <WidthControls container={body} phase={phase} />
       </div>

@@ -1,4 +1,5 @@
 /** DeepSeek Messages transport, request configuration, and model capabilities. */
+export { deepSeekApiKeyConfigured, rejectDeepSeekAccountToken, resolveDeepSeekAccountToken, resolveDeepSeekApiKey } from './credential.ts'
 export { catalogModelFields, deepSeekConfigFields, Config, isBuiltInCatalog, plainOptions, resolveAdapterOptions, PUBLIC_BASE_URL } from './config.ts'
 export type { Options, ResolvedDeepSeekOptions } from './config.ts'
 export {
@@ -47,3 +48,6 @@ export { ModelListingCache } from './listing-cache.ts'
 export type { ListingCacheDependencies, ListingView } from './listing-cache.ts'
 export { refuseListedModel, resolveListedCatalog } from './listed-catalog.ts'
 export type { CatalogRefusal, ListedCatalog, ListedCatalogInput, ModelOverride } from './listed-catalog.ts'
+
+export { citationSnippets, mapAnthropicResponse } from './native-search-response.ts'
+export type { AnthropicResponse, ContentBlock, TextBlock, WebSearchToolResultBlock, WebSearchResultItem, CitationLocation } from './native-search-response.ts'

@@ -24,15 +24,15 @@ function nonEmptyString(value, label) {
 /**
  * Resolve the one generic macOS feed from the final electron-builder configuration.
  * @param {unknown} publish - Final electron-builder publish setting.
- * @returns {{ publicUrl: string, channel?: 'nightly' | 'latest', useMultipleRangeRequest?: boolean }} Resolved feed used by the packaged App.
+ * @returns {{ publicUrl: string, channel?: 'nightly' | 'stable', useMultipleRangeRequest?: boolean }} Resolved feed used by the packaged App.
  */
 export function resolveMacOSAppUpdateFeed(publish) {
   if (!Array.isArray(publish) || publish.length !== 1) {
     throw new Error('desktop macOS update config: publish must contain exactly one provider')
   }
   const provider = object(publish[0], 'publish provider')
-  if (provider.provider !== 'generic' || !['nightly', 'latest'].includes(provider.channel)) {
-    throw new Error('desktop macOS update config: publish provider must be generic with nightly or latest channel')
+  if (provider.provider !== 'generic' || !['nightly', 'stable'].includes(provider.channel)) {
+    throw new Error('desktop macOS update config: publish provider must be generic with nightly or stable channel')
   }
   if (provider.useMultipleRangeRequest !== undefined && typeof provider.useMultipleRangeRequest !== 'boolean') {
     throw new Error('desktop macOS update config: useMultipleRangeRequest must be a boolean')
@@ -43,9 +43,9 @@ export function resolveMacOSAppUpdateFeed(publish) {
 
 /**
  * Create the electron-updater configuration embedded before code signing.
- * @param {{ publicUrl: string, channel?: 'nightly' | 'latest', useMultipleRangeRequest?: boolean }} update - Resolved update feed.
+ * @param {{ publicUrl: string, channel?: 'nightly' | 'stable', useMultipleRangeRequest?: boolean }} update - Resolved update feed.
  * @param {string} updaterCacheDirName - electron-builder application cache directory.
- * @returns {{ provider: 'generic', url: string, channel: 'nightly' | 'latest', updaterCacheDirName: string, useMultipleRangeRequest?: boolean }} Packaged updater fields.
+ * @returns {{ provider: 'generic', url: string, channel: 'nightly' | 'stable', updaterCacheDirName: string, useMultipleRangeRequest?: boolean }} Packaged updater fields.
  */
 export function createMacOSAppUpdateConfig(update, updaterCacheDirName) {
   return {
@@ -60,7 +60,7 @@ export function createMacOSAppUpdateConfig(update, updaterCacheDirName) {
 /**
  * Write the updater configuration into an assembled App before signing.
  * @param {string} resourcesDir - App Contents/Resources directory.
- * @param {{ publicUrl: string, channel?: 'nightly' | 'latest', useMultipleRangeRequest?: boolean }} update - Resolved update feed.
+ * @param {{ publicUrl: string, channel?: 'nightly' | 'stable', useMultipleRangeRequest?: boolean }} update - Resolved update feed.
  * @param {string} updaterCacheDirName - electron-builder application cache directory.
  * @returns {Promise<void>} Resolves after the configuration is durable.
  */
@@ -72,7 +72,7 @@ export async function writeMacOSAppUpdateConfig(resourcesDir, update, updaterCac
 /**
  * Verify the updater configuration inside an assembled macOS App.
  * @param {string} appPath - Application bundle path.
- * @param {{ publicUrl: string, channel?: 'nightly' | 'latest', useMultipleRangeRequest?: boolean }} update - Expected update feed.
+ * @param {{ publicUrl: string, channel?: 'nightly' | 'stable', useMultipleRangeRequest?: boolean }} update - Expected update feed.
  * @param {string | undefined} updaterCacheDirName - Exact cache directory when known.
  * @returns {Promise<void>} Resolves when the packaged configuration matches the release destination.
  */

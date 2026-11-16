@@ -2445,7 +2445,7 @@ export function FileTree(props: {
         portal
         compact
         align="start"
-        getAnchorRect={() => (rowMenu === null ? null : new DOMRect(rowMenu.x, rowMenu.y, 0, 0))}
+        anchorPoint={rowMenu ?? undefined}
         anchor={<span />}
       />
 

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Gestión de servidores MCP",
-    "description": "Guarda las entradas MCP del perfil e informa del estado de conexión sin datos confidenciales."
+    "title": "Administrador de servidores MCP",
+    "description": "Administra los servidores MCP configurados en Configuración o registrados por complementos e informa su estado de conexión."
   }
 }

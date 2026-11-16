@@ -8,7 +8,8 @@ import { prerelease } from 'semver'
 import { desktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { loadDesktopPackageEnvironment } from './desktop-package-environment.mjs'
 import { prepareDesktopGithubPublication, type DesktopGithubPublication } from './desktop-github-publication.ts'
-import type { DesktopPolicyTarget } from '../src/static-update-policy.ts'
+import { desktopStaticPolicyFilename, type DesktopPolicyTarget } from '../src/static-update-policy.ts'
+import { resolveDesktopUpdateChannel } from './desktop-auto-update-environment.mjs'
 
 const PAGES_BRANCH = 'desktop-updates'
 
@@ -100,7 +101,8 @@ export async function publishDesktopGithub(plan: DesktopGithubPublication, previ
     if (!response.ok || Number(response.headers.get('content-length')) !== asset.size) throw new Error('desktop GitHub: attachment is not publicly downloadable')
   }
   const sitePrefix = plan.pagesUrl.slice(expectedRoot.length)
-  const files = { '.nojekyll': '', [`${sitePrefix}policy.json`]: `${JSON.stringify(plan.policy, null, 2)}\n`,
+  const policyFilename = desktopStaticPolicyFilename(plan.policy.channel)
+  const files = { '.nojekyll': '', [`${sitePrefix}${policyFilename}`]: `${JSON.stringify(plan.policy, null, 2)}\n`,
     [`${sitePrefix}feeds/${plan.target}/${plan.feedName}`]: plan.feed }
   const tree: { path: string; mode: string; type: string; sha: unknown }[] = []
   for (const [path, content] of Object.entries(files)) {
@@ -116,7 +118,7 @@ export async function publishDesktopGithub(plan: DesktopGithubPublication, previ
   else await request(refPath, 'PATCH', { sha: commit.sha, force: false })
   if (pages === undefined) await request(`${prefix}/pages`, 'POST', { source: { branch: PAGES_BRANCH, path: '/' } })
   await request(`${prefix}/pages/builds`, 'POST')
-  return { release: String(release.html_url), policy: `${plan.pagesUrl}policy.json` }
+  return { release: String(release.html_url), policy: `${plan.pagesUrl}${policyFilename}` }
 }
 
 async function main(): Promise<void> {
@@ -149,7 +151,8 @@ async function main(): Promise<void> {
   const expectedRoot = `https://${repository.split('/')[0]}.github.io/${repository.split('/')[1]}/`
   if (!pagesUrl.startsWith(expectedRoot)) throw new Error('desktop GitHub: Pages URL must use this repository project site')
   const sitePrefix = pagesUrl.slice(expectedRoot.length)
-  const oldFile = head === undefined ? undefined : await request(`${prefix}/contents/${sitePrefix}policy.json?ref=${head}`)
+  const policyFilename = desktopStaticPolicyFilename(resolveDesktopUpdateChannel(env))
+  const oldFile = head === undefined ? undefined : await request(`${prefix}/contents/${sitePrefix}${policyFilename}?ref=${head}`)
   const old: unknown = oldFile === undefined ? undefined
     : JSON.parse(Buffer.from(String(object(oldFile).content), 'base64').toString('utf8'))
   const product = object(JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')))
@@ -161,7 +164,7 @@ async function main(): Promise<void> {
       : { minimumSupportedVersion: values['minimum-supported-version'] }) })
   const output = resolve(values.out ?? join(paths.root, 'github-publication'))
   await mkdir(output, { recursive: true })
-  await writeFile(join(output, 'policy.json'), `${JSON.stringify(plan.policy, null, 2)}\n`, 'utf8')
+  await writeFile(join(output, policyFilename), `${JSON.stringify(plan.policy, null, 2)}\n`, 'utf8')
   await writeFile(join(output, plan.feedName), plan.feed, 'utf8')
   await writeFile(join(output, 'publication.json'), `${JSON.stringify(plan, null, 2)}\n`, 'utf8')
   if (values['prepare-only']) { process.stdout.write(`desktop GitHub: validated publication at ${output}\n`); return }

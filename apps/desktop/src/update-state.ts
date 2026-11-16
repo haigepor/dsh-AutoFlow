@@ -18,7 +18,9 @@ export interface DesktopUpdateState {
   readonly percent?: number
   /** Shell-only download controls and measured transport progress, never installation authorization. */
   readonly download?: DesktopDownloadProgress
-  readonly failedOperation?: 'check' | 'download' | 'install'
+  readonly failedOperation?: 'check' | 'download' | 'install' | 'configuration'
   /** Main-owned preparation cause; UI wording is selected by the active locale. */
   readonly preparationFailure?: DesktopUpdatePreparationFailureKind
+  /** Filesystem failure classified by the native updater. */
+  readonly downloadFailure?: 'space' | 'permission' | 'busy'
 }

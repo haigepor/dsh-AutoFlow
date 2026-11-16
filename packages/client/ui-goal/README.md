@@ -25,7 +25,7 @@ The Web GUI goal surface shows both the durable goal state and its current proce
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin alongside `ui-conversation` and the goal domain package. A session goal registers in `conversation.input.context` below the queue (order 100), remaining at the bottom of the shared header. The [Conversation container](../ui-conversation/README.md) owns the background, top radii and composer join; the queue list scrolls independently of the goal. An armed active goal offers pause; an active-but-disarmed, paused, or blocked goal offers resume; edit rewrites the objective; clear removes the goal and suppresses the strip until the projection catches up.
+Mount this plugin alongside `ui-conversation` and the goal domain package. A session goal registers in `conversation.input.context` below the queue (order 100), remaining at the bottom of the shared header. The [Conversation container](../ui-conversation/README.md) owns the background, top radii and composer join; the queue list scrolls independently of the goal. An armed active goal offers pause; an active-but-disarmed, paused, or blocked goal offers resume; edit rewrites the objective; clear removes the goal and suppresses the strip until the projection catches up. Actions appear as edit, clear, then pause or resume; pause is disabled until activation is known, and the multi-line `InlineEditor` edits the objective.
 
 ### The command-input bubble
 

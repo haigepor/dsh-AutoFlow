@@ -1,0 +1,8 @@
+{
+  "id": "font-role-default-reset",
+  "category": "improvements",
+  "text": {
+    "en": "Show the default text, code and terminal sizes and restore each independently when saved text appears too large.",
+    "zh-CN": "显示正文、代码和终端的默认字号，已保存的文字过大时可分别恢复默认。"
+  }
+}

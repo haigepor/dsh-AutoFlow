@@ -8,7 +8,9 @@
     "src"
   ],
   "references": [
-    { "path": "../../web/web-search-deepseek" },
+    { "path": "../../web/web" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../credentials/deepseek-account" },
     {
       "path": "../../../vendor/cosmokit"
     },

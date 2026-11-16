@@ -7,20 +7,17 @@
  */
 
 import { WebError } from '@deepseek-ai/dsh-web'
+import { mapAnthropicResponse } from '@deepseek-ai/dsh-llm-deepseek'
 import type {
   WebSearchProvider,
   WebSearchRequest,
   WebSearchResult,
-  WebSearchSource,
 } from '@deepseek-ai/dsh-web'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-session'
 import type {
   AnthropicError,
   AnthropicResponse,
-  ContentBlock,
-  TextBlock,
-  WebSearchToolResultBlock,
 } from './types.ts'
 
 /** Stable id this provider registers under. */
@@ -98,6 +95,8 @@ export interface DeepSeekSearchProviderOptions {
    * `undefined` selects API-key authentication.
    */
   resolveAccountToken?: (endpoint: string) => Promise<string | undefined>
+  /** Invalidate the exact account token rejected by HTTP 401; failures must not replace the search error. */
+  rejectAccountToken?: (token: string) => Promise<void>
   /** Literal DeepSeek API key; when present it wins over {@link resolveApiKey}. */
   apiKey?: string
   /** Resolve the current DeepSeek API key for one search operation. */
@@ -121,69 +120,7 @@ export interface DeepSeekSearchProviderOptions {
   recordRequest?: (request: DeepSeekSearchLlmRequest) => void
 }
 
-/**
- * Build a `url → cited_text` map from every `text` block's `citations[]`. This
- * is the snippet source: Anthropic `web_search_result` items carry
- * `url`/`title`/`page_age` but typically NO inline snippet — the excerpt lives
- * in a separate `text` block's citation, keyed by `url` (first occurrence wins).
- *
- * @param blocks - the response's content blocks; non-`text` blocks are skipped.
- * @returns the `url → cited_text` map (empty when no citations are present).
- */
-export function citationSnippets(blocks: readonly ContentBlock[]): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const block of blocks) {
-    if (block.type !== 'text') continue
-    for (const cite of (block as TextBlock).citations ?? []) {
-      if (cite.url != null && cite.url.length > 0 && cite.cited_text != null && cite.cited_text.length > 0 && !map.has(cite.url)) {
-        map.set(cite.url, cite.cited_text)
-      }
-    }
-  }
-  return map
-}
-
-/**
- * Map a DeepSeek Anthropic Messages response to a normalized search result. Walks
- * `web_search_tool_result` blocks for citeable `web_search_result` items, joins each to its
- * citation excerpt as `snippet`, and dedupes by `url` (a `max_uses > 1` request can surface
- * the same URL across searches). The web service owns the final `maxResults` truncation, so
- * `truncated` is always `false` here.
- *
- * @param response - the parsed Messages response body.
- * @returns the normalized result with deduped, snippet-joined sources.
- * @throws {@link WebError} when native search produced no result block.
- */
-export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResult {
-  const blocks = response.content ?? []
-  const resultBlocks = blocks.filter(
-    (block): block is WebSearchToolResultBlock => block.type === 'web_search_tool_result',
-  )
-  if (resultBlocks.length === 0) {
-    throw new WebError(
-      'DeepSeek returned no web_search_tool_result blocks; the request may not have triggered native web search',
-      'WEB_PROVIDER_ERROR',
-    )
-  }
-
-  const snippets = citationSnippets(blocks)
-  const seen = new Set<string>()
-  const sources: WebSearchSource[] = []
-  for (const block of resultBlocks) {
-    for (const item of block.content ?? []) {
-      if (item.type !== 'web_search_result' || item.url.length === 0 || seen.has(item.url)) continue
-      seen.add(item.url)
-      const snippet = snippets.get(item.url)
-      sources.push({
-        url: item.url,
-        ...item.title != null && item.title.length > 0 ? { title: item.title } : {},
-        ...snippet != null && snippet.length > 0 ? { snippet } : {},
-        ...item.page_age != null && item.page_age.length > 0 ? { publishedAt: item.page_age } : {},
-      })
-    }
-  }
-  return { sources, truncated: false }
-}
+export { citationSnippets, mapAnthropicResponse } from '@deepseek-ai/dsh-llm-deepseek'
 
 /** Authentication headers for one search, tagged by the credential that produced them. */
 interface SearchAuth {
@@ -191,6 +128,8 @@ interface SearchAuth {
   readonly kind: 'account' | 'api-key'
   /** Headers carrying the credential. */
   readonly headers: Readonly<Record<string, string>>
+  /** Request-bound invalidation, present only when an account token was sent. */
+  readonly reject?: () => Promise<void>
 }
 
 /**
@@ -199,6 +138,17 @@ interface SearchAuth {
  */
 export class DeepSeekSearchProvider implements WebSearchProvider {
   readonly id = DEEPSEEK_PROVIDER_ID
+  /** Picker description: what this provider suits and what it costs or cannot do. */
+  readonly description: NonNullable<WebSearchProvider['description']> = {
+    en: 'Slower, and every search uses extra model tokens. Requires a DeepSeek account or API key.',
+    zh: '速度较慢，每次搜索都会额外消耗模型 token。需要 DeepSeek 账号或 API Key。',
+    ja: '低速で、検索のたびに追加のモデルトークンを消費します。DeepSeek アカウントまたは API キーが必要です。',
+    es: 'Más lenta, y cada búsqueda consume tokens adicionales del modelo. Requiere una cuenta de DeepSeek o una clave de API.',
+    fr: 'Plus lente, et chaque recherche consomme des jetons de modèle supplémentaires. Nécessite un compte DeepSeek ou une clé API.',
+    de: 'Langsamer, und jede Suche verbraucht zusätzliche Modell-Tokens. Erfordert ein DeepSeek-Konto oder einen API-Schlüssel.',
+    ru: 'Работает медленнее, и каждый поиск расходует дополнительные токены модели. Требуется учётная запись DeepSeek или ключ API.',
+    pt: 'Mais lenta, e cada pesquisa consome tokens extras do modelo. Requer uma conta DeepSeek ou uma chave de API.',
+  }
 
   /**
    * @param resolveOptions - the options for the NEXT operation, snapshotted
@@ -268,6 +218,7 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
     if (!response.ok) {
       const status = response.status
       let message = `DeepSeek API error (HTTP ${status})`
+      let aborted: WebError | undefined
       try {
         const parsed = await response.json() as AnthropicError
         const detail = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.message
@@ -276,14 +227,21 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
         // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
         // into a generic HTTP-error message — cancellation is not a provider
         // error (the seam's cancellation contract).
-        if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
+        if (signal?.aborted === true || isAbortError(error)) aborted = searchAborted(signal, error)
         // Otherwise: the HTTP status is already captured in `message` above; a
         // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
         // cost a richer provider message, never the real error.
       }
       // The account service released this token only for its inference
       // origin, so the endpoint is not what the user must change.
-      if (status === 401 && auth.kind === 'account') throw accountRejectedError(message)
+      if (status === 401 && auth.kind === 'account') {
+        // Invalidation can cancel this Session; finish reading the HTTP failure before it does. A cancelled read
+        // still invalidates the token the status rejected.
+        try { await auth.reject?.() }
+        catch (_credentialRemovalFailed) { /* Report the original failure even if credential removal fails. */ }
+        throw aborted ?? accountRejectedError(message)
+      }
+      if (aborted !== undefined) throw aborted
       throw searchEndpointError(endpoint, message)
     }
 
@@ -309,11 +267,14 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
   private async authHeaders(
     options: DeepSeekSearchProviderOptions, endpoint: string, signal?: AbortSignal,
   ): Promise<SearchAuth> {
-    const { resolveAccountToken } = options
+    const { resolveAccountToken, rejectAccountToken } = options
     const token = resolveAccountToken === undefined
       ? undefined
       : await resolveCredential(() => resolveAccountToken(endpoint), signal)
-    if (token !== undefined && token.length > 0) return { kind: 'account', headers: { 'x-dsh-auth-token': token } }
+    if (token !== undefined && token.length > 0) return {
+      kind: 'account', headers: { 'x-dsh-auth-token': token },
+      ...rejectAccountToken === undefined ? {} : { reject: () => rejectAccountToken(token) },
+    }
     const apiKey = await this.apiKey(options, signal)
     // Official DeepSeek expects `x-api-key`; an Anthropic-compatible proxy
     // may expect `Authorization: Bearer` — send both so either resolves.
@@ -381,8 +342,8 @@ function searchEndpointError(endpoint: string, message: string, cause?: unknown)
   return new WebError(
     `${message}\n\nThe web request used endpoint ${JSON.stringify(endpoint)}. `
     + 'Search endpoint configuration is separate from chat. If that endpoint is not intended, '
-    + 'guide the user to Plugins > Built-in plugin settings > Web search, where they can '
-    + 'change and save Messages API base URL. If that settings page is unavailable, the user can set '
+    + 'guide the user to Plugins > Built-in plugin settings > Web search and fetch, select DeepSeek (legacy) under Search, '
+    + 'and change and save its Base URL. If that settings page is unavailable, the user can set '
     + 'web-search-deepseek.baseURL to a trusted DeepSeek endpoint. Only the user should choose or change the endpoint.',
     'WEB_PROVIDER_ERROR',
     cause === undefined ? undefined : { cause },

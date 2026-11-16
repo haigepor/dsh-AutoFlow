@@ -64,11 +64,11 @@ export const DEFAULT_IMAGE_COMPRESSION_CONCURRENCY = 2
 /** Maximum configurable native image transformations per store. */
 export const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8
 /** Default static display pixel budget. */
-export const DEFAULT_PREVIEW_IMAGE_MAX_PIXELS = 1024 * 1024
+const DEFAULT_PREVIEW_IMAGE_MAX_PIXELS = 1024 * 1024
 /** Default longest edge of static display previews. */
-export const DEFAULT_PREVIEW_IMAGE_MAX_DIMENSION = 1024
+const DEFAULT_PREVIEW_IMAGE_MAX_DIMENSION = 1024
 /** Default encoded byte ceiling of static display previews. */
-export const DEFAULT_PREVIEW_IMAGE_MAX_BYTES = 1024 * 1024
+const DEFAULT_PREVIEW_IMAGE_MAX_BYTES = 1024 * 1024
 
 /** Local attachment backend configuration. */
 export interface Config {

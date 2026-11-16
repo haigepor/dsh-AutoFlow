@@ -11,6 +11,7 @@ import Hmr from '@deepseek-ai/dsh-hmr'
 import Timer from '@deepseek-ai/cordis-plugin-timer'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -19,7 +20,7 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import McpConnections from '../../../mcp/mcp-client/src/connections.ts'
 import { startHttpMcpFixture } from '../../../mcp/mcp-client/tests/http-fixture.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import McpSettings from '../src/index.ts'
+import McpSettings from '../src/settings.ts'
 
 async function fixture() {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-mcp-settings-')))
@@ -34,7 +35,7 @@ async function fixture() {
   writeFileSync(join(bundle, 'package.json'), JSON.stringify({ name: 'core', version: '1.0.0', dsh: { bundle: { patch: 'cordis.patch.yml' } } }), 'utf8')
   const plugins = {
     editor: ConfigEditor, manager: PluginManager, connections: McpConnections, mcpSettings: McpSettings,
-    systemPrompt: SystemPrompt, tools: ToolRuntime, agents: AgentRegistry, agentLoop: AgentLoop,
+    systemPrompt: SystemPrompt, tools: ToolRuntime, nativeTools: NativeToolExecutor, agents: AgentRegistry, agentLoop: AgentLoop,
     llm: LlmRuntime, sessions: SessionStore, projections: SessionProjectionRegistry,
   }
   writeFileSync(join(bundle, 'cordis.patch.yml'), JSON.stringify([{ insert: Object.keys(plugins).map(name => ({ id: name, name: `cordis:${name}`, ...name === 'agentLoop' ? { config: { agents: [] } } : {} })) }]), 'utf8')

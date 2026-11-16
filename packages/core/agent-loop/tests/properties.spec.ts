@@ -134,7 +134,7 @@ describe('agent loop scheduling properties', () => {
           await ctx.fiber.dispose()
         }
       },
-    ), { numRuns: 25, timeout: 2000 })
+    ), { numRuns: 25, plugins: [fc.timeout(2000)] })
   })
 
   it('sequential sends each get their own turn with increasing numbers', async () => {
@@ -156,7 +156,7 @@ describe('agent loop scheduling properties', () => {
           await ctx.fiber.dispose()
         }
       },
-    ), { numRuns: 20, timeout: 2000 })
+    ), { numRuns: 20, plugins: [fc.timeout(2000)] })
   })
 
   it('mixed settled and same-tick sends preserve one turn per message', async () => {
@@ -191,6 +191,6 @@ describe('agent loop scheduling properties', () => {
           await ctx.fiber.dispose()
         }
       },
-    ), { numRuns: 25, timeout: 3000 })
+    ), { numRuns: 25, plugins: [fc.timeout(3000)] })
   })
 })

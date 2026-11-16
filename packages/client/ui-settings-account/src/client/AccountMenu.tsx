@@ -1,16 +1,16 @@
 /** Shared Settings launcher with Desktop account notices and login dialogs. */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Toast, Tooltip, IconSettingsOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale, PropsRuntime, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountSectionInjected } from './AccountSection.tsx'
 import { SignInDialog } from './SignInDialog.tsx'
-import { AccountNoticeStack } from './AccountNotice.tsx'
+import type {} from './account-ui.ts'
 import css from './AccountMenu.module.css'
 
 /** Account launcher composed by the settings shell. */
-export type AccountMenuProps = PropsRuntime<'settings.launcher'> & PropsLocale<'settings.account'> & InjectFace<AccountSectionInjected>
+export type AccountMenuProps = PropsRuntime<'settings.launcher'> & PropsRenderSlots<'settings.launcher.notifications'> & PropsLocale<'settings.account'> & InjectFace<AccountSectionInjected>
 
 /** Account notices outlive the Settings page; the launcher always opens Settings directly.
  * @param props - sidebar geometry, settings navigation and account operations.
@@ -18,10 +18,9 @@ export type AccountMenuProps = PropsRuntime<'settings.launcher'> & PropsLocale<'
  */
 export function AccountMenu({
   subscribeSessionExpired, subscribeModelSignInRequired, wide, settingsShortcut, openSettings, openOnboarding, settingsOpen,
-  useAccount, useTheme, refreshAccount, bonusNoticeShown, bonusNoticeDismissed,
+  useAccount, useTheme, refreshAccount, renderSlot,
   showLogin, start, cancel, t,
 }: AccountMenuProps) {
-  const anchor = useRef<HTMLDivElement>(null)
   // The launcher outlives the panel, so a false-to-true edge is one Settings entry:
   // re-renders, section switches and tab switches inside one open must not read again.
   const settingsWasOpen = useRef(false)
@@ -36,13 +35,13 @@ export function AccountMenu({
   useEffect(() => subscribeModelSignInRequired?.(() => { setSignInNotice(value => value + 1) }), [subscribeModelSignInRequired])
   const [expiryNotice, setExpiryNotice] = useState(false)
   useEffect(() => subscribeSessionExpired?.(() => { setExpiryNotice(true) }), [subscribeSessionExpired])
-  return <div ref={anchor} className={css.root}>
+  const openAccount = useCallback(() => { openSettings('account') }, [openSettings])
+  return <div className={css.root}>
     {signInNotice > 0 && <Toast key={signInNotice} text={t('modelSignInRequired')} onDone={() => { setSignInNotice(0) }} />}
     {expiryNotice && <Toast text={t('sessionExpired')} onDone={() => { setExpiryNotice(false) }} />}
-    {signedIn && !account.desktopOnboardingVisible && !account.onboarding && account.notices && <AccountNoticeStack
-      notices={account.notices}
-      anchor={anchor} title={t('bonusNoticeTitle')} closeLabel={t('close')}
-      onShown={bonusNoticeShown} onDismiss={bonusNoticeDismissed} />}
+    <div className={css.notifications} hidden={!wide}>{renderSlot('settings.launcher.notifications', {
+      active: signedIn && !account.desktopOnboardingVisible && !account.onboarding, openAccount,
+    })}</div>
     <Tooltip disabled={settingsOpen} label={t('settings')} shortcutKeys={settingsShortcut?.keys}>
       <button type="button" className={css.trigger} data-collapsed={!wide} aria-label={t('settings')}
         aria-keyshortcuts={settingsShortcut?.aria} aria-current={settingsOpen ? 'page' : undefined}

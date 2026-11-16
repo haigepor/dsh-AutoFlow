@@ -1,7 +1,7 @@
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .card {
-  --plan-card-fill: var(--dsw-static-neutral-50);
-  --plan-card-hover: var(--dsw-static-neutral-100);
+  --plan-card-fill: var(--dsw-alias-card-fill);
+  --plan-card-hover: var(--dsw-alias-card-fill-hover);
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -25,7 +25,6 @@
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   box-shadow: var(--dsw-elevation-panel);
 }
-:global(body[data-ds-dark-theme]) .card { --plan-card-fill: var(--dsw-static-neutral-850); --plan-card-hover: var(--dsw-static-neutral-800); }
 @media (hover: hover) {
   .card:hover { background: var(--plan-card-hover); }
 }

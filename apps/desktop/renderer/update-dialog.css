@@ -61,3 +61,8 @@ body.update-dialog.visible { opacity: 1; }
 }
 @media (prefers-reduced-transparency: reduce) { main, #actions { --dialog-surface: #FFFFFF; } }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) { main, #actions { --dialog-surface: #272725; } }
+
+button[aria-busy="true"] { opacity: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+button[aria-busy="true"]::before { content: ""; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: reload-spin 800ms linear infinite; }
+@keyframes reload-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { button[aria-busy="true"]::before { animation: none; } }

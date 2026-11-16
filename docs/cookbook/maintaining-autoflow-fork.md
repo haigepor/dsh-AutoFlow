@@ -73,6 +73,8 @@ The artifact build compiles AFP and Better Sidebar after the Client bundle and w
 
 Keep [AutoFlow main CI](../../.github/workflows/autoflow-ci.yml) on hosted runners. Retain its complete fork build, local style assertions, and Linux keyless replay; do not replace protected visuals with official defaults to satisfy a checker. Review exact local selector/declaration inventories when upstream moves a component. Windows config validation follows only Git-declared link stubs and rejects escaping or cyclic targets. Check the pushed commit's workflow result before reporting remote verification.
 
+For rc.3 synchronization, profile MCP editing uses the separate `/settings` plugin entry, while the official dynamic fleet uses the default entry. Plugin inventory keeps registry/Git eligibility separate from independent Release progress. Menus use the new anchorPoint/CSS anchor API; `FONT_SIZE_SPECS` owns font defaults and each role can reset independently.
+
 <a id="3-resolve-changes-by-behavior"></a>
 
 ## 3. Resolve changes by behavior

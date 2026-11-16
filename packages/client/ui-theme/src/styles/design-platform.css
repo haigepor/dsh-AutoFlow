@@ -20,6 +20,19 @@ body[data-ds-dark-theme] {
 }
 
 body {
+  --dsw-alias-border-selected: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-card-fill: var(--dsw-static-neutral-50);
+  --dsw-alias-card-fill-hover: var(--dsw-static-neutral-100);
+  --dsw-alias-card-tile-fill: color-mix(in srgb, var(--dsw-static-neutral-00) 50%, transparent);
+  --dsw-alias-chart-messages: var(--dsw-static-blue-450);
+  --dsw-alias-chart-system: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-chart-tools: var(--dsw-static-violet-400);
+  --dsw-alias-hovercard-bg: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-hovercard-label-primary: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-hovercard-label-secondary: var(--dsw-static-neutral-bluish-300);
+  --dsw-alias-hovercard-label-tertiary: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-hovercard-state-done: var(--dsw-static-violet-400);
+  --dsw-alias-hovercard-state-error: var(--dsw-static-red-400);
   --dsw-alias-illustration-background: var(--dsw-static-neutral-bluish-55);
   --dsw-alias-illustration-backing: var(--dsw-static-neutral-bluish-310);
   --dsw-alias-illustration-detail: var(--dsw-static-neutral-bluish-310);
@@ -160,6 +173,14 @@ body {
   --dsw-alias-label-dimmed: #A3A39B;
   --dsw-alias-label-primary-bluish: #535286;
   --dsw-alias-label-primary-dimmed: #71716A;
+  --dsw-alias-json-tree-hover: rgb(60 64 67 / 4%);
+  --dsw-alias-json-tree-icon: #5f6368;
+  --dsw-alias-json-tree-keyword: #1c00cf;
+  --dsw-alias-json-tree-number: #1c00cf;
+  --dsw-alias-json-tree-property: #881391;
+  --dsw-alias-json-tree-punctuation: #202124;
+  --dsw-alias-json-tree-string: #c41a16;
+  --dsw-alias-label-on-color: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary: #292927;
@@ -227,12 +248,30 @@ body {
   --dsw-specific-sidebar-nav-item-active-accent: #EEEDF5;
   --dsw-specific-sidebar-nav-item-active: #EEEDF5;
   --dsw-specific-sidebar-nav-item-hover: rgba(41, 41, 39, 0.055);
+  --dsw-alias-tooltip-label: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-trajectory-accent: var(--dsw-static-blue-500);
+  --dsw-specific-file-upload-track: rgba(0, 0, 0, 0.08);
+  --dsw-specific-guide-hero: var(--dsw-static-neutral-200);
+  --dsw-specific-sidebar-right-flash: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
   --dsw-specific-tip: var(--dsw-static-neutral-bluish-60);
 
   background-color: var(--dsw-alias-bg-base);
 }
 
 body[data-ds-dark-theme] {
+  --dsw-alias-border-selected: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-card-fill: var(--dsw-static-neutral-850);
+  --dsw-alias-card-fill-hover: var(--dsw-static-neutral-800);
+  --dsw-alias-card-tile-fill: color-mix(in srgb, var(--dsw-static-neutral-00) 5%, transparent);
+  --dsw-alias-chart-messages: var(--dsw-static-blue-450);
+  --dsw-alias-chart-system: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-chart-tools: var(--dsw-static-violet-400);
+  --dsw-alias-hovercard-bg: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-hovercard-label-primary: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-hovercard-label-secondary: var(--dsw-static-neutral-bluish-300);
+  --dsw-alias-hovercard-label-tertiary: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-hovercard-state-done: var(--dsw-static-violet-400);
+  --dsw-alias-hovercard-state-error: var(--dsw-static-red-400);
   --dsw-alias-illustration-background: var(--dsw-static-neutral-bluish-850);
   --dsw-alias-illustration-backing: var(--dsw-static-neutral-bluish-750);
   --dsw-alias-illustration-detail: var(--dsw-static-neutral-bluish-600);
@@ -373,6 +412,14 @@ body[data-ds-dark-theme] {
   --dsw-alias-label-dimmed: #71716A;
   --dsw-alias-label-primary-bluish: #ECECE7;
   --dsw-alias-label-primary-dimmed: #C3C3BB;
+  --dsw-alias-json-tree-hover: rgb(232 234 237 / 5%);
+  --dsw-alias-json-tree-icon: #9aa0a6;
+  --dsw-alias-json-tree-keyword: #99c8ff;
+  --dsw-alias-json-tree-number: #99c8ff;
+  --dsw-alias-json-tree-property: #5db0d7;
+  --dsw-alias-json-tree-punctuation: #e8eaed;
+  --dsw-alias-json-tree-string: #f28b82;
+  --dsw-alias-label-on-color: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-1000);
   --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-label-primary: #ECECE7;
@@ -425,6 +472,8 @@ body[data-ds-dark-theme] {
   --dsw-alias-toast-action: #BCBCE8;
   --dsw-alias-tooltip-bg: #343431;
   --dsw-alias-tooltip-key-bg: color-mix(in srgb, var(--dsw-alias-tooltip-bg), white 18%);
+  --dsw-alias-tooltip-label: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-trajectory-accent: var(--dsw-static-blue-500);
   --dsw-specific-bubble-highlight: var(--dsw-static-neutral-bluish-750);
   --dsw-specific-bubble: #363544;
   --dsw-specific-input-major: #272725;
@@ -440,6 +489,9 @@ body[data-ds-dark-theme] {
   --dsw-specific-sidebar-nav-item-active-accent: #363544;
   --dsw-specific-sidebar-nav-item-active: #363544;
   --dsw-specific-sidebar-nav-item-hover: rgba(236, 236, 231, 0.07);
+  --dsw-specific-file-upload-track: rgba(0, 0, 0, 0.08);
+  --dsw-specific-guide-hero: var(--dsw-static-neutral-700);
+  --dsw-specific-sidebar-right-flash: var(--dsw-static-neutral-00);
   --dsw-specific-tip: var(--dsw-static-neutral-bluish-800);
 }
 
@@ -483,4 +535,30 @@ body[data-ds-dark-theme] {
     --dsw-menu-backdrop-filter: none;
     --dsw-dialog-backdrop-filter: none;
   }
+}
+
+/* macOS vibrancy sidebar: glass control fills (the collapsed rail drops the
+ * light fill but keeps the dark one), the column's top and bottom
+ * washes with their fully transparent ends, and its translucent tint. Dark drops the tint's blue cast (it reads
+ * purple over dark fills) and thins it so more wallpaper shows. */
+html[data-platform='darwin'] body {
+  --dsw-specific-sidebar-glass-collapsed-fill: transparent;
+  --dsw-specific-sidebar-glass-collapsed-hover: var(--dsw-alias-interactive-bg-hover);
+  --dsw-specific-sidebar-glass-fill: rgb(255 255 255 / 0.55);
+  --dsw-specific-sidebar-glass-hover: rgb(255 255 255 / 0.3);
+  --dsw-specific-sidebar-tint: color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, rgb(122 155 240)) 40%, transparent);
+  --dsw-specific-sidebar-wash-bottom: rgb(143 137 184 / 0.09);
+  --dsw-specific-sidebar-wash-bottom-clear: rgb(143 137 184 / 0);
+  --dsw-specific-sidebar-wash-top: rgb(122 155 240 / 0.1);
+  --dsw-specific-sidebar-wash-top-clear: rgb(122 155 240 / 0);
+}
+
+html[data-platform='darwin'] body[data-ds-dark-theme] {
+  --dsw-specific-sidebar-glass-collapsed-fill: var(--dsw-specific-sidebar-glass-fill);
+  --dsw-specific-sidebar-glass-collapsed-hover: var(--dsw-specific-sidebar-glass-hover);
+  --dsw-specific-sidebar-glass-fill: rgb(255 255 255 / 0.15);
+  --dsw-specific-sidebar-glass-hover: rgb(255 255 255 / 0.2);
+  --dsw-specific-sidebar-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 50%, transparent);
+  --dsw-specific-sidebar-wash-bottom: rgb(143 137 184 / 0.07);
+  --dsw-specific-sidebar-wash-top: rgb(122 155 240 / 0.08);
 }

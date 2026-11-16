@@ -2,7 +2,29 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-rc.1`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) retains an earlier comparison snapshot and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-rc.3`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) retains an earlier comparison snapshot and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.2-rc.3` integration (2026-11-16)
+
+The target is [dsh-v0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.3), including the cumulative rc.2 changes. The previous official baseline is `dsh-v0.2.2-rc.1`; later master commits are excluded. With rename detection disabled, the official delta contains 1574 commits and 4846 paths, with 480 paths overlapping 3621 local customization paths. The 219 initial conflicts are merged by block, and automatically merged call relationships are reviewed separately.
+
+Both existing main performance commits for startup and plugin enumeration are retained. Integration uses the isolated `codex/integrate-dsh-022rc3-20261116` worktree, with `codex/backup-main-before-dsh-022rc3-20261116` and `codex/backup-mirror-before-dsh-022rc3-20261116` as rollback points. The `deepseek-harness` mirror resolves exactly to the target tag. Private profiles and logs remain outside Git; real Sessions and credentials are unchanged.
+
+| Area | Integration decision |
+| --- | --- |
+| Desktop updates | Adopt stable/development selection, independently persisted settings and the rc.3 Windows update fix; retain GitHub/Pages sources, resumable downloads, progress access, release notes and manual installation confirmation. Switching cancels the old download and retires prepared installers; a failed save keeps a usable installer. |
+| Update publication | GitHub development and stable tracks have separate feed and policy files. Signing and test-artifact isolation remain independent of channel selection. Available public packages depend on publication records; source integration does not publish installers. |
+| Collaboration and tools | Adopt named and nested subagents, shared team members and tasks, terminal takeover and parallel read-only tools. Retain process-local Agent ownership; historical parent Session IDs do not establish current-process ownership. |
+| Workspaces and chat | Adopt Worktree review, additional navigation, file search, automatic history loading, context inspection, diffs, retries and paste improvements; retain local palettes, layouts, disclosure animation, skill references, input history and complete bulk archive. |
+| Models and search | Adopt native Gemini, masked credentials, configurable retries and DeepSeek Search API; retain the local model editor layout, native search and reasoning controls. Shared response mapping belongs to the LLM package, removing the reverse dependency on the external search package. |
+| Plugins and MCP | Separate official registry/Git update eligibility from independent Release status; retain plugin activation after active work settles. The official dynamic MCP fleet and local profile editor use `mcpManager` and `mcpSettings`, respectively. Fiber handles resolve through their actual instance when reading connection status. See the [upgrade guide](upgrade-guide/v0.2.2-rc.3/autoflow-plugin-management/guide.md). |
+| Custom plugins | Migrate Visual Curator, Style Prompt and Better Sidebar menu positioning to the new API; four independent plugins declare rc.2/rc.3 compatibility. Retain planning, review, assets, account and publication functions; independent versions do not advance with source integration. |
+| Session import | Include the experimental DeepSeek Session import package and selection entry, retaining optional activation and leaving user history untouched. |
+| Fonts | Retain defaults of 14px text, 11px code and 13px terminal, with their existing ranges, and add independent reset actions. Source integration does not rewrite the installed application's saved 14/16/20 values. |
+
+The Session writer remains V4; 69 persistence roots match 27 history records. Finalized acknowledgements and historical generations are preserved. API, Client slots, configuration, persistence and source-document inventories are regenerated from the merged result. Retaining local image-inspection rules alongside new official guidance exceeds the previous root-instruction budget, so its single-file ceiling becomes 2140 without removing rules or weakening functional gates.
+
+Verification belongs to the integration commit and its external run report. Source builds, behavior regressions and isolated Web checks are recorded separately; local success does not establish installer publication, an updated user installation or passing remote CI.
 
 ## `dsh-v0.2.2-rc.1` integration (2026-11-05)
 

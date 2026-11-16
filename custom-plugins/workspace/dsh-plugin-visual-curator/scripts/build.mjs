@@ -10,7 +10,7 @@ const commandRoot = new URL('../../../../packages/util/native-command/src/', imp
 await build({ absWorkingDir: root, entryPoints: { index: 'src/host/plugin.ts', tools: 'src/host/tools.ts', skill: 'src/host/skill.ts', page: 'src/host/page.ts', 'clarity-worker': 'src/media/clarity-worker.ts' }, outdir: output, bundle: true, packages: 'external', platform: 'node', format: 'esm', target: 'node22.19', sourcemap: false,
   plugins: [{ name: 'packaged-native-picker', setup(builder) {
     // Published 0.2.2-alpha.2 omits the image/reference exports used by this plugin.
-    builder.onResolve({ filter: /^@deepseek-ai\/dsh-host-directory-picker-native$/ }, () => ({ path: fileURLToPath(new URL('native-picker.ts', pickerRoot)) }))
+    builder.onResolve({ filter: /^@deepseek-ai\/dsh-host-directory-picker-native(?:\/native-picker)?$/ }, () => ({ path: fileURLToPath(new URL('native-picker.ts', pickerRoot)) }))
     builder.onResolve({ filter: /^@deepseek-ai\/dsh-native-command$/ }, () => ({ path: fileURLToPath(new URL('index.ts', commandRoot)) }))
   } }],
 })

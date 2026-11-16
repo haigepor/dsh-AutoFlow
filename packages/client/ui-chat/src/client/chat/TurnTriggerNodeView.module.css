@@ -29,9 +29,20 @@
   .header:hover { color: var(--dsw-alias-label-secondary); }
 }
 .icon { display: inline-flex; flex: none; color: var(--dsw-alias-label-tertiary); }
-.title { flex: none; font: var(--dsw-font-xs-13); }
+.title { flex: 1; min-width: 0; overflow-wrap: anywhere; font: var(--dsw-font-xs-13); }
 .time { flex: none; margin-left: auto; font: var(--dsw-font-xxs-12); color: var(--dsw-alias-label-caption); }
 .chevron, .openChevron { flex: none; color: var(--dsw-alias-label-tertiary); transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
+.continuation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  overflow-wrap: anywhere;
+}
 .openChevron { transform: rotate(180deg); }
 .body { padding: 0 16px 12px 40px; }
 .explanation { margin: 8px 0; color: var(--dsw-alias-label-secondary); font: var(--dsw-font-xxs-12); }

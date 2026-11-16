@@ -86,6 +86,8 @@ The `--dsw-alias-illustration-*` tokens separate layered decorative artwork back
 
 System toasts use `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` for a shared background and text color across callers. Document previews pair `--dsw-alias-bg-document-preview` with `--dsw-alias-label-document-preview` so the backdrop and status text follow the same theme. Tooltip keycaps use `--dsw-alias-tooltip-key-bg`, a lighter fill derived from the tooltip background in each palette. Switches use `--dsw-alias-switch-thumb`, `--dsw-alias-switch-active-track`, `--dsw-alias-switch-active-thumb`, `--dsw-alias-switch-loading-track`, `--dsw-alias-switch-loading-thumb`, and `--dsw-alias-switch-loading-indicator`: an off thumb is warm gray in dark mode, an active track follows the accent at a lower dark-mode luminance, and a pending write uses a neutral track with a contrast-matched thumb and ring in each theme.
 
+New semantic tokens cover cards, charts, JSON trees, selection borders and trajectory highlights; local palettes, menu material and switch states remain unchanged. Each font-size row displays its schema default and resets only that role, preserving the other sizes and font families.
+
 `--dsw-alias-label-shimmer` supplies an overlay for the shared text shimmer: black at 30% alpha in the light palette and white at 45% alpha in the dark palette. `--dsw-alias-label-deep-diving` and `--dsw-alias-label-deep-diving-shimmer` supply the local violet activity label and sweep; the dark palette uses a lighter, less saturated label with a brighter violet sweep.
 
 Sticky model-menu headings use `--dsw-alias-menu-group-header-fill`, derived from the existing menu and layer tokens for each palette.

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { DesktopMandatoryUpdatePolicy, resolveDesktopPolicyConfig } from '../src/mandatory-update-policy.ts'
+import { DesktopMandatoryUpdatePolicy, resolveDesktopPolicyConfig, type DesktopPolicyState } from '../src/mandatory-update-policy.ts'
 import { parseDesktopStaticUpdatePolicy } from '../src/static-update-policy.ts'
 import { resolveDesktopAutoUpdateConfig, resolveDesktopUploadConfig } from '../scripts/desktop-auto-update-environment.mjs'
 import { resolveDesktopPolicyEnvironment } from '../scripts/desktop-policy-environment.mjs'
@@ -54,6 +54,40 @@ it.each([{ latestVersion: 'invalid' }, { minimumSupportedVersion: '2.0.0' }, { m
   'rejects malformed static policy fields %j', (change) => {
     expect(() => parseDesktopStaticUpdatePolicy({ ...manifest, targets: { 'win-x64': { ...manifest.targets['win-x64'], ...change } } })).toThrow()
   })
+
+it('selects an independent stable policy and rejects a policy for another channel', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ...manifest, channel: 'stable' }))
+  const policy = new DesktopMandatoryUpdatePolicy(resolveDesktopPolicyConfig(resolveDesktopPolicyEnvironment(environment))!,
+    { platform: 'win32', arch: 'x64', bundledDshVersion: '0.2.0', channel: 'stable' }, () => {}, request,
+    () => ({ version: '1.2.0', locale: 'zh-CN', timezoneOffsetSeconds: 28800 }))
+  policies.push(policy)
+  expect(await policy.check('launch')).toEqual({ blocking: false, checking: false })
+  expect(request.mock.calls[0]![0]).toEqual(new URL(`${pages}policy-stable.json`))
+  request.mockResolvedValueOnce(Response.json(manifest))
+  expect(await policy.check('manual', true)).toMatchObject({ error: 'unavailable' })
+})
+
+it('discards a late policy response after switching channels', async () => {
+  let channel: 'nightly' | 'stable' = 'nightly'
+  const first = Promise.withResolvers<Response>()
+  const publish = vi.fn<(state: DesktopPolicyState) => void>()
+  const request = vi.fn<typeof fetch>().mockReturnValueOnce(first.promise).mockResolvedValue(Response.json({
+    ...manifest, channel: 'stable', targets: { 'win-x64': { ...manifest.targets['win-x64'], minimumSupportedVersion: '1.0.0' } },
+  }))
+  const policy = new DesktopMandatoryUpdatePolicy(resolveDesktopPolicyConfig(resolveDesktopPolicyEnvironment(environment))!,
+    { platform: 'win32', arch: 'x64', bundledDshVersion: '0.2.0', get channel() { return channel } }, publish, request,
+    () => ({ version: '1.1.0', locale: 'zh-CN', timezoneOffsetSeconds: 28800 }))
+  policies.push(policy)
+  const initial = policy.check('launch')
+  await Promise.resolve()
+  channel = 'stable'
+  const switched = policy.check('manual', true)
+  first.resolve(Response.json(manifest))
+  await Promise.all([initial, switched])
+  expect(publish.mock.calls.some(([state]) => state.blocking)).toBe(false)
+  expect(request.mock.calls.map(([url]) => url instanceof URL ? url.href : url))
+    .toEqual([`${pages}policy.json`, `${pages}policy-stable.json`])
+})
 
 it('preserves Pages repository paths and isolates unsigned feeds', () => {
   expect(resolveDesktopAutoUpdateConfig(environment, 'win32', 'x64')).toMatchObject({

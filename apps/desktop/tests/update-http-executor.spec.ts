@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClientRequest } from 'electron'
 import { ElectronHttpExecutor } from 'electron-updater/out/electronHttpExecutor.js'
 import electronUpdater from 'electron-updater'
-import { DesktopUpdateHttpExecutor } from '../src/update-http-executor.ts'
+import { DesktopUpdateHttpExecutor } from '../src/updates/electron-updater/http-executor.ts'
 import { DesktopUpdateDownload, desktopDownloadConfig } from '../src/update-download.ts'
 
 beforeEach(() => { vi.useFakeTimers() })

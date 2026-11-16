@@ -941,7 +941,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
         {control.error && <p role="alert" className="vc-notice">{t('wallpaperFailed')}</p>}
       </ui.Modal>
       {control.preview && <PreviewInspector src={control.preview} control={control} t={t} />}
-      <ui.Menu listClassName="vc-menu" open={!!control.imageMenu} anchor={null} portal autoFocus contextual returnFocus={() => control.imageMenu?.origin.isConnected ? control.imageMenu.origin : null} getAnchorRect={() => control.imageMenu ? new DOMRect(control.imageMenu.x, control.imageMenu.y, 0, 0) : null} items={[{ id: 'save', label: t('wallpaperSaveImage') }]} onClose={() => control.setImageMenu(null)} onSelect={() => { if (control.imageMenu) saveImage(control.imageMenu.src); control.setImageMenu(null) }} />
+      <ui.Menu listClassName="vc-menu" open={!!control.imageMenu} anchor={null} portal autoFocus contextual returnFocus={() => control.imageMenu?.origin.isConnected ? control.imageMenu.origin : null} anchorPoint={control.imageMenu ?? undefined} items={[{ id: 'save', label: t('wallpaperSaveImage') }]} onClose={() => control.setImageMenu(null)} onSelect={() => { if (control.imageMenu) saveImage(control.imageMenu.src); control.setImageMenu(null) }} />
     </>
   }
   return { useWallpaper, WallpaperNode, PlanningImageCard, ImageNavigator, ImageStepCard, DecisionCard, UpcomingStepCard, StepHistory, DownloadProgress, TaskStatus, Dialogs }

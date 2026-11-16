@@ -223,7 +223,7 @@ it.each([false, true])('keeps actions and focus usable with touch=%s across layo
   expect(before.focused).toBe(true)
   for (const width of [390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 })
-    expect(await element!.evaluate(node => node.isConnected)).toBe(true)
+    expect(await element.evaluate(node => node.isConnected)).toBe(true)
     expect(await selection()).toEqual(before)
   }
 

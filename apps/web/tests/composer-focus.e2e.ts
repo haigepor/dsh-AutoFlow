@@ -166,7 +166,7 @@ async function exerciseComposer(page: Page): Promise<string[]> {
   const beforeResize = await selectionState(page)
   for (const width of [390, 768, 1680]) {
     await page.setViewportSize({ width, height: 1000 })
-    expect(await retained!.evaluate(element => element.isConnected)).toBe(true)
+    expect(await retained.evaluate(element => element.isConnected)).toBe(true)
     expect(await selectionState(page)).toEqual(beforeResize)
   }
   observations.push('- resizing through 390px, 768px and 1680px preserves the editor, focus, draft and caret')

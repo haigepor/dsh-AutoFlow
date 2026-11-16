@@ -1,7 +1,7 @@
 /** Built settings controls share materials and adapt their geometry to the viewport and pointer. */
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { chromium, type Locator } from 'playwright'
+import { chromium, type Locator, type Page } from 'playwright'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import type {} from '@deepseek-ai/dsh-deepseek-account'
@@ -11,6 +11,51 @@ import {
 import { openSettings, ZH_BROWSER_LOCALE } from './support.ts'
 
 const EXPECTED = fileURLToPath(new URL('./expected/settings-appearance', import.meta.url))
+
+/** Open the fork's full-page Appearance section through its visible navigation. */
+async function openAppearance(page: Page, locale: 'en' | 'zh'): Promise<Locator> {
+  await openSettings(page, locale)
+  const section = page.locator('[data-settings-page]')
+  await section.getByRole('button', { name: locale === 'en' ? 'Appearance theme' : '外观主题', exact: true }).click()
+  return section
+}
+
+it('resets oversized code and terminal preferences independently and retains the saved defaults after reload', async () => {
+  const scaffold = await launchWebScaffold({ developerTools: false })
+  onTestFinished(() => scaffold.close())
+  await scaffold.ctx.settings.mutate('ui-theme', [
+    { op: 'set', path: ['fontSize'], value: 14 },
+    { op: 'set', path: ['codeFontSize'], value: 16 },
+    { op: 'set', path: ['terminalFontSize'], value: 20 },
+  ])
+  const browser = await chromium.launch()
+  onTestFinished(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'en-US' })
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  const dialog = await openAppearance(page, 'en')
+  await dialog.getByRole('button', { name: 'More font settings', exact: true }).click()
+  const codeReset = dialog.getByRole('button', { name: 'Reset Code font size to the default 11px', exact: true })
+  const terminalReset = dialog.getByRole('button', { name: 'Reset Terminal font size to the default 13px', exact: true })
+  await expect.poll(() => codeReset.isEnabled()).toBe(true)
+  await codeReset.click()
+  await expect.poll(() => codeReset.isDisabled()).toBe(true)
+  await expect.poll(() => terminalReset.isEnabled()).toBe(true)
+  await terminalReset.click()
+  await expect.poll(() => terminalReset.isDisabled()).toBe(true)
+  await page.reload({ waitUntil: 'load' })
+  await openAppearance(page, 'en')
+  await dialog.getByRole('button', { name: 'More font settings', exact: true }).click()
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const button of [codeReset, terminalReset]) {
+      expect(await button.isDisabled()).toBe(true)
+      const box = await button.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width)
+    }
+  }
+}, 120_000)
 
 /** @param element - Rendered control or card. @returns Its visible geometry and material. */
 function appearance(element: Locator) {
@@ -56,8 +101,7 @@ it('stacks font fields at narrow widths while keeping font-size controls on the 
     try {
       const page = await context.newPage()
       await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-      await openSettings(page, 'zh')
-      const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+      const dialog = await openAppearance(page, 'zh')
       await dialog.getByRole('button', { name: '更多字体设置', exact: true }).click()
       await page.evaluate((platform) => {
         document.documentElement.toggleAttribute('data-windows-titlebar', platform === 'win32')
@@ -91,7 +135,7 @@ it('stacks font fields at narrow widths while keeping font-size controls on the 
       const original = await field.elementHandle()
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 844 })
-        expect(await original!.evaluate(input => input === document.activeElement && input.isConnected)).toBe(true)
+        expect(await original.evaluate(input => input === document.activeElement && input.isConnected)).toBe(true)
         expect(await field.inputValue()).toBe('Uncommitted font draft')
       }
     } finally {
@@ -111,8 +155,7 @@ it('uses 16px text for coarse-pointer font fields and preserves compact fine-poi
     try {
       const page = await context.newPage()
       await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-      await openSettings(page, 'zh')
-      const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+      const dialog = await openAppearance(page, 'zh')
       await dialog.getByRole('button', { name: '更多字体设置', exact: true }).click()
       expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(hasTouch)
       for (const name of ['正文字体', '代码字体', '终端字体']) {
@@ -149,7 +192,7 @@ it('shares settings card materials and control sizes in both palettes', async ()
       bonusWallets: [{ currency: 'CNY', balance: '12.00' }],
     }),
     vi.spyOn(account, 'watch').mockImplementation(async function* (signal) {
-      yield state
+      yield { type: 'snapshot', state }
       if (signal.aborted) return
       await new Promise<void>((resolve) => { signal.addEventListener('abort', () => { resolve() }, { once: true }) })
     }),

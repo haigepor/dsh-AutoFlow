@@ -4,7 +4,7 @@ import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem'
+import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem/document'
 import type {
   SkillBackup,
   SkillDirectoryId,

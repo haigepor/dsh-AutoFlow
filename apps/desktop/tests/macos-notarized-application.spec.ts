@@ -21,6 +21,21 @@ const commands = [
 afterEach(() => { vi.resetAllMocks() })
 
 describe('notarized application qualification', () => {
+  it.each([undefined, 0, 1, 2])('preserves the helper identity in ad-hoc Desktop mode and still requires every qualification (failure %s)', (failedCommand) => {
+    let index = 0
+    vi.mocked(spawnSync).mockImplementation(() => ({
+      pid: 1, output: [], stdout: '', stderr: '', status: index++ === failedCommand ? 1 : 0, signal: null,
+    }))
+    if (failedCommand === undefined) expect(() => { verifyMacOSNotarizedApplication(appPath, 'ad-hoc') }).not.toThrow()
+    else expect(() => { verifyMacOSNotarizedApplication(appPath, 'ad-hoc') }).toThrow('exited with 1')
+    const qualifications = [commands[0], commands[2], commands[3]]
+    const called = qualifications.slice(0, failedCommand === undefined ? qualifications.length : failedCommand + 1)
+    expect(spawnSync).toHaveBeenCalledTimes(called.length)
+    for (const [index, [command, args]] of called.entries()) {
+      expect(spawnSync).toHaveBeenNthCalledWith(index + 1, command, args, { encoding: 'utf8' })
+    }
+  })
+
   it.each([undefined, 0, 1, 2, 3])('stops at failed command %s or verifies every qualification', (failedCommand) => {
     let index = 0
     vi.mocked(spawnSync).mockImplementation(() => ({

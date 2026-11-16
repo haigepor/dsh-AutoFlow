@@ -86,7 +86,8 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
   // What pnpm's own configuration names is read from pnpm before every registry plan; the fixture answers npm's own registry.
   const registry = vi.spyOn(operations, 'readProfileRegistry').mockResolvedValue('https://registry.npmjs.org/')
   const connection = vi.spyOn(githubConnection, 'checkGithubConnection').mockResolvedValue(undefined)
-  onTestFinished(() => { registry.mockRestore(); connection.mockRestore() })
+  const gitConnection = vi.spyOn(githubConnection, 'checkGitConnection').mockResolvedValue(undefined)
+  onTestFinished(() => { registry.mockRestore(); connection.mockRestore(); gitConnection.mockRestore() })
   let stopHmr = async () => {}
   if (reload === 'live') {
     await ctx.plugin(Timer)
@@ -94,7 +95,7 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
     stopHmr = () => owner.dispose()
     await ctx.hmr.runExclusive(async () => {})
   }
-  return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection }
+  return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection, gitConnection }
 }
 
 it('publishes runtime activation after an optional feature finishes waiting for a dependency', async () => {
@@ -133,7 +134,7 @@ it('checks by default without installing, then installs verified release bytes t
   expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.1.0')
   expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(activation)
   expect(Reflect.get(ctx, 'managedProbe')).toBe(true)
-  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.update?.restartRequired).toBe(true)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.releaseUpdate?.restartRequired).toBe(true)
   expect(await manager.updateBundleRelease('extra')).toMatchObject({ changed: false, application: 'restart-required' })
   const restart = vi.fn()
   const previous = manager.restartStatus()
@@ -214,7 +215,7 @@ it('recovers an incompatible profile override through its installation-owned rel
   const row = (await manager.listBundles()).find(bundle => bundle.name === 'extra')
   expect(row).toMatchObject({ version: '1.0.0', enabled: true, error: { code: 'incompatible-version' },
     meta: { title: { en: 'Recovery plugin' }, icon: `data:image/svg+xml;base64,${Buffer.from(icon).toString('base64')}` },
-    update: { name: 'extra', repository: updateSource.repository, status: 'unchecked', automatic: false }, rows: [] })
+    releaseUpdate: { name: 'extra', repository: updateSource.repository, status: 'unchecked', automatic: false }, rows: [] })
   expect(Reflect.get(ctx, 'managedProbe')).toBeUndefined()
   expect(await manager.checkBundleUpdates()).toMatchObject([{ name: 'extra', status: 'available', version: '1.1.0' }])
   expect(manager.listVersionExemptions()).toEqual({ exemptions: {}, warnings: [] })
@@ -230,7 +231,7 @@ it('recovers an incompatible profile override through its installation-owned rel
   expect(readFileSync(join(dir, 'library.json'), 'utf8')).toBe('{"savedItems":["keep-me"]}\n')
   expect(manager.listVersionExemptions()).toEqual({ exemptions: {}, warnings: [] })
   expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')).toMatchObject({ version: '1.1.0',
-    update: { restartRequired: true } })
+    releaseUpdate: { restartRequired: true } })
   expect(Reflect.get(ctx, 'managedProbe')).toBeUndefined()
   let running = true
   const restart = vi.fn()
@@ -382,10 +383,10 @@ it('installs a newer release only after automatic installation is explicitly ena
   await manager.checkBundleUpdates()
   expect(run).not.toHaveBeenCalled()
   await manager.setBundleAutoUpdate('extra', true)
-  await vi.waitFor(async () => { expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toMatchObject({ restartRequired: true }) }, { timeout: 10_000 })
+  await vi.waitFor(async () => { expect((await manager.listBundles()).find(item => item.name === 'extra')?.releaseUpdate).toMatchObject({ restartRequired: true }) }, { timeout: 10_000 })
   expect(run).toHaveBeenCalledTimes(1)
   await manager.setBundleAutoUpdate('extra', false)
-  expect((await manager.listBundles()).find(item => item.name === 'extra')?.update?.automatic).toBe(false)
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.releaseUpdate?.automatic).toBe(false)
 })
 
 it('keeps the restart identity for different manager lifetimes in the same Host process', async () => {
@@ -471,7 +472,7 @@ it('retains blocked update scripts across checks and retries only the explicitly
   expect(readFileSync(join(dir, 'node_modules/fixture-native/built.txt'), 'utf8')).toBe('approved')
   expect(parse(readFileSync(policyPath, 'utf8'))).toMatchObject({ allowBuilds: { [buildKey]: true, 'another-dependency': false } })
   expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(activation)
-  expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toMatchObject({ status: 'current', restartRequired: true })
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.releaseUpdate).toMatchObject({ status: 'current', restartRequired: true })
 })
 
 it('reports archive download failures without changing the installed version', async () => {
@@ -489,7 +490,7 @@ it('reports archive download failures without changing the installed version', a
   })
   expect(await manager.checkBundleUpdates()).toMatchObject([{ status: 'available' }])
   expect(await manager.updateBundleRelease('extra')).toMatchObject({ application: 'failed' })
-  const update = (await manager.listBundles()).find(item => item.name === 'extra')?.update
+  const update = (await manager.listBundles()).find(item => item.name === 'extra')?.releaseUpdate
   expect(update).toMatchObject({ status: 'error', restartRequired: false })
   expect(update?.diagnostic).toContain('503')
   expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
@@ -998,12 +999,12 @@ it('lists bundle versions and current-profile plugin targets', async () => {
   expect(plugins.find(row => row.entryId === 'include:manager')?.readOnlyReason).toBe('management-required')
   expect((await manager.listBundles()).filter(bundle => bundle.installTarget === undefined)).toEqual([
     {
-      name: 'core', version: '1.0.0', enabled: true, installed: false, official: false, availability: 'profile', optional: false, removable: false, updatable: false, readOnlyReason: 'management-required',
+      name: 'core', version: '1.0.0', enabled: true, installed: false, official: false, availability: 'profile', optional: false, removable: false, readOnlyReason: 'management-required',
       meta: { title: 'core' },
       rows: [{ rowId: 'manager', moduleName: 'cordis:manager', entryId: 'include:manager' }], overrides: [],
     },
     {
-      name: 'extra', version: '1.0.0', source: 'extra@1.0.0', enabled: true, installed: true, official: false, availability: 'profile', optional: false, removable: true, updatable: true,
+      name: 'extra', version: '1.0.0', source: 'extra@1.0.0', enabled: true, installed: true, official: false, availability: 'profile', optional: false, removable: true, update: 'registry',
       meta: { title: 'extra' },
       rows: [{ rowId: 'managed', moduleName: pathToFileURL(join(dir, 'node_modules', 'extra', 'plugin.mjs')).href, entryId: 'include:managed' }], overrides: [],
     },
@@ -1243,7 +1244,7 @@ it('describes a bundle by its manifest and patch: one-liner, rows without a live
   writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
   const moduleName = pathToFileURL(join(dir, 'node_modules', 'described', 'plugin.mjs')).href
   expect((await manager.listBundles()).find(row => row.name === 'described')).toEqual({
-    name: 'described', version: '2.0.0', description: 'Describes itself.', source: 'described@2.0.0', enabled: false, installed: true, official: false, availability: 'profile', optional: false, removable: true, updatable: true,
+    name: 'described', version: '2.0.0', description: 'Describes itself.', source: 'described@2.0.0', enabled: false, installed: true, official: false, availability: 'profile', optional: false, removable: true, update: 'registry',
     meta: { title: 'described', description: 'Describes itself.' },
     rows: [{ rowId: 'described-row', moduleName }], overrides: ['managed'],
   })
@@ -1271,8 +1272,16 @@ it('projects each bundle\'s default GUI listing without changing its selection, 
   }
   manifest.dsh.bundle.listedByDefault = 'hidden'
   writeFileSync(path, JSON.stringify(manifest))
-  expect((await manager.listBundles()).find(row => row.name === 'extra')).toMatchObject({ enabled: true,
-    error: { diagnostic: 'dsh.bundle.listedByDefault must be a boolean' } })
+  // The launcher ignores the field, so an invalid value is a metadata diagnostic beside the running layer's live row.
+  const invalid = (await manager.listBundles()).find(row => row.name === 'extra')
+  expect(invalid).toMatchObject({ enabled: true, meta: { error: 'dsh.bundle.listedByDefault must be a boolean' },
+    rows: [{ rowId: 'managed', entryId: 'include:managed' }] })
+  expect(invalid?.error).toBeUndefined()
+  expect(invalid?.listedByDefault).toBeUndefined()
+  // An unreadable icon keeps its own diagnostic beside the listing one.
+  writeFileSync(path, JSON.stringify({ ...manifest, icon: 'missing.svg' }))
+  expect((await manager.listBundles()).find(row => row.name === 'extra')?.meta?.error)
+    .toMatch(/^Plugin metadata for extra: .+; dsh\.bundle\.listedByDefault must be a boolean$/)
 })
 
 it('names where each installed bundle comes from as a spec pnpm installs', async () => {
@@ -1387,7 +1396,7 @@ it.each([
   writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
 
   expect((await manager.listBundles()).find(row => row.name === 'unnamed')).toEqual({
-    name: 'unnamed', version: '1.0.0', source: 'unnamed@1.0.0', enabled: false, installed: true, official: false, availability: 'profile', optional: false, removable: true, updatable: true,
+    name: 'unnamed', version: '1.0.0', source: 'unnamed@1.0.0', enabled: false, installed: true, official: false, availability: 'profile', optional: false, removable: true, update: 'registry',
     rows: [], overrides: [], ...expected,
   })
 })
@@ -2223,7 +2232,7 @@ it.each(OPTIONAL_BUNDLES)('offers %s switched off and never removable', async (o
   expect((await manager.listBundles()).find(row => row.name === offered)).toEqual({
     name: offered, version: '3.0.0', description: 'Package one-liner.',
     meta: { title: offered, description: 'Package one-liner.' },
-    enabled: false, installed: false, official: true, availability: 'installation', optional: true, removable: false, updatable: false,
+    enabled: false, installed: false, official: true, availability: 'installation', optional: true, removable: false,
     rows: [{ rowId: 'offered-row', moduleName: pathToFileURL(join(supplied, 'plugin.mjs')).href }], overrides: [],
   })
   expect(await manager.setBundleEnabled(offered, true)).toMatchObject({ application: 'applied' })
@@ -2273,7 +2282,7 @@ it.each(['dsh-plugin-codex-subscription', 'dsh-plugin-visual-curator'])('offers 
     writeFileSync(profile.installAnchor, JSON.stringify({ name: 'installation', dependencies: { [name]: manifest.version } }))
     const entry = (await manager.listBundles()).find(row => row.name === name)
     expect(entry).toMatchObject({ availability: 'installation', official: false, optional: false, enabled: false, removable: false,
-      update: { repository: manifest.dsh.bundle.update.repository, automatic: false, restartRequired: false } })
+      releaseUpdate: { repository: manifest.dsh.bundle.update.repository, automatic: false, restartRequired: false } })
   } finally {
     await owner?.fiber.dispose()
     network.mockRestore()
@@ -2637,8 +2646,7 @@ it('lists absent Official entries offline without resolving their packages or co
     expect(bundles.filter(bundle => bundle.name === entry.packageName)).toHaveLength(1)
     expect(bundles.filter(bundle => bundle.name === entry.packageName)).toMatchObject([{
       name: entry.packageName, official: true, availability: 'missing', enabled: false, installed: false, optional: false,
-      removable: false, updatable: false, rows: [], overrides: [], meta: entry.meta,
-      ...entry.listedByDefault === undefined ? {} : { listedByDefault: entry.listedByDefault },
+      removable: false, rows: [], overrides: [], meta: entry.meta,
       ...entry.platforms !== undefined && !entry.platforms.includes(process.platform)
         ? { listedByDefault: false, error: { code: 'unsupported-platform' } } : {},
       installTarget: { spec: `${entry.packageName}@${getDshRuntimeVersion()}`, version: getDshRuntimeVersion() },
@@ -2921,17 +2929,20 @@ it('refuses to list versions of a package not installed from a registry', async 
   const manifest = readProfileManifest('test', dir)
   manifest.dependencies = { ...manifest.dependencies, linked: `link:${join(dir, 'node_modules', 'linked')}` }
   writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
-  expect(await manager.listVersions('linked')).toEqual(refusal('linked is not installed from a registry under its own name'))
+  expect(await manager.listVersions('linked')).toEqual(refusal('linked is installed neither from a registry under its own name nor from a Git commit'))
   // An alias saves another package under the dependency's name; its versions are not the alias's.
   const aliased = readProfileManifest('test', dir)
   aliased.dependencies = { ...aliased.dependencies, linked: 'npm:other-plugin@1.0.0' }
   writeFileSync(join(dir, 'package.json'), JSON.stringify(aliased))
-  expect(await manager.listVersions('linked')).toEqual(refusal('linked is not installed from a registry under its own name'))
+  expect(await manager.listVersions('linked')).toEqual(refusal('linked is installed neither from a registry under its own name nor from a Git commit'))
   writeFileSync(join(dir, 'node_modules', 'extra', 'package.json'), JSON.stringify({ name: 'extra', version: 'nightly', dsh: BUNDLE }))
   expect(await manager.listVersions('extra')).toEqual(refusal('extra declares no semver version'))
   // A bundle carrying plugin management cannot be removed, so it is not offered for an update.
+  writeFileSync(join(dir, 'node_modules', 'extra', 'package.json'), JSON.stringify({ name: 'extra', version: '1.0.0', dsh: BUNDLE }))
   writeFileSync(join(dir, 'node_modules', 'extra', 'cordis.patch.yml'), JSON.stringify([{ insert: [{ id: 'pm', name: '@deepseek-ai/dsh-plugin-manager' }] }]))
-  expect((await manager.listBundles()).find(item => item.name === 'extra')).toMatchObject({ readOnlyReason: 'management-required', updatable: false })
+  const managed = (await manager.listBundles()).find(item => item.name === 'extra')
+  expect(managed).toMatchObject({ readOnlyReason: 'management-required' })
+  expect(managed).not.toHaveProperty('update')
   expect(await manager.listVersions('extra')).toEqual(refusal('extra carries plugin management and cannot be removed'))
   expect(view).not.toHaveBeenCalled()
 })
@@ -2971,6 +2982,8 @@ it('updates a registry bundle by removing it and installing the exact newer vers
   expect(updated.restore).toBeUndefined()
   expect(steps).toEqual(['checking', 'removing', 'installing'])
   expect(pnpm.mock.calls.map(call => call[1])).toEqual([['remove', 'extra'], ['add', 'extra@1.2.0', '--save-exact', `--registry=${MIRROR}`]])
+  // The run itself is undone unless it installs this package at this version.
+  expect(pnpm.mock.calls[1]?.[2]).toMatchObject({ expected: { name: 'extra', version: '1.2.0' } })
   expect(readProfileManifest('test', dir).dependencies?.extra).toBe('1.2.0')
   expect(ctx.get('managedProbe')).toBe(true)
 })
@@ -3145,4 +3158,194 @@ it('omits exemption identity when only the runtime version is invalid', async ()
     expect(fact.target).toBeNull()
     expect(fact.version).toBeUndefined()
   }
+})
+
+const GIT_REPOSITORY = 'git+https://gitlab.example/g/plugins.git'
+/** A Git spec of the `extra` directory pinned to one commit. */
+const gitSpec = (commit: string): string => `${GIT_REPOSITORY}#${commit.repeat(40)}&path:/packages/extra`
+const GIT_A = gitSpec('a')
+const GIT_B = gitSpec('b')
+
+/** Save the fixture's `extra` 1.0.0 as installed from `spec`. */
+function installedFromGit(dir: string, spec = GIT_A): void {
+  const manifest = readProfileManifest('test', dir)
+  manifest.dependencies = { ...manifest.dependencies, extra: spec }
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+}
+
+/**
+ * A pnpm stand-in that removes the package a `remove` names and installs the package `installs` maps a Git spec to. A run
+ * whose package differs from the one the caller expects, or declares no bundle, is refused without changes, as
+ * `runProfilePnpm` undoes it.
+ */
+function gitPnpm(
+  dir: string, bundle: (name: string, rows: unknown[]) => void,
+  installs: Readonly<Record<string, { name: string; version: string; bundle?: false }>>,
+) {
+  const pnpm = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async (_context, args, options) => {
+    const manifest = readProfileManifest('test', dir)
+    const spec = String(args[1])
+    const installed = installs[spec]
+    if (args[0] === 'remove') {
+      delete manifest.dependencies?.[spec]
+      rmSync(join(dir, 'node_modules', spec), { recursive: true, force: true })
+    } else if (installed === undefined) {
+      return { exitCode: 1, output: `ERR_PNPM_GIT_CHECKOUT_FAILED  ${spec}`, truncated: false, logPath: '/install.log', kind: 'unknown' as const }
+    } else if (options.expected !== undefined && `${installed.name}@${installed.version}` !== `${options.expected.name}@${options.expected.version}`) {
+      const found = `${installed.name}@${installed.version}`
+      const output = `dsh: installation rejected: ${found} is installed where ${options.expected.name}@${options.expected.version} was expected`
+      return { exitCode: 1, output, truncated: false, logPath: '/install.log', kind: 'unknown' as const, unmet: 'unexpected-package' as const }
+    } else if (options.expected !== undefined && installed.bundle === false) {
+      const output = `dsh: installation rejected: ${installed.name}@${installed.version} declares no bundle`
+      return { exitCode: 1, output, truncated: false, logPath: '/install.log', kind: 'unknown' as const, unmet: 'not-bundle' as const }
+    } else {
+      bundle(installed.name, [{ id: `${installed.name}-row`, name: './plugin.mjs', config: { service: `${installed.name}Probe` } }])
+      writeFileSync(join(dir, 'node_modules', installed.name, 'package.json'), JSON.stringify({ name: installed.name, version: installed.version, dsh: BUNDLE }))
+      manifest.dependencies = { ...manifest.dependencies, [installed.name]: spec }
+    }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    return { exitCode: 0, output: '', truncated: false, logPath: '/install.log' }
+  })
+  onTestFinished(() => { pnpm.mockRestore() })
+  return pnpm
+}
+
+it('lists a copy pinned to a Git commit for an update and refuses to list its versions', async () => {
+  const { manager, dir } = await fixture()
+  const view = viewAnswers(extraRegistry)
+  installedFromGit(dir)
+  expect((await manager.listBundles()).find(item => item.name === 'extra')).toMatchObject({ source: GIT_A, update: 'git' })
+  expect(await manager.listVersions('extra')).toEqual({
+    status: 'refused', problem: 'not-updatable', reason: 'extra is installed from Git, which lists no versions', attempts: [],
+  })
+  // A branch moves, so reinstalling it would not bring back the removed version.
+  installedFromGit(dir, `${GIT_REPOSITORY}#main&path:/packages/extra`)
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toBeUndefined()
+  expect((await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })).result.error).toEqual({
+    code: 'invalid-spec', diagnostic: 'extra is installed neither from a registry under its own name nor from a Git commit',
+  })
+  expect(view).not.toHaveBeenCalled()
+})
+
+it('updates a Git copy by removing it and installing the expected package from another commit with its selection', async () => {
+  const { ctx, manager, dir, bundle } = await fixture()
+  const view = viewAnswers(extraRegistry)
+  installedFromGit(dir)
+  const pnpm = gitPnpm(dir, bundle, { [GIT_B]: { name: 'extra', version: '1.1.0' } })
+  const steps: string[] = []
+  ctx.on('plugin-manager/update-state', ({ step }) => { steps.push(step) })
+  const requestId = '0b6f3c2a-9d8e-4f71-a5b4-3c2d1e0f9a8b' as PluginInstallRequestId
+  const updated = await manager.updateBundle('extra', '1.1.0', { spec: GIT_B, requestId })
+  expect(updated).toMatchObject({ from: '1.0.0', to: '1.1.0', step: 'install', result: { application: 'applied', bundle: 'extra', version: '1.1.0', enabled: true } })
+  expect(updated.restore).toBeUndefined()
+  expect(steps).toEqual(['checking', 'removing', 'installing'])
+  // The Git target names its own commit, so nothing is viewed on a registry and the save is not exact.
+  expect(pnpm.mock.calls.map(call => call[1])).toEqual([['remove', 'extra'], ['add', GIT_B]])
+  expect(pnpm.mock.calls[1]?.[2]).toMatchObject({ expected: { name: 'extra', version: '1.1.0' } })
+  expect(view).not.toHaveBeenCalled()
+  expect(readProfileManifest('test', dir).dependencies?.extra).toBe(GIT_B)
+  expect(ctx.get('extraProbe')).toBe(true)
+})
+
+it.each([
+  ['another package', { name: 'other', version: '1.1.0' }],
+  ['another version', { name: 'extra', version: '1.0.5' }],
+] as const)('installs the removed Git copy again from its saved spec when the target installs %s', async (_name, installed) => {
+  const { manager, dir, bundle } = await fixture()
+  installedFromGit(dir)
+  const pnpm = gitPnpm(dir, bundle, { [GIT_A]: { name: 'extra', version: '1.0.0' }, [GIT_B]: installed })
+  const updated = await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })
+  expect(updated).toMatchObject({
+    step: 'install', restore: { application: 'applied', version: '1.0.0' },
+    result: {
+      application: 'failed', error: { code: 'unexpected-package' },
+      packageResult: { unmet: 'unexpected-package', output: expect.stringContaining(`${installed.name}@${installed.version} is installed`) as string },
+    },
+  })
+  expect(pnpm.mock.calls.map(call => call[1])).toEqual([['remove', 'extra'], ['add', GIT_B], ['add', GIT_A]])
+  expect(readProfileManifest('test', dir).dependencies).toEqual({ extra: GIT_A })
+})
+
+it('updates a copy pnpm saved as a known host\'s shortcut to the HTTPS spec of another commit', async () => {
+  const { manager, dir, bundle } = await fixture()
+  const target = `git+https://github.com/o/plugins.git#${'b'.repeat(40)}&path:/packages/extra`
+  installedFromGit(dir, `github:o/plugins#${'a'.repeat(40)}&path:/packages/extra`)
+  gitPnpm(dir, bundle, { [target]: { name: 'extra', version: '1.1.0' } })
+  expect(await manager.updateBundle('extra', '1.1.0', { spec: target })).toMatchObject({ step: 'install', result: { application: 'applied', version: '1.1.0' } })
+})
+
+it('installs a Git target over the running version without HMR and reports the restart', async () => {
+  const { manager, dir, bundle, gitConnection } = await fixture('startup')
+  installedFromGit(dir)
+  const pnpm = gitPnpm(dir, bundle, { [GIT_B]: { name: 'extra', version: '1.1.0' } })
+  expect(await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })).toMatchObject({
+    step: 'install', result: { application: 'restart-required', restartReason: 'no-hmr', version: '1.1.0' },
+  })
+  expect(pnpm.mock.calls.map(call => call[1])).toEqual([['add', GIT_B]])
+  // Without HMR nothing is removed, so the repository is left to the installation.
+  expect(gitConnection).not.toHaveBeenCalled()
+})
+
+it('keeps the running Git copy without HMR when the target declares no bundle', async () => {
+  const { manager, dir, bundle } = await fixture('startup')
+  installedFromGit(dir)
+  const before = readFileSync(join(dir, 'package.json'), 'utf8')
+  gitPnpm(dir, bundle, { [GIT_B]: { name: 'extra', version: '1.1.0', bundle: false } })
+  expect(await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })).toMatchObject({
+    step: 'install', result: { application: 'failed', error: { code: 'not-bundle' }, packageResult: { unmet: 'not-bundle' } },
+  })
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
+})
+
+it.each(['network', 'timeout'] as const)('keeps a Git copy when a %s stops reaching the target repository before its removal', async (kind) => {
+  const env = { GIT_CONFIG_GLOBAL: '/application/git.config' }
+  const { manager, dir, bundle, gitConnection } = await fixture('live', false, undefined, {}, { command: 'pnpm', args: [], env })
+  installedFromGit(dir)
+  const before = readFileSync(join(dir, 'package.json'), 'utf8')
+  const pnpm = gitPnpm(dir, bundle, { [GIT_B]: { name: 'extra', version: '1.1.0' } })
+  const failure = { exitCode: 128, output: 'fatal: unable to access', truncated: false, logPath: join(dir, 'git.log'), kind }
+  // The command line the check ran stays out of the answer.
+  gitConnection.mockResolvedValue({ ...failure, argv: ['git', 'ls-remote', '--', 'https://gitlab.example/g/plugins.git', 'HEAD'] })
+  expect(await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })).toEqual({
+    from: '1.0.0', to: '1.1.0', step: 'check',
+    result: {
+      changed: false, application: 'failed', stage: 'install', target: 'extra', failedAt: 'spec-host', packageResult: failure,
+      error: { code: 'operation-error', diagnostic: 'fatal: unable to access' },
+    },
+  })
+  expect(gitConnection).toHaveBeenCalledWith(expect.objectContaining({ kind: 'git', spec: GIT_B }), dir, expect.objectContaining({ timeoutMs: 5000, env }))
+  expect(pnpm).not.toHaveBeenCalled()
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
+})
+
+it('leaves a Git repository check that is not a connection failure to pnpm', async () => {
+  const { manager, dir, bundle, gitConnection } = await fixture()
+  installedFromGit(dir)
+  gitPnpm(dir, bundle, { [GIT_B]: { name: 'extra', version: '1.1.0' } })
+  gitConnection.mockResolvedValue({
+    exitCode: 127, output: 'spawn git ENOENT', truncated: false, logPath: join(dir, 'git.log'), kind: 'unknown', argv: ['git'],
+  })
+  expect(await manager.updateBundle('extra', '1.1.0', { spec: GIT_B })).toMatchObject({ step: 'install', result: { application: 'applied' } })
+})
+
+it('refuses an update whose target does not match where the copy was installed from, before changing anything', async () => {
+  const { manager, dir, bundle } = await fixture()
+  const view = viewAnswers(extraRegistry)
+  const pnpm = gitPnpm(dir, bundle, {})
+  const refused = async (version: string, spec?: string) => (await manager.updateBundle('extra', version, spec === undefined ? {} : { spec })).result.error
+  expect(await refused('1.2.0', GIT_B)).toEqual({ code: 'invalid-spec', diagnostic: 'extra is installed from a registry and updates only to extra@1.2.0' })
+  installedFromGit(dir)
+  const before = readFileSync(join(dir, 'package.json'), 'utf8')
+  const pinnedOnly = { code: 'invalid-spec', diagnostic: 'extra is installed from Git and updates only to a Git spec pinned to a full commit' }
+  expect(await refused('1.1.0')).toEqual(pinnedOnly)
+  expect(await refused('1.1.0', 'extra@1.1.0')).toEqual(pinnedOnly)
+  expect(await refused('1.1.0', `${GIT_REPOSITORY}#main&path:/packages/extra`)).toEqual(pinnedOnly)
+  const sibling = `${GIT_REPOSITORY}#${'b'.repeat(40)}&path:/packages/other`
+  expect(await refused('1.1.0', sibling)).toEqual({
+    code: 'invalid-spec', diagnostic: `${sibling} is not in the repository directory extra is installed from, gitlab.example/g/plugins#packages/extra`,
+  })
+  expect(await refused('0.9.0', GIT_B)).toEqual({ code: 'invalid-spec', diagnostic: '0.9.0 is not a version newer than the installed 1.0.0' })
+  expect(pnpm).not.toHaveBeenCalled()
+  expect(view).not.toHaveBeenCalled()
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
 })

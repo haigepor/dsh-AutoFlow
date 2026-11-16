@@ -5,7 +5,6 @@ import type { ReactNode } from 'react'
 import { IconCloseOutlineRegular } from './icons/index.tsx'
 import { MenuSurface } from './MenuSurface.tsx'
 import { isBehindModal } from './useModalLayer.ts'
-import { useAnchoredPosition } from './useAnchoredPosition.ts'
 import { useDismissOnOutsidePointer } from './useDismissOnOutsidePointer.ts'
 import styles from './FieldHelp.module.css'
 
@@ -27,7 +26,7 @@ export function FieldHelp({ title, text, label, closeLabel }: FieldHelpProps): R
   const anchorRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const id = useId()
-  const position = useAnchoredPosition({ open, anchorRef, panelRef, gap: 6, margin: 12 })
+  const anchorName = `--dsh-field-help-${id.replaceAll(':', '')}`
   useDismissOnOutsidePointer(anchorRef, open, setOpen, panelRef)
   useEffect(() => { if (open) panelRef.current?.focus({ preventScroll: true }) }, [open])
   useEffect(() => {
@@ -48,6 +47,7 @@ export function FieldHelp({ title, text, label, closeLabel }: FieldHelpProps): R
   const close = () => { setOpen(false); anchorRef.current?.focus({ preventScroll: true }) }
   return <>
     <button ref={anchorRef} type="button" className={styles['helpButton']}
+      style={{ anchorName }}
       aria-label={label} aria-expanded={open} aria-haspopup="dialog"
       aria-controls={open ? id : undefined} onClick={() => { setOpen(value => !value) }}>
       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -57,7 +57,7 @@ export function FieldHelp({ title, text, label, closeLabel }: FieldHelpProps): R
     </button>
     {open && createPortal(
       <MenuSurface ref={panelRef} id={id} role="dialog" aria-label={title} aria-describedby={`${id}-text`}
-        tabIndex={-1} className={styles['helpPanel']} style={position ?? { visibility: 'hidden', left: 0, top: 0 }}
+        tabIndex={-1} className={styles['helpPanel']} style={{ positionAnchor: anchorName }}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== anchorRef.current) setOpen(false)
         }}>

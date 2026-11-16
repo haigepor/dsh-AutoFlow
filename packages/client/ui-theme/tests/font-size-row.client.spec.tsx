@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { allowAllAccess, bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+import { allowAllAccess, bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { FontSizeRow } from '../src/client/FontSizeRow.tsx'
 import type { FontSizeRowComponentProps } from '../src/client/FontSizeRow.tsx'
 import { createFontRowStore } from '../src/client/settings-store.ts'
@@ -27,6 +27,8 @@ const COPY: Record<string, string> = {
   'fontSize.text.decrease': 'Decrease font size',
   'fontSize.terminal.increase': 'Increase terminal font size',
   'fontSize.terminal.decrease': 'Decrease terminal font size',
+  'fontSize.default': 'Default: {size}px',
+  'fontSize.reset': 'Reset {role} to the default {size}px',
 }
 
 /** Empty global standard-kit hooks (the row reads neither). */
@@ -59,7 +61,7 @@ function mount(fontSize = 14, role: FontRole = 'text') {
     ...allowAllAccess,
     useContextMenu: contextMenuHook(),
     useStore: bindSnapshotSelector(store),
-    t: (key: string) => COPY[key] ?? key,
+    t: makeTranslate(COPY),
     role,
     setFontSize,
   }
@@ -116,5 +118,21 @@ describe('FontSizeRow', () => {
     expect(arrow('Increase terminal font size').disabled).toBe(true)
     fireEvent.click(arrow('Decrease terminal font size'))
     expect(b.setFontSize).toHaveBeenCalledWith(19)
+  })
+
+  it.each<[FontRole, number, number]>([
+    ['text', 18, 14], ['code', 16, 11], ['terminal', 20, 13],
+  ])('resets only the selected %s role and waits for the persisted value', (role, size, defaultSize) => {
+    const b = mount(size, role)
+    const reset = screen.getByRole('button', { name: /Reset .* to the default/ })
+    expect(screen.getByText(`Default: ${defaultSize}px`)).toBeDefined()
+    fireEvent.click(reset)
+    expect(b.setFontSize).toHaveBeenCalledExactlyOnceWith(defaultSize)
+    expect(screen.getByText(String(size))).toBeDefined()
+    act(() => { b.store.actions.sync({ text: 14, code: 11, terminal: 13 }, { text: '', code: '', terminal: '' }, 1) })
+    expect(screen.getByText(String(defaultSize))).toBeDefined()
+    expect(reset).toHaveProperty('disabled', true)
+    fireEvent.click(reset)
+    expect(b.setFontSize).toHaveBeenCalledTimes(1)
   })
 })

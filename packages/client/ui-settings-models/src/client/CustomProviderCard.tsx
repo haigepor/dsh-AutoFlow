@@ -1,7 +1,6 @@
 /**
- * The card that declares a provider pi-ai does not ship — an OpenAI-compatible
- * gateway, a self-hosted server, or a provider newer than the installed
- * catalog.
+ * The card that declares a provider pi-ai does not ship — a gateway, a
+ * self-hosted server, or a provider newer than the installed catalog.
  *
  * This is a create, not an edit, which is why it is its own form rather than
  * the provider editor with extra fields: the route id is being *chosen* here,
@@ -41,8 +40,9 @@ import { validateReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import { deriveKeyRef } from './store.ts'
 import { ProtocolPicker } from './ProtocolPicker.tsx'
 import { FieldHelp } from './FieldHelp.tsx'
+import { protocolNeedsKey, protocolReasoningLevels } from './protocol-rules.ts'
 import type { ModelsOperations } from './operations.ts'
-import type { en } from './locales.ts'
+import type { en, ModelsKey } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
 /** The settings namespace a hand-declared provider is written into. */
@@ -66,6 +66,12 @@ function createRouteId(taken: readonly string[]): string {
   // A finite directory collision must not depend on another random draw.
   for (let suffix = 2; taken.includes(candidate); suffix++) candidate = `${base}-${String(suffix)}`
   return candidate
+}
+
+/** Endpoint examples for SDKs that append their own API path. */
+const BASE_URL_PLACEHOLDERS: Readonly<Record<string, ModelsKey>> = {
+  'anthropic-messages': 'customAnthropicBaseUrlPlaceholder',
+  'google-generative-ai': 'customGeminiBaseUrlPlaceholder',
 }
 
 function isHttpUrl(value: string): boolean {
@@ -150,8 +156,12 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   // bad row is named by its position here too. Capacities have route-level
   // fallbacks; what a route cannot default is at least one model. Every row of
   // this hand-declared route edits its reasoning levels, so they are checked too.
-  const modelFailure = validateDeepSeekModels(models) ?? validateReasoningEfforts(models)
-  const keyFailure = apiKeyFailure(keyDraft)
+  const reasoning = protocolReasoningLevels(protocol, reasoningLevels)
+  const modelFailure = validateDeepSeekModels(models)
+    ?? validateReasoningEfforts(models, reasoning.levelsOnly ? reasoning.levels : undefined)
+  // A blank key is a legal choice only where the protocol can authenticate without one.
+  const keyMissing = protocolNeedsKey(protocol) && keyDraft.trim().length === 0
+  const keyFailure = keyMissing ? 'keyRequired' as const : apiKeyFailure(keyDraft)
   // The typed key with paste whitespace removed. A blank field yields an empty
   // string, which the create path reads as "no key supplied" — a route may
   // legitimately authenticate through the provider's own ambient discovery.
@@ -244,7 +254,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
             <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
             <div className={connectStyles['endpoint']}><ProviderFieldIcon kind="endpoint" />
               <input className={styles['input']} type="text" value={baseURL}
-                placeholder={t(protocol === 'anthropic-messages' ? 'customAnthropicBaseUrlPlaceholder' : 'customBaseUrlPlaceholder')}
+                placeholder={t(BASE_URL_PLACEHOLDERS[protocol] ?? 'customBaseUrlPlaceholder')}
                 aria-label={t('baseUrl')} aria-invalid={baseUrlInvalid} disabled={profileDisabled}
                 onChange={(event) => { setBaseURL(event.target.value) }} />
             </div>
@@ -252,9 +262,9 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           </div>
           <div className={styles['field']}>
             <span className={styles['fieldLabel']}>{t('keyInput')} <span className={connectStyles['optional']}>{t('providerOptional')}</span></span>
-            <ApiKeyInput t={t} icon={<ProviderFieldIcon kind="key" />} value={keyDraft} placeholder={t('keyPlaceholder')} aria-label={t('keyInput')} disabled={disabled}
+            <ApiKeyInput t={t} icon={<ProviderFieldIcon kind="key" />} value={keyDraft} placeholder={t('keyPlaceholder')} aria-label={t('keyInput')} required={protocolNeedsKey(protocol)} disabled={disabled}
               onChange={(event) => { setKeyDraft(event.target.value) }} />
-            {keyFailure === undefined ? null : <p className={styles['error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
+            {keyFailure === undefined ? null : <p className={styles[keyMissing ? 'advancedHint' : 'error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
           </div>
         </section>
 
@@ -262,10 +272,11 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       <ModelListEditor
         connecting
         emptyMessage={t('providerModelsEmpty')}
-        reasoningOptions={props.reasoningOptions}
+        reasoningOptions={reasoning.levelsOnly ? undefined : props.reasoningOptions}
         models={models}
         onChange={setModels}
-        reasoningLevels={reasoningLevels}
+        reasoningLevels={reasoning.levels}
+        reasoningLevelsOnly={reasoning.levelsOnly}
         probe={{
           settingsNs: NS,
           baseURL: normalizedBaseURL,

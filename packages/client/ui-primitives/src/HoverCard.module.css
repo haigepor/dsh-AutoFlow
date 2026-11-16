@@ -45,7 +45,7 @@
 }
 
 .copied {
-  color: #FFFFFF;
+  color: var(--dsw-alias-hovercard-label-primary);
   font-size: 14px;
   line-height: 20px;
   text-align: center;
@@ -112,4 +112,10 @@
 .bridge {
   position: fixed;
   z-index: 100;
+}
+
+/* The display:contents portal has no box to subtract from native drag regions. */
+:global(:where(html[data-platform='darwin'])) .card,
+:global(:where(html[data-platform='darwin'])) .bridge {
+  -webkit-app-region: no-drag;
 }

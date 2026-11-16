@@ -25,7 +25,7 @@ Web GUI 的 goal 界面同时显示持久 goal 状态及当前的进程本地激
 <a id="use-this-package"></a>
 ## 使用本包
 
-与 `ui-conversation` 及 goal 领域包一起挂载本插件；只要会话存在目标，目标栏就通过 `conversation.input.context` 注册在队列下方（order 100），并保留在共享顶栏最底部。背景、顶部圆角和输入卡片贴合由 [Conversation 容器](../ui-conversation/README.zh.md)统一维护，队列列表独立滚动，目标不随列表滚走。已 armed 的 active goal 提供暂停动作；active-but-disarmed 或 paused 的 goal 提供恢复；编辑重写目标文本；清除移除目标，并在投影追上之前抑制条带。
+与 `ui-conversation` 及 goal 领域包一起挂载本插件；只要会话存在目标，目标栏就通过 `conversation.input.context` 注册在队列下方（order 100），并保留在共享顶栏最底部。背景、顶部圆角和输入卡片贴合由 [Conversation 容器](../ui-conversation/README.zh.md)统一维护，队列列表独立滚动，目标不随列表滚走。已 armed 的 active goal 提供暂停动作；active-but-disarmed 或 paused 的 goal 提供恢复；编辑重写目标文本；清除移除目标，并在投影追上之前抑制条带。 操作顺序为编辑、清除、暂停或恢复；激活状态尚未确认时禁用暂停，编辑使用支持多行内容的 `InlineEditor`。
 
 ### 指令输入气泡
 

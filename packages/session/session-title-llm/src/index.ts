@@ -242,7 +242,7 @@ function terminalFinish(finish: FinishReason): SessionTitleLlmFinish {
       return finish
     case 'error':
     case 'aborted': {
-      throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
+      throw LlmError.fromFailure(finish.failure)
     }
     /* v8 ignore next -- closed FinishReason union exhaustiveness guard */
     default: return assertNever(finish, 'FinishReason')

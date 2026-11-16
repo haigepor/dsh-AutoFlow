@@ -356,7 +356,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, 0.45));
+  color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 15px;
 }

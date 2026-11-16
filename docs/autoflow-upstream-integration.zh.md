@@ -2,7 +2,29 @@
 
 [English](autoflow-upstream-integration.md) | 中文
 
-本文记录 AutoFlow 的官方集成决定。当前目标为 `dsh-v0.2.2-rc.1`；下方早期版本章节保留历史背景。[文件清单](autoflow-local-change-manifest.json)保留早期比较快照及历史路径清单；[维护对照地图](cookbook/maintaining-autoflow-fork.zh.md)定位需要保护的定制实现。
+本文记录 AutoFlow 的官方集成决定。当前目标为 `dsh-v0.2.2-rc.3`；下方早期版本章节保留历史背景。[文件清单](autoflow-local-change-manifest.json)保留早期比较快照及历史路径清单；[维护对照地图](cookbook/maintaining-autoflow-fork.zh.md)定位需要保护的定制实现。
+
+## `dsh-v0.2.2-rc.3` 集成（2026-11-16）
+
+目标固定为 [dsh-v0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.3)，包含 rc.2 累积更新。旧官方基线为 `dsh-v0.2.2-rc.1`，没有混入后续 master 提交。官方增量为 1574 个提交、4846 个路径，与 3621 个本地定制路径的交集为 480 个；比较关闭重命名折叠。219 个初始冲突逐块合并，自动合并的调用关系另行检查。
+
+原 main 的两项启动和插件枚举性能提交完整保留。集成在 `codex/integrate-dsh-022rc3-20261116` 隔离工作树完成，回退点为 `codex/backup-main-before-dsh-022rc3-20261116` 与 `codex/backup-mirror-before-dsh-022rc3-20261116`。官方镜像 `deepseek-harness` 精确指向目标标签。私有 profile 与日志另存 Git 外，不操作真实会话或凭证。
+
+| 区域 | 集成决定 |
+| --- | --- |
+| 桌面更新 | 接入正式版和开发版切换、独立持久化设置及 rc.3 Windows 更新修复；保留 GitHub/Pages 下载源、断点续传、进度入口、发布说明和安装前手动确认。切换渠道取消旧下载并清理已准备的安装包；失败保存不丢弃可用安装包。 |
+| 更新发布 | GitHub 开发版和正式版使用分开的清单及策略文件，签名和测试产物隔离独立于渠道。已有公开渠道是否有可用包，以对应发布记录为准；本次源码集成不发布安装包。 |
+| 协作与工具 | 接入具名、多层子代理、统一团队成员与任务面板、终端接管和并行只读工具。保留本地进程内 Agent 所有权，不把历史父会话标识当作当前进程所有权。 |
+| 工作区与聊天 | 接入 Worktree 审阅、更多导航入口、文件搜索、历史自动加载、上下文展示、代码差异、重试及粘贴改进；保留本地配色、布局、折叠动画、技能引用、输入历史和完整批量归档。 |
+| 模型与搜索 | 接入 Gemini 原生接口、掩码密钥、可配置重试和 DeepSeek Search API；保留本地模型编辑布局、原生搜索及推理设置。搜索响应映射由 LLM 包共享，消除与外部搜索包的反向依赖。 |
+| 插件与 MCP | 区分官方 registry/Git 更新与独立 Release 状态，保留任务结束后插件重启生效。官方动态 MCP 管理与本地 profile 编辑分别使用 `mcpManager`、`mcpSettings`；新 Fiber 句柄按实际实例读取连接状态。见[升级指南](upgrade-guide/v0.2.2-rc.3/autoflow-plugin-management/guide.zh.md)。 |
+| 自定义插件 | Visual Curator、Style Prompt 和 Better Sidebar 的旧菜单定位调用改用新接口；四个独立插件声明 rc.2/rc.3 兼容。保留规划、复审、素材、账号和发布功能；独立版本号不随应用集成自动提升。 |
+| 会话导入 | 合入实验性 DeepSeek 会话导入包及其选择入口，保持可选状态，不自动导入用户历史。 |
+| 字体 | 保持正文 14px、代码 11px、终端 13px 默认值和原有范围，新增分别恢复默认的操作。实际旧安装版的 14/16/20 保存值不在本次源码集成中改写。 |
+
+Session 写入代际保持 V4，69 个持久化根与 27 份历史记录一致；保留所有最终确认和历史代际。API、Client 插槽、配置、持久化和源码文档目录从合并结果重新生成。根指令文档因保留图像检查规则并合入新的官方指导而超过旧预算，单文件 ceiling 调整为 2140，未移除规则或降低功能门禁。
+
+验证证据归属于集成提交及 Git 外的本次报告。源码构建、行为回归和隔离 Web 验证分别记录；本地通过不代表已发布新桌面包、已更新用户机器或远程 CI 已通过。
 
 ## `dsh-v0.2.2-rc.1` 集成（2026-11-05）
 

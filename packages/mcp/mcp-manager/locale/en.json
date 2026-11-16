@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "MCP server management",
-    "description": "Persist profile MCP entries and report redacted connection status."
+    "title": "MCP server manager",
+    "description": "Manage the MCP servers configured in Settings or registered by plugins, and report their connection status."
   }
 }

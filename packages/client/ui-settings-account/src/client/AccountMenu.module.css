@@ -1,5 +1,7 @@
-.root { flex: 1; min-width: 0; }
+.root { position: relative; flex: 1; min-width: 0; }
 .root[data-inset='true'] { margin-inline: 2px; }
+.notifications { position: absolute; inset-inline: 0; bottom: calc(100% + 4px); z-index: 1; }
+.anchor { width: 100%; }
 .trigger { user-select: none; display: flex; align-items: center; width: 100%; gap: 8px; border: 0; border-inline: var(--dsh-sidebar-paint-inset) solid transparent; background: transparent; background-clip: padding-box; font: inherit; font-size: 14px; cursor: pointer; height: 32px; padding: 0 10px 0 8px; box-sizing: border-box; border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-secondary); font-weight: 500; line-height: 20px; transition: background-color 150ms var(--ds-ease-in-out), color 150ms var(--ds-ease-in-out); }
 .trigger[data-collapsed='true'] { box-sizing: border-box; width: 36px; height: 36px; justify-content: center; gap: 0; padding: 0; border-inline: 0; background-clip: border-box; border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-primary); }
 @media (hover: hover) {

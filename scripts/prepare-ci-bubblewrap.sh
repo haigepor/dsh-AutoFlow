@@ -10,6 +10,13 @@ readonly BUBBLEWRAP_SHA256='db4d572a7927bfd34cc9b8e24b56983efa8e0483d03da6c810f6
 # The recorded build remains addressable after Ubuntu prunes its live package pool.
 readonly BUBBLEWRAP_URL="https://launchpad.net/ubuntu/+source/bubblewrap/${BUBBLEWRAP_VERSION}/+build/33546835/+files/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
 readonly BUBBLEWRAP_POOL_URL="https://archive.ubuntu.com/ubuntu/pool/main/b/bubblewrap/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
+# Workflows that run on ephemeral runners restore and save this directory as
+# `~/.cache/dsh-ci/bubblewrap` with actions/cache, so a warm cache needs no
+# Launchpad request; the persistent self-hosted pool keeps the directory itself.
+readonly BUBBLEWRAP_CACHE_DIR="${HOME}/.cache/dsh-ci/bubblewrap"
+
+# shellcheck source=scripts/ci-verified-download.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/ci-verified-download.sh"
 
 : "${RUNNER_TEMP:?prepare-ci-bubblewrap requires RUNNER_TEMP}"
 : "${GITHUB_PATH:?prepare-ci-bubblewrap requires GITHUB_PATH}"
@@ -19,22 +26,12 @@ if [[ "$(uname -s)" != 'Linux' || "$(uname -m)" != 'x86_64' ]]; then
   exit 1
 fi
 
-archive="${RUNNER_TEMP}/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
+archive="${BUBBLEWRAP_CACHE_DIR}/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb"
 root="${RUNNER_TEMP}/dsh-bubblewrap"
 
-# Launchpad 可能临时返回 503；先尝试 Ubuntu 镜像，旧包被清理后仍可回到固定构建。
-downloaded=false
-for source in "$BUBBLEWRAP_POOL_URL" "$BUBBLEWRAP_URL"; do
-  if curl --fail --silent --show-error --location --retry 3 --retry-all-errors --output "$archive" "$source"; then
-    downloaded=true
-    break
-  fi
-done
-if [[ "$downloaded" != true ]]; then
-  echo 'bubblewrap download failed from every pinned source' >&2
-  exit 1
+if ! acquire_verified_archive "$BUBBLEWRAP_POOL_URL" "$BUBBLEWRAP_SHA256" "$archive"; then
+  acquire_verified_archive "$BUBBLEWRAP_URL" "$BUBBLEWRAP_SHA256" "$archive"
 fi
-printf '%s  %s\n' "$BUBBLEWRAP_SHA256" "$archive" | sha256sum --check --status
 mkdir -p "$root"
 dpkg-deb --extract "$archive" "$root"
 printf '%s\n' "$root/usr/bin" >> "$GITHUB_PATH"

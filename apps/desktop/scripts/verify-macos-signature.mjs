@@ -221,11 +221,12 @@ export function verifyMacOSSignature(appPath, expected) {
 /**
  * Verify an independently distributed application's signature, ticket, and Gatekeeper acceptance.
  * @param {string} appPath - Path to the stapled `.app` directory.
- * @param {{ signingIdentity: string, teamId: string }} expected - Public release identity.
+ * @param {{ signingIdentity: string, teamId: string } | 'ad-hoc'} expected - Release identity, or certificate-free Desktop test mode that retains the independently notarized helper's identity.
  * @returns {void}
  */
 export function verifyMacOSNotarizedApplication(appPath, expected) {
-  verifyMacOSSignature(appPath, expected)
+  if (expected === 'ad-hoc') runCodeSign(['--verify', '--deep', '--strict', '--verbose=2', appPath])
+  else verifyMacOSSignature(appPath, expected)
   runAppleCommand('/usr/bin/xcrun', ['stapler', 'validate', appPath], 'stapler validate')
   runAppleCommand('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], 'spctl')
 }

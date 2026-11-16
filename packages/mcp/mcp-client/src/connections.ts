@@ -56,6 +56,6 @@ export default class McpConnections extends Service {
    * @returns detached connection status, or undefined for an inactive entry.
    */
   snapshot(fiber: Fiber | undefined): McpConnectionSnapshot | undefined {
-    return fiber === undefined ? undefined : this.readers.get(fiber)?.()
+    return fiber === undefined ? undefined : this.readers.get(fiber.ctx.fiber)?.()
   }
 }

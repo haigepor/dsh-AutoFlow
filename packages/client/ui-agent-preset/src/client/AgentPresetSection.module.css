@@ -80,8 +80,7 @@
 }
 
 /* The default preset reads as selected exactly like the Appearance cubes:
-   platform fill + the bluish-400 border (static token — the bluish-400 step
-   has no alias-layer name). */
+   platform fill + the selected border. */
 .cardActive {
   border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2));
 }

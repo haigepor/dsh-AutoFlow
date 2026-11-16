@@ -14,6 +14,7 @@ const PROTOCOL_LABEL_KEYS: Readonly<Record<string, ModelsKey>> = {
   'azure-openai-responses': 'protocolOpenAiResponses',
   'anthropic-messages': 'protocolAnthropicMessages',
   'deepseek-messages': 'protocolDeepSeekMessages',
+  'google-generative-ai': 'protocolGemini',
 }
 
 /**

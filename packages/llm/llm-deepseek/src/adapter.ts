@@ -2,7 +2,7 @@
 
 import { attributionHeaders, LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageAttachmentAccessResolver, PreparedAdapterCall, StreamChunk, NativeWebSearchRequest, NativeWebSearchResult } from '@deepseek-ai/dsh-llm'
-import { mapAnthropicResponse } from '@deepseek-ai/dsh-web-search-deepseek'
+import { mapAnthropicResponse } from './native-search-response.ts'
 import type { DeepSeekLlmApiExtensionRequest, DeepSeekLlmApiJson } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { modelInfo } from './model-info.ts'
@@ -198,7 +198,7 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
           if (await files.retry(detail)) continue
           const failure = providerError(raw, response.status, response.headers)
           const message = files.errorMessage(response.status, failure.message, detail)
-          throw new LlmError(message, failure.code, { ...failure.failure, cause: new Error(text) })
+          throw LlmError.fromFailure({ ...failure.failure, message }, { cause: new Error(text) })
         }
         await extensions.accept()
         if (response.body === null) throw new LlmError('DeepSeek Messages returned no response body', 'EMPTY_RESPONSE')

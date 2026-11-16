@@ -7,7 +7,7 @@
  * click echo.
  */
 import {
-  IconChevronDownOutlineRegular, IconChevronUpOutlineRegular,
+  Button, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { FONT_SIZE_SPECS, type FontRole } from '../theme-settings.ts'
@@ -48,7 +48,7 @@ export interface FontSizeRowExpander {
  */
 export function FontSizeRow({ t, role, setFontSize, useStore, expander }: FontSizeRowComponentProps) {
   const fontSize = useStore(s => s.fontSizes[role])
-  const { min, max } = FONT_SIZE_SPECS[role]
+  const spec = FONT_SIZE_SPECS[role]
   return (
     <div className={css.row}>
       <div className={css.rowText}>
@@ -63,7 +63,7 @@ export function FontSizeRow({ t, role, setFontSize, useStore, expander }: FontSi
               type="button"
               className={css.arrow}
               aria-label={t(`fontSize.${role}.increase`)}
-              disabled={fontSize >= max}
+              disabled={fontSize >= spec.max}
               onClick={() => { setFontSize(fontSize + 1) }}
             >
               <IconChevronUpOutlineRegular size={9} />
@@ -72,7 +72,7 @@ export function FontSizeRow({ t, role, setFontSize, useStore, expander }: FontSi
               type="button"
               className={css.arrow}
               aria-label={t(`fontSize.${role}.decrease`)}
-              disabled={fontSize <= min}
+              disabled={fontSize <= spec.min}
               onClick={() => { setFontSize(fontSize - 1) }}
             >
               <IconChevronDownOutlineRegular size={9} />
@@ -80,6 +80,11 @@ export function FontSizeRow({ t, role, setFontSize, useStore, expander }: FontSi
           </span>
         </div>
         <span className={css.unit}>{t('fontSize.unit')}</span>
+        <Button variant="ghost" size="sm" disabled={fontSize === spec.default}
+          aria-label={t('fontSize.reset', { role: t(`fontSize.${role}.title`), size: String(spec.default) })}
+          onClick={() => { setFontSize(spec.default) }}>
+          {t('fontSize.default', { size: String(spec.default) })}
+        </Button>
         {expander !== undefined && (
           <button
             type="button"

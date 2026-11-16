@@ -6,12 +6,8 @@
  * has none. The pi-ai profile records that derivation as `apiKeyEnv` only when
  * a key is entered; a blank key materializes a reference-free profile for
  * provider-native authentication);
- * the saved-provider dialog keeps connection fields above a model table.
- * Other surfaces use the collapsed 自定义设置 area for per-family extras
- * (`baseURL`, the model catalog, and the
- * display name and wire protocol of a pi-ai route the adapter does not ship —
- * the two fields the create card asked that route for, editable here for the
- * same reason).
+ * saved-provider dialogs retain the connection fields and model table, while
+ * per-family options include endpoint, retry policy, display name and protocol.
  * Reasoning effort is deliberately absent: it is a per-MODEL capability, and
  * the models under one provider disagree about it, so a provider-scoped
  * control can only be set to a value some of them reject. The composer's
@@ -42,11 +38,13 @@ import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
 import { modelReasoningOptions } from './model-reasoning.ts'
 import { validateReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import type { ReasoningEffortsFailure } from './ModelReasoningEfforts.tsx'
+import { protocolNeedsKey, protocolReasoningLevels } from './protocol-rules.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
 import type { ModelEditTarget } from './ModelsDirectory.tsx'
 import { ApiKeyInput } from './ApiKeyInput.tsx'
+import { RetryPolicyEditor, retryPolicyDefaults, retryPolicyFailure } from './RetryPolicyEditor.tsx'
 import styles from './ModelsSection.module.css'
 import connectStyles from './ProviderConnect.module.css'
 
@@ -142,11 +140,17 @@ function draftAt(
   return structuredClone(subtree) as Record<string, unknown>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * The minimal path ops carrying `after` over `before`, both as the card sees
  * them. Only keys the card observed are named; fields absent from both sides
  * produce no op, which is why edits are path-addressed rather than a rebuilt
- * section.
+ * section. Objects are diffed field by field, so an omitted field keeps the
+ * value an unset restores from the inherited layer instead of a whole-object
+ * set discarding it.
  * @param base - path of the edited subtree inside the user section.
  * @param before - the subtree as loaded, or undefined when it is new.
  * @param after - the subtree as edited.
@@ -157,13 +161,13 @@ export function pathOps(
   before: unknown,
   after: Record<string, unknown>,
 ): SettingsPathOpView[] {
-  const previous = typeof before === 'object' && before !== null && !Array.isArray(before)
-    ? before as Record<string, unknown>
-    : {}
+  const previous = isRecord(before) ? before : {}
   const ops: SettingsPathOpView[] = []
   for (const [key, value] of Object.entries(after)) {
-    if (JSON.stringify(previous[key]) === JSON.stringify(value)) continue
-    ops.push({ op: 'set', path: [...base, key], value: value as JsonValue })
+    const prior = previous[key]
+    if (JSON.stringify(prior) === JSON.stringify(value)) continue
+    if (isRecord(value) && (prior === undefined || isRecord(prior))) ops.push(...pathOps([...base, key], prior, value))
+    else ops.push({ op: 'set', path: [...base, key], value: value as JsonValue })
   }
   for (const key of Object.keys(previous)) {
     if (!(key in after)) ops.push({ op: 'unset', path: [...base, key] })
@@ -203,9 +207,22 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const { namespace, schema, settingsPath, operations, t } = props
   const [draft, setDraft] = useState<Record<string, unknown>>(() => {
     const initial = draftAt(schema, namespace, settingsPath)
-    return props.modelEdit === undefined ? initial : { ...initial, models: structuredClone(props.modelEdit.models) }
+    const loaded = props.modelEdit === undefined ? initial : { ...initial, models: structuredClone(props.modelEdit.models) }
+    const policy = loaded['retryPolicy']
+    // A stored retry policy without a mode edits under the mode it inherits;
+    // the draft names it so a saved policy always carries one.
+    if (!isRecord(policy) || policy['mode'] !== undefined) return loaded
+    const path = [...settingsPath, 'retryPolicy']
+    const node = schema.nodeAtPath(schema.rehydrate(namespace.schema), path)
+    /* v8 ignore next -- a stored retryPolicy implies the schema declares one */
+    if (node === undefined) return loaded
+    const { mode } = retryPolicyDefaults(schema, node, schema.getPath(namespace.base, path))
+    return { ...loaded, retryPolicy: { ...policy, mode } }
   })
-  const [keyDraft, setKeyDraft] = useState('')
+  // Undefined is untouched; strings hold new input and a reference stages removal.
+  const [keyDraft, setKeyDraft] = useState<string | { readonly ref: string; readonly removed?: true }>()
+  const keyText = typeof keyDraft === 'string' ? keyDraft : ''
+  const keyRemoval = typeof keyDraft === 'object' ? keyDraft : undefined
   const [busy, setBusy] = useState(false)
   const [listBusy, setListBusy] = useState(false)
   const { onBusyChange } = props
@@ -247,34 +264,56 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       ? schema.deletePath(current, [key])
       : schema.setPath(current, [key], value))
   }
+  const clearsDerivedRef = keyRemoval !== undefined && layout === 'pi-ai'
+    && props.nativeAuth !== undefined && stringAt(draft, 'apiKeyEnv') === deriveKeyRef(props.provider)
 
   // The model list is validated by the same per-row checker for both families,
   // so a bad row is named by its position rather than by a blanket message.
   // Only a hand-declared pi-ai route's rows edit reasoning levels — the one
   // model list with no installed catalog behind it — so only there are the
   // levels read and the declarations checked.
-  const reasoningLevels = useMemo(
+  const schemaReasoningLevels = useMemo(
     () => layout === 'pi-ai' && props.declared === true ? reasoningLevelChoices(namespace, schema) : [],
     [layout, props.declared, namespace, schema],
   )
-  const editsReasoning = reasoningLevels.length > 0
+  // What the form currently shows, which is what an interrogation must ask and
+  // what decides the protocol's own constraints: an edited-but-unsaved protocol.
+  const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
+  const reasoning = protocolReasoningLevels(probeApi, schemaReasoningLevels)
+  const editsReasoning = reasoning.levels.length > 0
   const validateModels = (value: unknown): DeepSeekModelsValidationFailure | ReasoningEffortsFailure | undefined =>
-    validateDeepSeekModels(value) ?? (editsReasoning ? validateReasoningEfforts(value) : undefined)
-  const modelFailure = validateModels(schema.getPath(draft, ['models']))
-  const keyFailure = apiKeyFailure(keyDraft)
+    validateDeepSeekModels(value)
+    ?? (editsReasoning ? validateReasoningEfforts(value, reasoning.levelsOnly ? reasoning.levels : undefined) : undefined)
+  // Inherited models are checked too where the protocol narrows their levels:
+  // switching an inherited route's protocol must not write a route its own models break.
+  const modelFailure = validateModels(schema.getPath(draft, ['models'])
+    ?? (reasoning.levelsOnly ? schema.getPath(fallback, ['models']) : undefined))
+  const retryNode = useMemo(
+    () => layout === 'unknown' ? undefined : schema.nodeAtPath(root, [...settingsPath, 'retryPolicy']),
+    [layout, root, schema, settingsPath],
+  )
+  const retryDefaults = retryNode === undefined
+    ? undefined
+    : retryPolicyDefaults(schema, retryNode, schema.getPath(namespace.base, [...settingsPath, 'retryPolicy']))
+  const retryFailure = retryNode === undefined || retryDefaults === undefined || props.credentialOnly === true
+    ? undefined
+    : retryPolicyFailure(schema, retryNode, schema.getPath(draft, ['retryPolicy']), retryDefaults, t)
+  const keyFailure = apiKeyFailure(keyText)
   // What a probe or a write must carry: the typed key with paste whitespace
   // removed. A blank field yields an empty string, which both call sites read
   // as "no key supplied" rather than as a key — that is how a card whose
   // provider already has a stored key is edited without re-entering it.
-  const keyValue = keyDraft.trim()
-  const credentialRequiredFailure = props.credentialRequired === true
-    && keyDraft.length > 0 && keyValue.length === 0
+  const keyValue = keyText.trim()
+  // A route whose protocol cannot authenticate without a key needs a key reference or a typed key.
+  const protocolNeedsKeyHere = layout === 'pi-ai' && protocolNeedsKey(probeApi)
+    && stringAt(draft, 'apiKeyEnv') === undefined && stringAt(fallback, 'apiKeyEnv') === undefined
+  const protocolKeyMissing = protocolNeedsKeyHere && keyValue.length === 0
+  const credentialRequiredFailure = (props.credentialRequired === true
+    && keyText.length > 0 && keyValue.length === 0) || protocolKeyMissing
     ? 'keyRequired' as const
     : undefined
   const shownKeyFailure = credentialRequiredFailure ?? keyFailure
-  // What the form currently shows, which is what an interrogation must ask:
-  // an edited-but-unsaved endpoint, and a key typed but not yet stored.
-  const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
+  // An edited-but-unsaved endpoint, and a key typed but not yet stored.
   const probeBaseURL = stringAt(draft, 'baseURL') ?? stringAt(fallback, 'baseURL')
   const probe = {
     settingsNs: namespace.ns,
@@ -293,12 +332,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
    */
   const applyOnce = async (): Promise<string | undefined> => {
     const ns = namespace.ns
+    // Removing a catalog route's conventional reference restores native auth.
+    // Other aliases and custom routes keep their named environment fallback.
+    const profileDraft = clearsDerivedRef ? schema.deletePath(draft, ['apiKeyEnv']) : draft
     // A pi-ai profile names the conventional reference only when this page is
     // about to store a key. Otherwise the provider keeps its native auth path.
-    const next = layout === 'pi-ai' && stringAt(draft, 'apiKeyEnv') === undefined
-      && stringAt(fallback, 'apiKeyEnv') === undefined && keyValue.length > 0
-      ? schema.setPath(draft, ['apiKeyEnv'], keyRef)
-      : draft
+    const next = layout === 'pi-ai' && stringAt(profileDraft, 'apiKeyEnv') === undefined
+      && stringAt(schema.getPath(namespace.base, settingsPath), 'apiKeyEnv') === undefined && keyValue.length > 0
+      ? schema.setPath(profileDraft, ['apiKeyEnv'], keyRef)
+      : profileDraft
     if (props.credentialOnly !== true) {
       // The same checker gates the submit button, so a card cannot reach this
       // with a bad row; it stays because the schema check below would refuse
@@ -324,6 +366,12 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       : materializesNativeProfile
         ? [{ op: 'set', path: [...settingsPath], value: {} }]
         : pathOps(settingsPath, committedOriginal, next)
+    if (keyRemoval !== undefined && keyRemoval.removed !== true) {
+      const removed = await operations.removeCredential(keyRemoval.ref)
+      if (removed !== undefined) return removed
+      // A later settings failure cannot restore a secret that was deleted.
+      setKeyDraft({ ...keyRemoval, removed: true })
+    }
     if (ops.length > 0) {
       const written = await operations.writeSettings(ns, ops, expectedRevision)
       if (written.kind !== 'written') return written.kind === 'conflict' ? t('conflict') : written.message
@@ -396,7 +444,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     // A named reference is the only credential the adapter reads for this
     // route. Without one, a catalog route authenticates the way the directory
     // reports, and a declared route sends no key at all.
-    const namedRef = stringAt(fallback, 'apiKeyEnv')
+    const namedRef = clearsDerivedRef
+      ? stringAt(schema.getPath(namespace.base, settingsPath), 'apiKeyEnv')
+      : stringAt(fallback, 'apiKeyEnv')
     const nativeAuth = namedRef === undefined ? props.nativeAuth : undefined
     // Display method-neutral references without changing the adapter's lookup.
     const authRefs = namedRef === undefined
@@ -410,12 +460,19 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const detectedRef = detected?.[0]
     const detectedVisibleRef = detectedRef === undefined || !visibleRefs.includes(detectedRef) ? undefined : detectedRef
     const missingRefs = checkedRefs.length > 0 && checkedRefs.every(([, info]) => info?.configured === false)
-    const savedCredential = detected?.[1]?.source === 'file'
-    const credentialHint = keyDraft.length > 0 || savedCredential || keyHint === undefined || props.credentialRequired === true
+    const savedCredential = detected?.[1]?.source === 'file' && detectedVisibleRef !== undefined
+    const credentialHint = props.credentialRequired === true
       ? undefined
-      : t(detectedRef === undefined ? missingRefs ? 'keyFallbackMissing' : 'keyFallbackUnchecked'
-        : detectedVisibleRef === undefined ? 'keyFallbackDetectedHidden' : 'keyFallbackDetected')
-        .replace('{hint}', () => detectedVisibleRef ?? keyHint)
+      : keyText.length > 0 ? savedCredential ? t('keyReplacePending') : undefined
+        : keyRemoval !== undefined ? keyRemoval.removed === true ? t('keyRemoveApplied')
+          : keyHint === undefined ? t('keyRemovePending')
+            : t('keyRemovePendingEnvironment').replace('{hint}', () => keyHint)
+          : keyHint === undefined ? undefined
+            : savedCredential
+              ? t('keySaved')
+              : t(detectedRef === undefined ? missingRefs ? 'keyFallbackMissing' : 'keyFallbackUnchecked'
+                : detectedVisibleRef === undefined ? 'keyFallbackDetectedHidden' : 'keyFallbackDetected')
+                .replace('{hint}', () => detectedVisibleRef ?? keyHint)
     const keyHelp = visibleRefs.length === 0
       ? undefined
       : t('keyHelp').replace('{env}', () => visibleRefs.join(' / '))
@@ -426,7 +483,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const keylessNativeAuth = nativeAuth?.env.length === 0 && nativeAuth.oauth
     const keyPlaceholder = props.connecting === true ? t('providerKeyPlaceholder') : keyHint === undefined || props.credentialRequired === true
       ? t('keyPlaceholder')
-      : t(savedCredential ? 'keyPlaceholderSaved' : 'keyPlaceholderFallback').replace('{hint}', () => keyHint)
+      : t('keyPlaceholderFallback').replace('{hint}', () => keyHint)
     /** What both family editors take: the rows, whose layer owns them, and the two writes. */
     const catalogProps = {
       models,
@@ -461,10 +518,11 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             {...catalogProps}
             catalogModels={props.catalogModels}
             catalogProvider={props.declared === true ? undefined : props.provider}
-            reasoningLevels={reasoningLevels}
+            reasoningLevels={reasoning.levels}
+            reasoningLevelsOnly={reasoning.levelsOnly}
             defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
             probe={probe}
-            probeBlocked={keyFailure}
+            probeBlocked={keyRemoval !== undefined ? 'keyRemovePending' : shownKeyFailure}
             operations={operations}
             onBusyChange={setListBusy}
           />
@@ -475,21 +533,33 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       <ApiKeyInput
         icon={props.connecting === true || props.providerDialog === true ? <ProviderFieldIcon kind="key" /> : undefined}
         t={t}
-        value={keyDraft}
+        value={keyText}
+        {...keyDraft === undefined && savedCredential ? {
+          saved: {
+            masked: detected[1].masked ?? '',
+            ...detected[1].writable
+              ? { clear: () => { setKeyDraft({ ref: detected[0] }); setFailure(undefined) } } : {},
+          },
+        } : {}}
         placeholder={keyPlaceholder}
         aria-label={t('keyInput')}
-        aria-invalid={shownKeyFailure !== undefined}
-        required={props.credentialRequired === true}
+        aria-invalid={shownKeyFailure !== undefined && !protocolKeyMissing}
+        required={props.credentialRequired === true || protocolNeedsKeyHere}
         autoFocus={props.autoFocusCredential === true}
         aria-describedby={credentialHint === undefined ? undefined : `${props.provider}-credential-hint`}
-        disabled={disabled}
-        onChange={(event) => { setKeyDraft(event.target.value) }}
+        disabled={disabled || keyRemoval?.removed === true}
+        onChange={(event) => {
+          setKeyDraft(event.target.value === '' && savedCredential
+            ? detected[1].writable ? { ref: detected[0] } : undefined
+            : event.target.value)
+          setFailure(undefined)
+        }}
       />
       {credentialHint === undefined ? null : <p id={`${props.provider}-credential-hint`}
         className={props.connecting === true ? connectStyles['help'] : styles[missingRefs ? 'notice' : 'advancedHint']}>
         {props.connecting === true && <IconInfoOutlineRegular size={16} />}
         {props.connecting === true ? t(detectedRef === undefined ? missingRefs ? 'providerKeyMissing' : 'providerKeyGuidance' : 'providerKeyDetected') : credentialHint}</p>}
-      {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+      {shownKeyFailure === undefined ? null : <p className={styles[protocolKeyMissing ? 'advancedHint' : 'error']}>{t(shownKeyFailure)}</p>}
     </section>
     const endpointAttributes = {
       type: 'text',
@@ -564,6 +634,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 : null}
               {props.providerDialog === true ? null : endpointField}
               {props.connecting === true || props.providerDialog === true ? null : catalogEditor}
+              {retryDefaults === undefined ? null : <RetryPolicyEditor
+                policy={schema.getPath(draft, ['retryPolicy'])} defaults={retryDefaults}
+                failure={retryFailure} failureId={`${props.provider}-retry-failure`}
+                showFailure={customizedOpen} t={t} disabled={disabled}
+                onChange={(next) => {
+                  setDraft(current => next === undefined
+                    ? schema.deletePath(current, ['retryPolicy'])
+                    : schema.setPath(current, ['retryPolicy'], next))
+                }} />}
             </div>
           </AnimatedDisclosure>
         </section>}
@@ -589,6 +668,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           ? <p className={styles['advancedHint']}>{`${t('advancedHint')} (${namespace.ns})`}</p>
           : curatedFields(layout)}
         {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
+        {retryFailure === undefined || customizedOpen ? null
+          : <p id={`${props.provider}-retry-failure`} className={styles['error']}>{retryFailure.message}</p>}
         {props.credentialOnly === true || modelFailure === undefined
           ? null
           : (
@@ -606,11 +687,12 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         busy={busy}
         submitDisabled={disabled || layout === 'unknown'
           || (props.credentialOnly !== true && modelFailure !== undefined)
+          || retryFailure !== undefined
           || shownKeyFailure !== undefined
           || (props.credentialRequired === true && keyValue.length === 0)}
         submitLabelKey={props.submitLabelKey ?? 'apply'}
         submitBusyLabelKey={props.submitBusyLabelKey ?? 'applying'}
-        {...props.cancelLabelKey === undefined ? {} : { cancelLabelKey: props.cancelLabelKey }}
+        cancelLabelKey={keyRemoval?.removed === true ? 'close' : props.cancelLabelKey ?? 'cancel'}
         onCancel={() => { props.onClose(false) }}
         onSubmit={() => { props.onSubmitCredential?.(); void apply() }}
       />

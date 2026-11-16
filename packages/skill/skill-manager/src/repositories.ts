@@ -1,7 +1,7 @@
 /** Public repository downloads and bounded archive decoding; downloaded scripts are never executed. */
 import { unzipSync } from 'fflate'
 import { z } from 'zod'
-import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem'
+import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem/document'
 import { containedPath, ManagementError } from './files.ts'
 import { readDownload } from './download.ts'
 import type { RepositorySkill } from './types.ts'

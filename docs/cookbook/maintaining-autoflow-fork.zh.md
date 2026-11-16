@@ -73,6 +73,8 @@ AFP 是独立的自定义插件，其源码、描述和 profile 选择仍由该�
 
 保持 [AutoFlow main CI](../../.github/workflows/autoflow-ci.yml) 使用托管 runner，保留完整 fork 构建、本地样式断言及 Linux 无密钥回放；不能为满足检查器而把受保护视觉恢复为官方默认值。官方迁移组件时，审阅本地精确选择器/声明清单。Windows 配置检查只跟随 Git 声明的链接文本，拒绝越界和循环目标。报告远程验证前，核对已推送提交的工作流结果。
 
+rc.3 同步时，MCP profile 编辑使用独立的 `/settings` 插件入口；官方动态服务使用默认入口。插件清单分别维护 registry/Git 更新资格与独立 Release 进度。菜单定位使用新 anchorPoint/CSS anchor 接口；字体默认值由 `FONT_SIZE_SPECS` 唯一管理，各角色可独立恢复默认。
+
 <a id="3-resolve-changes-by-behavior"></a>
 
 ## 3. 按行为解决改动

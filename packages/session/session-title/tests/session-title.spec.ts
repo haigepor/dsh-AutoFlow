@@ -1,3 +1,4 @@
+import { sessionTitleInputText } from '../src/normalize.ts'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { Context } from '@deepseek-ai/cordis'
@@ -10,7 +11,6 @@ import SessionTitleService, {
   fallbackSessionTitle,
   foldSessionTitle,
   normalizeSessionTitle,
-  sessionTitleInputText,
   truncateTitleUtf8,
 } from '@deepseek-ai/dsh-session-title'
 

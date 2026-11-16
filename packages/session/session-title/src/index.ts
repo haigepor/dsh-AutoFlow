@@ -27,7 +27,6 @@ export type {
   SessionTitleUserMessage,
   TitleProjection,
 } from './types.ts'
-export { sessionTitleInputText } from './normalize.ts'
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 import type {
   SessionTitleEventData,

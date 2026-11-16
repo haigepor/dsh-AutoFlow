@@ -496,9 +496,9 @@ it.skipIf(MODE === 'record').each([1, 2])('keeps frozen headings without divider
     }
     await layout.evaluate(node => node.parentNode!.removeChild(node))
     await expectExcelLayout(excel)
-    expect(await canvas!.evaluate(node => node.isConnected)).toBe(true)
+    expect(await canvas.evaluate(node => node.isConnected)).toBe(true)
     expect(await excel.locator('.fortune-name-box').innerText()).toBe(selection)
-    await canvas!.dispose()
+    await canvas.dispose()
     expect(consoleErrors.pageErrors).toEqual([])
   } finally {
     try { await browser?.close() } finally { await scaffold.close() }
@@ -1613,10 +1613,10 @@ else process.exit(1);
 
     const rendered = await heading.elementHandle()
     await preview.locator('[data-textpreview-tool="reload"]').click()
-    await expect.poll(() => rendered!.evaluate(node => node.isConnected)).toBe(false)
+    await expect.poll(() => rendered.evaluate(node => node.isConnected)).toBe(false)
     await expect.poll(() => heading.textContent()).toBe('After  refresh')
     await expect.poll(() => body.evaluate((node, top) => Math.abs(node.scrollTop - top), original)).toBeLessThanOrEqual(1)
-    await rendered!.dispose()
+    await rendered.dispose()
     expect(tripwire.pageErrors).toEqual([])
   })
 })
@@ -1661,8 +1661,8 @@ describe.skipIf(MODE === 'record')('web e2e: Host Office preview', () => {
       ...['doc', 'ppt'].map(extension => writeFile(join(cwd, `renamed.${extension}`), 'Plain text is not a binary Office document.')),
     ])
     const releaseConversion = Promise.withResolvers<undefined>()
-    const convertOffice = scaffold.ctx.officeToPdf.convert.bind(scaffold.ctx.officeToPdf)
-    const convert = vi.spyOn(scaffold.ctx.officeToPdf, 'convert').mockImplementationOnce(async (...args) => {
+    const convertOffice = scaffold.ctx.officeKit.convert.bind(scaffold.ctx.officeKit)
+    const convert = vi.spyOn(scaffold.ctx.officeKit, 'convert').mockImplementationOnce(async (...args) => {
       await releaseConversion.promise
       return convertOffice(...args)
     })
@@ -1682,7 +1682,7 @@ describe.skipIf(MODE === 'record')('web e2e: Host Office preview', () => {
         await successShot(page, `office-loading-${colorScheme}`)
       }
       const pdfResponse = page.waitForResponse(
-        response => new URL(response.url()).pathname === '/api/officeToPdf/render',
+        response => new URL(response.url()).pathname === '/api/officeKit/render',
         { timeout: 60_000 },
       )
       releaseConversion.resolve(undefined)

@@ -1,0 +1,8 @@
+{
+  "id": "autoflow-rc3-channels",
+  "category": "features",
+  "text": {
+    "en": "Switch between stable and development Desktop updates in Settings while retaining resumable downloads and installation confirmation.",
+    "zh-CN": "支持在设置中切换桌面正式版与开发版更新渠道，保留断点续传和安装前确认。"
+  }
+}

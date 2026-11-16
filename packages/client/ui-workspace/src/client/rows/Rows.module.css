@@ -420,7 +420,7 @@
   bottom: -7px;
 }
 
-/* Hover-card body (figma 169:16903): dark surface, fixed colors both themes. */
+/* Hover-card body (figma 169:16903): dark surface in both themes. */
 .hoverContent {
   display: flex;
   flex-direction: column;

@@ -20,7 +20,7 @@ import {
   IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular, IconDownloadOutlineRegular,
   IconWarningOutlineRegular, IconEditOutlineRegular, Input, Menu, MenuItemButton, Modal, pointerModality,
   PluginArtworkDefault, PluginArtworkLoop, PluginArtworkSearch, PluginArtworkSubagent, PluginArtworkTerminal,
-  SegmentedTabs, StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer,
+  SegmentedTabs, StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useDismissOnOutsidePointer,
   type IconProps, type StateDotState, type TerminalBlockLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -427,10 +427,28 @@ function EnableSwitch({ pkg, title, t, busy, target, onSetEnabled }: {
   )
 }
 
-/** The status one card carries: running, off, or a problem the Host reported. */
-function packageStatus(pkg: PackageView): 'running' | 'disabled' | 'problem' {
+/** The status one card carries: running, off, not running because the Host skipped a selected bundle's layer, or another problem. */
+type PackageStatus = 'running' | 'disabled' | 'not-running' | 'problem'
+
+/** The tag each status shows beside the title on a card and on its page; running and off show none. */
+const STATUS_TAG_KEYS = {
+  'running': undefined,
+  'disabled': undefined,
+  'not-running': 'statusNotRunning',
+  'problem': 'statusProblem',
+} satisfies Record<PackageStatus, PluginManagerLocaleKey | undefined>
+
+/** A selected bundle the Host reports an error for is not running when none of its rows has a live entry. */
+function packageStatus(pkg: PackageView): PackageStatus {
+  if (pkg.enabled && pkg.error !== undefined && pkg.rows.every(row => row.entryId === undefined)) return 'not-running'
   if (pkg.error !== undefined || (pkg.enabled && pkg.rows.some(row => row.phase === 'failed'))) return 'problem'
   return pkg.enabled ? 'running' : 'disabled'
+}
+
+/** The danger tag a status carries. */
+function StatusTag({ status, t }: { readonly status: PackageStatus; readonly t: Translate }): ReactNode {
+  const key = STATUS_TAG_KEYS[status]
+  return key === undefined ? null : <Tag className={css.statusTag} tone="danger">{t(key)}</Tag>
 }
 
 /** The head every card shares: the artwork, the name that opens the page beside its tags, its one-liner, and what sits at the end. */
@@ -544,9 +562,9 @@ function versionUpdate(check: VersionCheck | undefined): string | undefined {
   return check?.phase === 'done' ? updateCandidate(check.list)?.version : undefined
 }
 
-/** The list toolbar's sentence about the last update check of every updatable package. */
+/** The list toolbar's sentence about the last update check of every registry package. */
 function updatesNote(packages: readonly PackageView[], versions: PluginManagerState['versions'], t: Translate): { text: string; tone?: 'info' | 'error' } | undefined {
-  const checks = packages.filter(pkg => pkg.updatable).map(pkg => versions[pkg.name])
+  const checks = packages.filter(pkg => pkg.updateKind === 'registry').map(pkg => versions[pkg.name])
   if (checks.length === 0 || checks.some(check => check === undefined || check.phase === 'checking')) return undefined
   const available = checks.filter(check => versionUpdate(check) !== undefined).length
   if (available > 0) return { text: t('updatesAvailable', { count: String(available) }), tone: 'info' }
@@ -594,7 +612,7 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
         tags={(
           <>
             {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
-            {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
+            <StatusTag status={status} t={t} />
             {pkg.update?.restartRequired === true
               ? <Button variant="ghost" size="sm" className={css.updateBadge} onClick={onRestart}>
                 <Tag tone="info">{t('updatesPending')}</Tag>
@@ -620,7 +638,10 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
           target={target} onSetEnabled={onSetEnabled} />}
       />
       <MetadataError error={pkg.meta?.error} t={t} />
-      {pkg.error?.code === 'unsupported-platform' && <p className={css.reason} role="status">{managementText(pkg.error, t)}</p>}
+      {/* The card names an incompatibility without its requirement list; the page lists them. */}
+      {pkg.error !== undefined && (status === 'not-running' || pkg.error.code === 'unsupported-platform')
+        ? <p className={css.reason} role="status">{managementText({ ...pkg.error, incompatible: [] }, t)}</p>
+        : null}
     </li>
   )
 }
@@ -1030,7 +1051,7 @@ function PackageDetail({
                 onClick={() => { setDetailsOpen(true) }} />
             </Tooltip>
             {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
-            {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
+            <StatusTag status={status} t={t} />
             {renderSlot('plugins.detail.badge', { subject })}
           </div>
           <div className={css.detailActions}>
@@ -1139,7 +1160,7 @@ function PackageDetail({
           onSetEnabled={(name, enabled) => {
             if (name === pkg.name) onSetEnabled(enabled)
             else onSetCompanionEnabled?.(enabled)
-          }} /> : pkg.availability === 'missing' ? null : <RowsSection
+          }} /> : pkg.availability === 'missing' || (pkg.error !== undefined && pkg.rows.length === 0) ? null : <RowsSection
           rows={pkg.rows}
           t={t}
           resolveText={resolveText}
@@ -1427,13 +1448,10 @@ function InstallDialog({
   const registryShown = install.registryOpen && phase === 'idle'
   const specComposition = useInstallComposition(install.open && phase === 'idle')
   const registryComposition = useInstallComposition(install.open && registryShown)
-  const registryPosition = useAnchoredPosition({
-    open: registryShown, anchorRef: registryToggleRef, panelRef: registryPanelRef, align: 'end', gap: 6, margin: 12,
-  })
-  const registryReady = registryShown && registryPosition !== null
+  const registryAnchorName = `--dsh-registry-${registryId.replaceAll(':', '')}`
   useEffect(() => {
-    if (registryReady && install.registryError) registryCustomRef.current?.focus()
-  }, [registryReady, install.registryError])
+    if (registryShown && install.registryError) registryCustomRef.current?.focus()
+  }, [registryShown, install.registryError])
   // The hook only ever asks to close.
   useDismissOnOutsidePointer(registryToggleRef, registryShown, onToggleRegistry, registryPanelRef)
   useEffect(() => {
@@ -1550,6 +1568,7 @@ function InstallDialog({
             </>}
             <button
               ref={registryToggleRef}
+              style={{ anchorName: registryAnchorName }}
               type="button"
               className={css.registryToggle}
               aria-expanded={install.registryOpen}
@@ -1641,7 +1660,7 @@ function InstallDialog({
                 ref={registryPanelRef}
                 id={registryId}
                 className={css.registry}
-                style={registryPosition ?? { visibility: 'hidden', left: 0, top: 0 }}
+                style={{ positionAnchor: registryAnchorName }}
                 data-install-registry
                 aria-label={t('registryLegend')}
                 onKeyDown={(event) => {
@@ -2177,6 +2196,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             <div role="tabpanel" id={`${tabsId}-${tab}-panel`} aria-labelledby={`${tabsId}-${tab}`} className={css.tabPanel}>
               {renderSlot('plugins.tab', {
                 install: props.installFrom,
+                update: props.openGitUpdate,
                 openPackage: (name) => { setTab(INSTALLED_TAB); setView({ kind: 'package', name, returnTab: tab }) },
               }, { only: tab })}
             </div>

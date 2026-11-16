@@ -83,9 +83,9 @@ export function verifyMacOSSignature(appPath: string, expected: MacOSSigningEnvi
 /**
  * Verify an independently distributed application's signature, ticket, and Gatekeeper acceptance.
  * @param appPath - Path to the stapled `.app` directory.
- * @param expected - Public release identity.
+ * @param expected - Release identity, or certificate-free Desktop mode retaining the notarized helper identity.
  */
-export function verifyMacOSNotarizedApplication(appPath: string, expected: MacOSSigningEnvironment): void
+export function verifyMacOSNotarizedApplication(appPath: string, expected: MacOSSigningEnvironment | 'ad-hoc'): void
 
 /**
  * Verify the release identity, stapled ticket, and Gatekeeper acceptance of one disk image.

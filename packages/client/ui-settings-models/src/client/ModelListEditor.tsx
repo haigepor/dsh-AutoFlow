@@ -95,6 +95,8 @@ export interface ModelListEditorProps {
    * reasoning control, leaving a catalog model's levels to the catalog.
    */
   reasoningLevels?: readonly string[] | undefined
+  /** Whether the route's protocol accepts only {@link reasoningLevels}, each sent under its own name. */
+  reasoningLevelsOnly?: boolean | undefined
   /** Route input types for models absent from the installed catalog. */
   defaultInput?: readonly string[] | undefined
   /** Whether the user layer currently owns the whole array; absent on a create. */
@@ -151,8 +153,9 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
-/** New custom pi-ai models start with the four shared efforts and High default. */
-function newModel(id: string): ModelDraft {
+/** Restricted protocols inherit their own reasoning defaults; other custom models retain the shared efforts. */
+function newModel(id: string, levelsOnly: boolean): ModelDraft {
+  if (levelsOnly) return { id }
   return {
     id,
     reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
@@ -161,9 +164,9 @@ function newModel(id: string): ModelDraft {
 }
 
 /** Adopt a candidate, preserving disclosed capacities and input types. */
-function adopt(candidate: LlmDiscoveredModel): ModelDraft {
+function adopt(candidate: LlmDiscoveredModel, levelsOnly: boolean): ModelDraft {
   return {
-    ...newModel(candidate.id),
+    ...newModel(candidate.id, levelsOnly),
     ...candidate.name === undefined ? {} : { name: candidate.name },
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
@@ -294,7 +297,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const keptIds = new Set(keptRows.map(model => textOf(model, 'id')))
   const addedRows = activeCandidates
     .filter(candidate => isPicked(candidate.id) && !keptIds.has(candidate.id))
-    .map(adopt)
+    .map(candidate => adopt(candidate, props.reasoningLevelsOnly === true))
   // An empty list serves the whole catalog, so emptying a non-empty list
   // would restore every model instead of removing the unchecked ones.
   const emptiesList = models.length > 0 && keptRows.length === 0 && addedRows.length === 0
@@ -353,6 +356,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       }}
       reasoningInherited={catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoning}
       reasoningLevels={props.reasoningLevels}
+      reasoningLevelsOnly={props.reasoningLevelsOnly}
       expanded={props.onlyIndex !== undefined || expanded}
       single={props.onlyIndex !== undefined}
       disabled={disabled}
@@ -383,7 +387,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   // draft with neither has nothing to ask about.
   const addAction = props.onlyIndex === undefined ? <AddModelButton
     connecting={props.connecting === true} disabled={disabled} t={t}
-    onAdd={() => { rowState.append(newModel(''), props.connecting === true) }} /> : null
+    onAdd={() => { rowState.append(newModel('', props.reasoningLevelsOnly === true), props.connecting === true) }} /> : null
 
   const askable = probe.provider !== undefined || (probe.baseURL !== undefined && probe.baseURL.length > 0)
   const catalogActions = <>

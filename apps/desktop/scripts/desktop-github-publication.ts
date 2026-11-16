@@ -76,6 +76,7 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
   const unsigned = options.environment.DSH_DESKTOP_UNSIGNED_UPDATES === '1'
   const signing = unsigned ? 'unsigned' : 'signed'
   if (record.schemaVersion !== 1 || record.target !== target || record.provider !== 'github'
+    || (record.channel ?? 'nightly') !== update.channel
     || record.repository !== update.repository || record.publicUrl !== update.publicUrl || record.pagesUrl !== update.pagesUrl
     || record.signing !== signing || typeof record.commit !== 'string'
     || !/^[0-9a-f]{40}$/u.test(record.commit) || typeof record.dirty !== 'boolean') {
@@ -84,7 +85,7 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
   const tag = `desktop-v${version}${unsigned ? `${target === 'win-x64' ? '' : `-${target}`}-unsigned` : ''}`
   const notes = parseDesktopReleaseNotes(await (options.readReleaseNotes ?? readCommittedReleaseNotes)(record.commit, version), version)
   const releaseNotes = `${releaseNotesMarkdown(notes, 'zh-CN')}\n\n---\n\n${releaseNotesMarkdown(notes, 'en')}`
-  const feedName = desktopUpdateMetadataFilename(version, platform)
+  const feedName = desktopUpdateMetadataFilename(version, platform, update.channel)
   const feed = object(load(await readFile(join(options.artifactsRoot, feedName), 'utf8')), 'update metadata')
   if (feed.version !== version || !Array.isArray(feed.files) || feed.files.length !== 1) throw new Error('desktop GitHub publication: invalid feed version or files')
   const file = object(feed.files[0], 'update file')
@@ -106,13 +107,14 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
     assets.push({ path, name, size: details.size, sha256: (await hashes(path)).sha256 })
   }
   const previous = options.previousPolicy === undefined ? undefined : parseDesktopStaticUpdatePolicy(options.previousPolicy)
+  if (previous !== undefined && previous.channel !== update.channel) throw new Error('desktop GitHub publication: preceding policy belongs to another channel')
   const old = previous?.targets[target]
   if (old !== undefined && gt(old.latestVersion, version)) throw new Error('desktop GitHub publication: refusing a feed downgrade')
   const minimum = options.minimumSupportedVersion ?? old?.minimumSupportedVersion ?? (unsigned ? '0.0.0' : version)
   if (old !== undefined && gt(old.minimumSupportedVersion, minimum)) {
     throw new Error('desktop GitHub publication: refusing to lower the minimum supported version')
   }
-  const policy = parseDesktopStaticUpdatePolicy({ schemaVersion: 1, channel: 'nightly', targets: {
+  const policy = parseDesktopStaticUpdatePolicy({ schemaVersion: 1, channel: update.channel, targets: {
     ...previous?.targets, [target]: { ...old, latestVersion: version, minimumSupportedVersion: minimum,
       downloadPage: `https://github.com/${update.repository}/releases/tag/${tag}` } } })
   const payloadUrl = `https://github.com/${update.repository}/releases/download/${tag}/${encodeURIComponent(payloadName)}`

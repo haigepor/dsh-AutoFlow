@@ -14,11 +14,12 @@ const access = vi.hoisted(() => ({
 vi.mock('node:module', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:module')>()
   return {
+    // oxlint-disable-next-line typescript/no-misused-spread -- Node's module namespace exposes the named static exports this mock replaces.
     ...actual,
     createRequire: (filename: Parameters<typeof createRequire>[0]) => {
       const require = actual.createRequire(filename)
       return new Proxy(require, {
-        apply(target, thisArg, args: [string]) {
+        apply(target, thisArg, args: [string]): unknown {
           const [id] = args
           if (id === 'node-addon-require-builtin') {
             access.addon()

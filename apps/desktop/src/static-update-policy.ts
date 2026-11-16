@@ -13,10 +13,10 @@ export interface DesktopStaticPolicyTarget {
   readonly detail?: string
 }
 
-/** Public Nightly policy; absent targets never authorize an installed target. */
+/** Public channel policy; absent targets never authorize an installed target. */
 export interface DesktopStaticUpdatePolicy {
   readonly schemaVersion: 1
-  readonly channel: 'nightly'
+  readonly channel: 'nightly' | 'stable'
   readonly targets: Partial<Record<DesktopPolicyTarget, DesktopStaticPolicyTarget>>
 }
 
@@ -39,7 +39,7 @@ function version(value: unknown): string {
  */
 export function parseDesktopStaticUpdatePolicy(input: unknown): DesktopStaticUpdatePolicy {
   const root = object(input)
-  if (root.schemaVersion !== 1 || root.channel !== 'nightly') throw new Error('desktop static policy: unsupported schema or channel')
+  if (root.schemaVersion !== 1 || (root.channel !== 'nightly' && root.channel !== 'stable')) throw new Error('desktop static policy: unsupported schema or channel')
   const entries = Object.entries(object(root.targets))
   if (entries.length === 0) throw new Error('desktop static policy: targets must not be empty')
   const targets: DesktopStaticUpdatePolicy['targets'] = {}
@@ -62,5 +62,14 @@ export function parseDesktopStaticUpdatePolicy(input: unknown): DesktopStaticUpd
       ...(typeof target.title === 'string' ? { title: target.title } : {}),
       ...(typeof target.detail === 'string' ? { detail: target.detail } : {}) }
   }
-  return { schemaVersion: 1, channel: 'nightly', targets }
+  return { schemaVersion: 1, channel: root.channel, targets }
+}
+
+/**
+ * Name a channel's public policy without replacing the legacy development policy.
+ * @param channel - Selected distribution channel.
+ * @returns File in the configured Pages policy directory.
+ */
+export function desktopStaticPolicyFilename(channel: DesktopStaticUpdatePolicy['channel']): string {
+  return channel === 'nightly' ? 'policy.json' : 'policy-stable.json'
 }

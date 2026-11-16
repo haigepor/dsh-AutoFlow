@@ -4,7 +4,7 @@
   "description": "AutoFlow startup animation with the DeepSeek cyberpunk clip and initial-data readiness",
   "type": "module",
   "engines": {
-    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1"
+    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3"
   },
   "license": "BSD-3-Clause",
   "icon": "./assets/plugin-logo-v2.webp",
