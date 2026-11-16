@@ -24,9 +24,9 @@ const imageOptions = { settings: wallpaperSettingsSchema.parse({}), models: [{ i
 const ui = { ...primitives, ...Object.fromEntries(['IconPlusOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular', 'IconChevronDownOutlineRegular', 'IconRefreshOutlineRegular', 'IconBrowseOutlineRegular', 'IconTrashOutlineRegular', 'IconSearchOutlineRegular', 'IconPinOutlineRegular', 'IconInfoOutlineRegular', 'IconCloseOutlineRegular'].map(name => [name, () => React.createElement('span', { 'aria-hidden': true })])) }
 
 test('image catalogs preload, survive dialog reopening and ignore late replies after switching sources', async () => {
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = [], codex = Promise.withResolvers(), api = Promise.withResolvers()
   const configuration = { ...imageConfig, revision: 'first-config', visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
   const actions = { directScope: () => 'catalog-prefetch', pickLocalReferences: async () => ({ files: [{ path: 'C:/isolated/source.png', name: 'source.png', size: 1024, readable: true }] }), directCrop: async (operation, args, signal) => {
@@ -77,9 +77,9 @@ test('image catalogs preload, survive dialog reopening and ignore late replies a
 })
 
 test('direct import requires no collection, retains selection after failure and reuses the same request identity', async () => {
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
   const accepted = Promise.withResolvers()
   let fail = true, pendingGallery, pickedCalls = 0
@@ -124,7 +124,7 @@ test('direct import requires no collection, retains selection after failure and 
     await act(async () => button(zh.directCropStart).click())
     assert.equal(document.querySelector('[role="dialog"]'), null, 'A failed admission stays in the table instead of reopening its dialog')
     assert.equal(document.querySelectorAll('[role="alert"]').length, 1, 'The import error is displayed once in its table row')
-    assert.equal(document.querySelector('[role="alert"]').textContent, expected.startError)
+    assert.equal(document.querySelector('.vc-direct-admission-message').textContent, expected.startError)
     await act(async () => button(zh.refresh).click())
     assert(document.querySelector('[role="alert"]').textContent.includes(zh.directCropStartError), 'Successful background reads cannot erase admission errors')
     fail = false
@@ -174,9 +174,9 @@ test('direct import requires no collection, retains selection after failure and 
 })
 
 test('server selection confirms generation settings before admission and shows page progress through retry', async () => {
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
   const first = Promise.withResolvers(), retry = Promise.withResolvers()
   let accepted = false
@@ -216,7 +216,7 @@ test('server selection confirms generation settings before admission and shows p
     assert.equal(request.signal.aborted, false)
     await act(async () => first.reject(new Error('Isolated admission failure')))
     assert.equal(document.querySelector('.vc-direct-import-modal'), null)
-    assert.equal(document.querySelector('[data-import-admission] [role="alert"]').textContent, expected.startError)
+    assert.equal(document.querySelector('.vc-direct-admission-message').textContent, expected.startError)
     await act(async () => button(zh.directCropEditImport).click())
     assert(document.querySelector('.vc-direct-import-modal'))
     await act(async () => document.querySelector('.vc-direct-import-modal button[aria-label="' + zh.close + '"]').click())
@@ -244,8 +244,8 @@ test('server selection confirms generation settings before admission and shows p
 })
 
 test('batch table confirms removal, retains unknown outcomes for retry and ignores late list replies',async()=>{
- const keys=['window','document','HTMLElement','IS_REACT_ACT_ENVIRONMENT'],old=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),dom=new JSDOM('<div id="root"></div>',{url:'https://isolated.example/',pretendToBeVisual:true})
- Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,IS_REACT_ACT_ENVIRONMENT:true})
+ const keys=['window','document','HTMLElement', 'HTMLButtonElement', 'MutationObserver','IS_REACT_ACT_ENVIRONMENT'],old=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),dom=new JSDOM('<div id="root"></div>',{url:'https://isolated.example/',pretendToBeVisual:true})
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver,IS_REACT_ACT_ENVIRONMENT:true})
  const rendered=createRoot(document.getElementById('root')),Page=createDirectCropPage(React,ui),expected=JSON.parse(await readFile(new URL('./fixtures/direct-crop-batches.expected.json',import.meta.url),'utf8'))
  const rows=expected.batches.map((row,index)=>({...row,directCrop:true,removable:['completed','failed','cancelled'].includes(row.status),kind:'crop',origin:'local',createdAt:'2026-11-10T00:00:00Z',taskBrief:row.name,matched:2,unavailable:false,images:[],wallpaper:{runId:row.runId+'-latest',status:row.status,total:2,planned:2,rendered:1,reviewed:1,passed:1,attention:index===1?0:1,budgetStopped:false,counts:{passed:1}}}))
  const calls=[],hidden=new Set();let hold=false,late,loseReply=true
@@ -277,8 +277,8 @@ test('batch table confirms removal, retains unknown outcomes for retry and ignor
 
 
 test('bulk table removal confirms all pages, excludes later batches and retries an unknown receipt without repeating other deletions',async()=>{
- const keys=['window','document','HTMLElement','IS_REACT_ACT_ENVIRONMENT'],old=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),dom=new JSDOM('<div id="root"></div>',{url:'https://isolated.example/',pretendToBeVisual:true})
- Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,IS_REACT_ACT_ENVIRONMENT:true})
+ const keys=['window','document','HTMLElement', 'HTMLButtonElement', 'MutationObserver','IS_REACT_ACT_ENVIRONMENT'],old=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),dom=new JSDOM('<div id="root"></div>',{url:'https://isolated.example/',pretendToBeVisual:true})
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver,IS_REACT_ACT_ENVIRONMENT:true})
  const rendered=createRoot(document.getElementById('root')),Page=createDirectCropPage(React,ui),expected=JSON.parse(await readFile(new URL('./fixtures/direct-crop-batches.expected.json',import.meta.url),'utf8')).bulk
  const row=(id,status='completed')=>({runId:'batch-'+id,name:'Batch '+id.toUpperCase(),directCrop:true,removable:['completed','failed','cancelled'].includes(status),kind:'crop',origin:'local',status,createdAt:'2026-11-10T00:00:00Z',taskBrief:'Batch '+id,matched:1,unavailable:false,images:[],wallpaper:{runId:'wallpaper-'+id,status,total:1,planned:1,rendered:1,reviewed:1,passed:status==='completed'?1:0,attention:status==='completed'?0:1,budgetStopped:false,counts:{passed:status==='completed'?1:0}}})
  const rows=[row('a'),{...row('b','cancelled'),removable:false},row('c'),row('d','paused'),row('e')],hidden=new Set(),calls=[]
@@ -343,9 +343,9 @@ test('bulk table removal confirms all pages, excludes later batches and retries 
 
 test('server connection opens separately and pending-list loads retain receipts after failure', async () => {
   const fixture = JSON.parse(await readFile(new URL('./fixtures/server-queue-client.expected.json', import.meta.url), 'utf8'))
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
   // React DOM loads before JSDOM in this file, so its legacy input observer needs DOM event aliases.
   dom.window.HTMLElement.prototype.attachEvent = function (name, listener) { this.addEventListener(name.slice(2), listener) }
   dom.window.HTMLElement.prototype.detachEvent = function (name, listener) { this.removeEventListener(name.slice(2), listener) }
@@ -416,9 +416,9 @@ test('server connection opens separately and pending-list loads retain receipts 
 
 
 test('manual server token uses credential storage, never enters connection data, and preserves the local Postman option', async () => {
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
   dom.window.HTMLElement.prototype.attachEvent = function (name, listener) { this.addEventListener(name.slice(2), listener) }
   dom.window.HTMLElement.prototype.detachEvent = function (name, listener) { this.removeEventListener(name.slice(2), listener) }
   const rendered = createRoot(document.getElementById('root')), Queue = createServerQueue(React, ui), writes = [], calls = [], token = 'isolated-manual-token'
@@ -458,9 +458,9 @@ test('manual server token uses credential storage, never enters connection data,
 })
 
 test('direct page shows and polls a background import with no batches, preserves it when the modal closes, and restores it on reopening', { timeout: 10000 }, async () => {
-  const keys = ['window', 'document', 'HTMLElement', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
   let rendered = createRoot(document.getElementById('root')), reads = 0
   const Page = createDirectCropPage(React, ui), polled = Promise.withResolvers(), calls = []
   let entry = { runId: 'background-batch', name: 'Queued originals', status: 'importing', saved: 0, total: 2, receivedBytes: 1024 }
@@ -504,4 +504,120 @@ test('direct page shows and polls a background import with no batches, preserves
     await act(async () => button(zh.refresh).click())
     assert(document.querySelector('[data-server-import]').textContent.includes(zh.serverImportChanged))
   } finally { await act(async () => rendered.unmount()); dom.window.close(); for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] } }
+})
+
+
+test('import image choices persist across openings, source changes and remounts without switching a missing account', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], previous = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), requests = []
+  const configuration = { ...imageConfig, wallpaperImage: { imageProvider: 'visual-curator-openai', imageSourceId: 'key-one', imageModel: 'gpt-image-2' }, revision: 'preferences-test', visionConfigured: true, limits: { maxImportFiles: 20, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  let accountAvailable = true
+  const actions = { directScope: () => 'remembered-profile', pickLocalReferences: async () => ({ files: [{ path: 'C:/isolated/source.png', name: 'source.png', size: 1024, readable: true }] }), directCrop: async (operation, args) => {
+    if (operation === 'direct-crop-list') return { batches: [], total: 0 }
+    if (operation === 'wallpaper-options') return { ...imageOptions, providers: imageOptions.providers.map(provider => provider.id === 'autoflow-codex' ? { ...provider, models: [...provider.models, { id: 'gpt-image-2', name: 'GPT Image 2' }], sources: accountAvailable ? [{ id: 'chosen-account', name: 'Chosen subscription', available: true }] : [] } : provider) }
+    if (operation === 'direct-crop-start') { requests.push(args); throw { code: 'budget-exhausted', stage: 'media' } }
+    throw new Error('Unexpected operation')
+  } }
+  const button = label => [...document.querySelectorAll('button')].find(element => element.textContent === label)
+  const field = label => document.querySelector('button[aria-label="' + label + '"]')
+  const select = async (label, option) => {
+    await act(async () => field(label).click())
+    await act(async () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === option).click())
+  }
+  const open = async () => {
+    await act(async () => button(zh.directCropAddImages).click())
+    await act(async () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === zh.directCropLocal).click())
+  }
+  const paint = (key, scopedActions = actions) => act(async () => rendered.render(React.createElement(Page, { key, configuration, actions: scopedActions, t: key => zh[key], onBack() {} })))
+  try {
+    await paint('initial')
+    await open()
+    await select(zh.imageGenerationSource, 'Codex')
+    await select(zh.imageGenerationAccount, 'Chosen subscription')
+    await select(zh.wallpaperImageModel, 'GPT Image 2')
+    await act(async () => button(zh.cancel).click())
+    await open()
+    assert.equal(field(zh.imageGenerationSource).textContent, 'Codex')
+    assert.equal(field(zh.imageGenerationAccount).textContent, 'Chosen subscription')
+    assert.equal(field(zh.wallpaperImageModel).textContent, 'GPT Image 2')
+    await select(zh.imageGenerationSource, 'OpenAI API')
+    assert.equal(field(zh.imageGenerationAccount).textContent, 'Personal key')
+    await select(zh.imageGenerationSource, 'Codex')
+    assert.equal(field(zh.imageGenerationAccount).textContent, 'Chosen subscription')
+    assert.equal(field(zh.wallpaperImageModel).textContent, 'GPT Image 2')
+    await paint('remounted')
+    await open()
+    assert.equal(field(zh.imageGenerationSource).textContent, 'Codex')
+    assert.equal(field(zh.imageGenerationAccount).textContent, 'Chosen subscription')
+    await act(async () => button(zh.directCropStart).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.deepEqual(requests[0].imageRoute, expected.imagePreferences.submittedRoute)
+    const notice = document.querySelector('.vc-direct-admission-notice [role="alert"]')
+    assert.equal(notice.querySelector('.vc-direct-admission-message').textContent, expected.imagePreferences.storageLimitError)
+    assert.equal(notice.closest('td').colSpan, 8)
+    assert.equal(document.querySelector('[data-import-admission] [aria-label^="' + zh.directCropDismissImport + '"]').classList.contains('vc-direct-batch-delete'), true)
+    accountAvailable = false
+    await paint('missing-account')
+    await open()
+    assert.equal(field(zh.imageGenerationSource).textContent, 'Codex')
+    assert.equal(button(zh.directCropStart).disabled, true)
+    assert.equal(requests.length, 1, 'A missing saved account cannot silently dispatch through automatic selection')
+    await paint('another-profile', { ...actions, directScope: () => 'other-profile' })
+    await open()
+    assert.equal(field(zh.imageGenerationSource).textContent, 'OpenAI API')
+    assert.equal(field(zh.imageGenerationAccount).textContent, 'Personal key')
+  } finally {
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = previous.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
+
+
+test('image storage opens from the page and requires an explicit second confirmation before cleanup', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], previous = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), cleanRequests = []
+  let storage = { revision: 'preview-before', usedBytes: 4 * 1024 ** 3 - 1000, limitBytes: 4 * 1024 ** 3, retainedBytes: 4 * 1024 ** 3 - 1000 - 1024 ** 2, reclaimableBytes: 1024 ** 2, reclaimableFiles: 2, cleanupAllowed: true }
+  const configuration = { ...imageConfig, revision: 'storage-config', visionConfigured: true, limits: { maxImportFiles: 20, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  const actions = { directScope: () => 'storage-profile', directCrop: async (operation, args) => {
+    if (operation === 'direct-crop-list') return { batches: [], total: 0 }
+    if (operation === 'wallpaper-options') return imageOptions
+    if (operation === 'image-storage-read') return storage
+    if (operation === 'image-storage-clean') { cleanRequests.push(args); storage = { ...storage, revision: 'preview-after', usedBytes: storage.retainedBytes, reclaimableBytes: 0, reclaimableFiles: 0, freedBytes: 1024 ** 2, freedFiles: 2 }; return storage }
+    throw new Error('Unexpected operation')
+  } }
+  const button = label => [...document.querySelectorAll('button')].find(element => element.textContent === label)
+  try {
+    await act(async () => rendered.render(React.createElement(Page, { configuration, actions, t: key => zh[key], onBack() {} })))
+    await act(async () => button(zh.imageStorageTitle).click())
+    assert(document.querySelector('.vc-image-storage-modal'))
+    assert(document.querySelector('.vc-image-storage-modal').textContent.includes(zh.imageStorageHint))
+    assert.equal(cleanRequests.length, 0)
+    assert.equal(button(zh.imageStorageSaveLimit).disabled, true)
+    await act(async () => button(zh.imageStorageClean).click())
+    assert.equal(cleanRequests.length, 0, 'The first click only presents the deletion scope')
+    assert(document.querySelector('[role="alert"]').textContent.includes('1.00 MiB'))
+    await act(async () => button(zh.cancel).click())
+    assert(document.querySelector('.vc-image-storage-modal'))
+    assert.equal(cleanRequests.length, 0)
+    await act(async () => button(zh.imageStorageClean).click())
+    await act(async () => button(zh.imageStorageConfirmClean).click())
+    assert.deepEqual(cleanRequests, [{ revision: 'preview-before', confirm: true }])
+    assert(document.querySelector('.vc-image-storage-result').textContent.includes('1.00 MiB'))
+    assert.equal(button(zh.imageStorageClean).disabled, true)
+    await act(async () => button(zh.close).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    storage = { ...storage, cleanupAllowed: false, reclaimableFiles: 2, reclaimableBytes: 1024 ** 2 }
+    await act(async () => button(zh.imageStorageTitle).click())
+    assert.equal(button(zh.imageStorageClean).disabled, true, 'Active work prevents cleanup while preserving the preview')
+    assert(document.querySelector('.vc-image-storage-modal').textContent.includes(zh.imageStorageBusy))
+    await act(async () => button(zh.close).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+  } finally {
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = previous.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
 })

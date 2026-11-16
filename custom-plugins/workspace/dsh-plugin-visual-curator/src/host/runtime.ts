@@ -229,6 +229,8 @@ export class RunEngine {
   private admissions: Promise<void> = Promise.resolve()
   private drainTail: Promise<void> = Promise.resolve()
   private readonly completionReplays = new Map<string, Promise<RunRecord>>()
+  /** Whether queued workers, live jobs or completion callbacks can still publish image files. */
+  get busy(): boolean { return this.live.size > 0 || this.queued.size > 0 || this.completionReplays.size > 0 }
   /** @param repository Durable task owner. @param jobs Host job dispatch. @param audit Optional Session request logger. @param capacity Current Host admission limits; standalone engines without them use frozen task limits. @param onCompleted Idempotent downstream handoff after a completed checkpoint. @param onSettled Organization callback after terminal workers release their execution slot. @param onCommitted Schedules presentation from durable facts without dispatching work. */
   constructor(readonly repository: DomainRepository, private readonly jobs: Pick<JobRegistry, 'start'>, private readonly audit?: (run: RunRecord, request: RecordOf<'request'>) => void, private readonly capacity?: Pick<Limits, 'maxConcurrentAnalyses' | 'maxConcurrentRequests'>, private readonly onCompleted?: (run: RunRecord) => Promise<void>, private readonly onSettled?: (run: RunRecord) => Promise<void>, private readonly onCommitted?: (run: RunRecord) => void) {}
   authorize(run: RunRecord, actor: DomainActor): void {

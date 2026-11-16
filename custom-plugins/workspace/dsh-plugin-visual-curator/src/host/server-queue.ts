@@ -63,6 +63,8 @@ export class ServerQueue {
   private deliveries: Promise<void> = Promise.resolve()
   private readonly progress = new Map<string, { receivedBytes: number; totalBytes?: number }>()
   private readonly admissionFailures = new Map<string, string>()
+  /** Whether any server admission can still publish originals, including another saved server environment. */
+  get importing(): boolean { return this.deps.domain.repository.manifests('server-admission:').some(row => { const admission = admissionSchema.parse(row.state); return admission.status === 'importing' && !this.admissionFailures.has(admission.runId) }) }
   constructor(private readonly deps: ServerQueueDependencies) {}
 
   private owner(actor: DomainActor): void {

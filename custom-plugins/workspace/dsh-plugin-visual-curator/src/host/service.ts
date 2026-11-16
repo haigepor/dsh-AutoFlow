@@ -39,6 +39,7 @@ import { ProviderFactory, sourceIdentity } from './providers.ts'
 import { GalleryService } from './gallery.ts'
 import { GalleryReferenceTasks } from './gallery-tasks.ts'
 import { galleryTaskIdSchema } from '../shared/gallery-task.ts'
+import { referencedImageStorageFiles } from './image-storage.ts'
 import { galleryMediaUrlSchema } from '../shared/gallery.ts'
 import { referencePage } from './reference-pages.ts'
 import { GalleryLogins, type GalleryLoginBrowser } from './gallery-login.ts'
@@ -135,6 +136,7 @@ export class CuratorService {
   private officialImageRegistration: (() => void) | undefined
   private stopping = false
   private selectingLocalFiles = false
+  private cleaningStorage = false
   private readonly lifetime = new AbortController()
   private readonly previewReads = createPreviewReads((location, signal) => this.loadPreview(location, signal), () => this.config.source.unsplash.previewConcurrency)
   private readonly datasetReads = createDatasetReads(() => ({ ttlMs: this.config.limits.datasetCacheTtlMs, maxViews: this.config.limits.datasetCacheMaxViews, maxBytes: this.config.limits.datasetCacheMaxBytes }))
@@ -342,9 +344,16 @@ export class CuratorService {
    * @param input Client or tool JSON envelope. @param actor Identity created by the Host adapter. @param signal Request lifetime; disconnecting does not cancel accepted jobs. Explicit Session cancellation is handled by stopSessionTasks. @returns Safe JSON result or typed rejection.
    */
   action(input: ClientActionInput, actor: DomainActor, signal: AbortSignal): Promise<Json> {
+    if (this.cleaningStorage) return Promise.reject(new CuratorError('constraint-conflict', 'image-storage', 'Wait for image storage maintenance to finish.'))
+    const cleaning = input.operation === 'image-storage-clean'
+    if (cleaning) {
+      if (this.foreground.size) return Promise.reject(new CuratorError('constraint-conflict', 'image-storage', 'Wait for current image operations to finish before cleaning.'))
+      this.cleaningStorage = true
+    }
     const work = this.actionNow(input, actor, AbortSignal.any([signal, this.lifetime.signal]))
     // ConfigEditor may reload this fiber while its own edit is pending; it owns that operation's drain.
-    return input.operation === 'config-save' ? work : this.track(work)
+    const tracked = input.operation === 'config-save' ? work : this.track(work)
+    return cleaning ? tracked.finally(() => { this.cleaningStorage = false }) : tracked
   }
   private track<T>(work: Promise<T>): Promise<T> {
     this.foreground.add(work)
@@ -359,6 +368,15 @@ export class CuratorService {
       const parsed = actionSchema.parse(input), operation = parsed.operation
       const effectiveActor = await this.scopedHuman(actor, parsed.args, signal, sessionReadOperations.has(operation))
       const { sessionToken, ...args } = parsed.args
+      if (operation === 'image-storage-read' || operation === 'image-storage-clean') {
+        this.human(actor)
+        const input = operation === 'image-storage-clean' ? z.strictObject({ revision: z.string().min(1), confirm: z.literal(true) }).parse(args) : z.strictObject({}).parse(args)
+        const cleanupAllowed = !this.engine.busy && !this.galleryTasks!.active && !this.serverQueueValue!.importing && this.foreground.size <= 1
+        if (operation === 'image-storage-clean' && !cleanupAllowed) throw new CuratorError('constraint-conflict', 'image-storage', 'Finish or stop active image work before cleaning storage.')
+        const retained = referencedImageStorageFiles(this.domain.repository)
+        const view = await this.files.maintainStorage(retained, 'revision' in input ? input.revision : undefined)
+        return toJson({ ...view, cleanupAllowed })
+      }
       if (operation.startsWith('server-queue-')) {
         this.human(actor)
         const server = this.serverQueueValue!
@@ -1309,7 +1327,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
+    return await this.workspaceData(request, ['image-storage-read', 'image-storage-clean', 'server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {

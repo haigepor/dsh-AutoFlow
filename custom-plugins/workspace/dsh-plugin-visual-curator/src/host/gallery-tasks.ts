@@ -32,6 +32,8 @@ export class GalleryReferenceTasks {
   private writes: Promise<void> = Promise.resolve()
   private admissions: Promise<unknown> = Promise.resolve()
   private stopping = false
+  /** Whether a reference job still owns asynchronous media work or teardown. */
+  get active(): boolean { return this.live.size > 0 }
   constructor(private readonly config: CuratorConfig, private readonly domain: CuratorDomain, private readonly jobs: Pick<JobRegistry, 'start'>, private readonly gallery: GalleryAction, private readonly progress: (args: Record<string, Json>, actor: DomainActor) => Json, private readonly analyze: (styleId: string, actor: DomainActor) => Promise<void>, private readonly completed: { validate(input: TaskReferenceImport, actor: DomainActor): Promise<void>; import(input: TaskReferenceImport, actor: DomainActor, signal: AbortSignal): Promise<TaskReferenceReceipt> }) {}
 
   /** Recover confirmed batch receipts and expose unfinished work as interrupted, without replaying writes. */

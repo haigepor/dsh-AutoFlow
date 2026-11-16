@@ -131,19 +131,22 @@ it('launches one native search conversation while request preparation is held, t
     const address = server.address()
     if (address === null || typeof address === 'string') throw new Error('The local fixture did not bind a TCP port')
     const controlUrl = `http://127.0.0.1:${address.port}`
-    const overlay = join(root, 'visual-curator.overlay.yml')
-    await writeFile(overlay, JSON.stringify([
+    const defaults = join(root, 'fixture-defaults')
+    await mkdir(defaults)
+    await writeFile(join(defaults, 'package.json'), JSON.stringify({ name: 'dsh-visual-curator-launch-defaults', version: '1.0.0', dsh: { bundle: { patch: 'cordis.patch.yml' } } }), 'utf8')
+    await writeFile(join(defaults, 'cordis.patch.yml'), JSON.stringify([
       { id: 'visual-curator', config: {
         source: { provider: 'generic', endpoint: 'https://source.example.test/search', credentialRef: '' },
         vision: { backend: 'compatible', endpoint: `${controlUrl}/vision`, localOrigin: controlUrl, model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1', supportsStreaming: false },
         limits: { maxRetryAttempts: 0, maxVisionCalls: 10, requestTimeoutMs: 30_000 },
       } },
-      ...['panel', 'conversation', 'settings'].map(page => ({ id: `visual-curator-ui-${page}`, disabled: false })),
     ]), 'utf8')
+    const pageOverlay = join(root, 'visual-curator-pages.overlay.yml')
+    await writeFile(pageOverlay, JSON.stringify(['panel', 'conversation', 'settings'].map(page => ({ id: `visual-curator-ui-${page}`, disabled: false }))), 'utf8')
     scaffold = await launchWebScaffold({
       developerTools: true,
-      profile: { hmr: false, packages: [{ dir: PACKAGE, enabled: true }] },
-      extraOverlayPath: [fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)), overlay],
+      profile: { hmr: false, packages: [{ dir: PACKAGE, enabled: true }, { dir: defaults, enabled: true }] },
+      extraOverlayPath: [fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)), pageOverlay],
     })
     const host = scaffold
     expect(host.ctx.get('sessionController')).toBeDefined()
@@ -207,6 +210,10 @@ it('launches one native search conversation while request preparation is held, t
       process.stdout.write('Visual Curator isolated Web is ready; authentication and control metadata were written to .playwright-mcp/visual-curator-launch-server.json\n')
       await closed.promise
     } else {
+      const configuration = z.object({ revision: z.string() }).parse(await invoke('config-read'))
+      await invoke('config-save', { revision: configuration.revision, source: {}, vision: {}, limits: { maxStorageBytes: 6 * 1024 ** 3 } })
+      expect(z.object({ limitBytes: z.number() }).parse(await invoke('image-storage-read')).limitBytes).toBe(6 * 1024 ** 3)
+      expect(await readFile(host.ctx.profileContext.patchPath, 'utf8')).toContain('maxStorageBytes: 6442450944')
       const launch = searchLaunchViewSchema.parse(await invoke('search-launch-start', {
         operationId: randomUUID(), workspaceId, modelProfileId, datasetId,
         conversationModel: { provider: PROVIDER, model: MODEL }, taskBrief: BRIEF, targetCount: 3, output: { kind: 'original' },

@@ -69,6 +69,52 @@ export class AssetFiles {
     if (!Object.values(limits).every(n => Number.isSafeInteger(n) && n > 0)) throw invalidInput('Media limits must be positive integers.')
   }
 
+  /** Preview private files, or remove only the confirmed unreferenced digest files while the Host excludes active work.
+   * @param retained Storage references from every committed record and receipt, including hidden history.
+   * @param expectedRevision Human-confirmed preview; absence performs no deletion.
+   * @returns Aggregate usage and the exact amount removed; paths and record contents remain private.
+   */
+  maintainStorage(retained: ReadonlySet<string>, expectedRevision?: string) {
+    const work = this.writing.then(async () => {
+      const inventory = async () => {
+        const files: { ref: string; bytes: number; mtime: number; inode: number; device: number }[] = []
+        const walk = async (directory: string): Promise<void> => {
+          const metadata = await lstat(directory)
+          if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw this.unavailable()
+          for (const entry of await readdir(directory, { withFileTypes: true })) {
+            const path = join(directory, entry.name)
+            if (entry.isSymbolicLink()) throw this.unavailable()
+            if (entry.isDirectory()) await walk(path)
+            else if (entry.isFile()) {
+              const stat = await lstat(path)
+              if (!stat.isFile() || stat.isSymbolicLink()) throw this.unavailable()
+              files.push({ ref: relative(this.root, path).split(sep).join('/'), bytes: stat.size, mtime: stat.mtimeMs, inode: stat.ino, device: stat.dev })
+            }
+          }
+        }
+        await walk(this.root)
+        files.sort((left, right) => left.ref.localeCompare(right.ref))
+        const unused = files.filter(file => /^blobs\/[a-f0-9]{2}\/[a-f0-9]{64}$/.test(file.ref) && file.ref.slice(6, 8) === file.ref.slice(9, 11) && !retained.has(file.ref))
+        const usedBytes = files.reduce((total, file) => total + file.bytes, 0), reclaimableBytes = unused.reduce((total, file) => total + file.bytes, 0)
+        return { revision: digest(Buffer.from(JSON.stringify({ files, retained: [...retained].sort() }))), usedBytes, limitBytes: this.limits.maxStorageBytes, retainedBytes: usedBytes - reclaimableBytes, reclaimableBytes, reclaimableFiles: unused.length, unused }
+      }
+      const preview = await inventory()
+      if (expectedRevision !== undefined && preview.revision !== expectedRevision) throw new MediaError('revision-conflict', 'image-storage', false, 'Image storage changed after the preview.', 'Refresh the storage preview before cleaning.')
+      if (expectedRevision === undefined) { const { unused, ...view } = preview; return view }
+      for (const file of preview.unused) {
+        await this.privateDirectories(file.ref.slice(9), false)
+        const path = join(this.root, file.ref)
+        const stat = await lstat(path)
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== file.bytes || stat.mtimeMs !== file.mtime || stat.ino !== file.inode || stat.dev !== file.device) throw this.unavailable()
+        await unlink(path)
+      }
+      const { unused, ...view } = await inventory()
+      return { ...view, freedBytes: preview.reclaimableBytes, freedFiles: preview.reclaimableFiles }
+    })
+    this.writing = work.then(() => {}, () => {})
+    return work
+  }
+
   /** Verify and copy supported bytes, then normalize EXIF orientation and generate a preview.
    * @param input Authorized upload bytes; input is copied before asynchronous work.
    * @param declaredMime Optional HTTP/upload MIME; absent uses verified magic and decoder format.

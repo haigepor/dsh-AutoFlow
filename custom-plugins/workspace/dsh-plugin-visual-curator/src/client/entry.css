@@ -2064,13 +2064,13 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-direct-table-toolbar > div:last-child { margin-inline-start: auto; }
 .vc-direct-delete-all { color: var(--dsw-alias-state-error-primary); }
 .vc-direct-table-scroll { min-height: 0; overflow: auto; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
-.vc-direct-batch-table { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; table-layout: fixed; background: var(--dsw-alias-bg-layer-1); }
+.vc-direct-batch-table { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; table-layout: fixed; background: var(--dsw-alias-bg-layer-1); }
 .vc-direct-batch-table th, .vc-direct-batch-table td { box-sizing: border-box; padding: 10px 12px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--dsw-alias-border-l3); }
 .vc-direct-batch-table th { position: sticky; top: 0; z-index: 1; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .vc-direct-batch-table tbody tr:last-child td { border-bottom: 0; }
 .vc-direct-batch-table tbody tr:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .vc-direct-batch-table tr[data-selected='true'] { background: color-mix(in srgb, var(--dsw-alias-link) 5%, var(--dsw-alias-bg-layer-1)); }
-.vc-direct-col-check { width: 56px; }.vc-direct-col-source { width: 104px; }.vc-direct-col-state { width: 104px; }.vc-direct-col-count { width: 88px; }.vc-direct-col-time { width: 174px; }.vc-direct-col-actions { width: 160px; }
+.vc-direct-col-check { width: 44px; }.vc-direct-col-source { width: 96px; }.vc-direct-col-state { width: 100px; }.vc-direct-col-count { width: 68px; }.vc-direct-col-time { width: 144px; }.vc-direct-col-actions { width: 260px; }
 .vc-direct-batch-table .vc-direct-select-cell, .vc-direct-batch-table th:first-child { text-align: center; }
 .vc-direct-batch-table .vc-direct-row-checkbox { position: relative; display: inline-flex; flex-direction: row; justify-content: center; vertical-align: middle; }
 .vc-direct-row-checkbox > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -2085,7 +2085,7 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-direct-row-actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .vc-direct-row-actions > button { flex: none; min-width: 80px; white-space: nowrap; color: var(--dsw-alias-label-primary); }
 .vc-direct-row-actions > span { display: inline-flex; flex: none; }
-.vc-direct-row-actions .vc-direct-batch-delete { flex: none; width: 28px; height: 28px; padding: 0; color: var(--dsw-alias-label-secondary); }
+.vc-direct-row-actions .vc-direct-batch-delete { flex: none; min-width: 28px; width: 28px; height: 28px; padding: 0; color: var(--dsw-alias-label-secondary); }
 .vc-direct-batch-delete:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); }
 .vc-direct-table-more { display: flex; justify-content: center; flex: none; }
 .vc-direct-delete-notice { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; }
