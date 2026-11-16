@@ -15,6 +15,8 @@ function runFixture(mode: string) {
   onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
   const bin = join(root, 'bin'), trace = join(root, 'trace'), githubPath = join(root, 'github-path')
   mkdirSync(bin)
+  const home = join(root, 'home')
+  mkdirSync(home)
   writeFileSync(githubPath, '', 'utf8')
   const commands: Record<string, string> = {
     uname: 'if [[ "$1" == -s ]]; then echo Linux; else echo x86_64; fi',
@@ -25,9 +27,13 @@ if [[ "$BWRAP_TEST_MODE" == unavailable || "$BWRAP_TEST_MODE" == launchpad-unava
 while [[ "$1" != --output ]]; do shift; done
 printf fixture > "$2"`,
     sha256sum: `
-read -r expected archive
-printf 'checksum:%s\\n' "$expected" >> "$BWRAP_TEST_TRACE"
-[[ "$BWRAP_TEST_MODE" != checksum-rejected ]]`,
+content="$(cat)"
+if [[ "$content" == fixture && "$BWRAP_TEST_MODE" != checksum-rejected ]]; then
+  printf 'checksum:%s\\n' '${digest}' >> "$BWRAP_TEST_TRACE"
+  printf '%s  -\\n' '${digest}'
+else
+  printf '%064d  -\\n' 0
+fi`,
     'dpkg-deb': `
 echo extract >> "$BWRAP_TEST_TRACE"
 mkdir -p "$3/usr/bin"
@@ -45,7 +51,7 @@ if [[ "$1" != --version && "$BWRAP_TEST_MODE" == probe-rejected ]]; then exit 42
     'export PATH="$(cd "$BWRAP_TEST_BIN" && pwd):$PATH"; exec bash "$BWRAP_TEST_SCRIPT"'], {
     encoding: 'utf8', timeout: 15_000, windowsHide: true,
     env: { ...process.env, PATH: bin + delimiter + (process.env.PATH ?? ''),
-      RUNNER_TEMP: root.replaceAll('\\', '/'), GITHUB_PATH: githubPath.replaceAll('\\', '/'),
+      HOME: home.replaceAll('\\', '/'), RUNNER_TEMP: root.replaceAll('\\', '/'), GITHUB_PATH: githubPath.replaceAll('\\', '/'),
       BWRAP_TEST_BIN: bin.replaceAll('\\', '/'), BWRAP_TEST_TRACE: trace.replaceAll('\\', '/'),
       BWRAP_TEST_SCRIPT: script, BWRAP_TEST_MODE: mode },
   })
@@ -83,7 +89,7 @@ describe.skipIf(process.platform === 'win32' && !existsSync(bash))('pinned bubbl
         expect(f.trace).not.toContain('extract')
         expect(f.path).toBe('')
       }
-      if (mode === 'checksum-rejected') expect(f.trace.filter(line => line.startsWith('curl:'))).toHaveLength(1)
+      if (mode === 'checksum-rejected') expect(f.trace.filter(line => line.startsWith('curl:'))).toHaveLength(2)
     },
   )
 })

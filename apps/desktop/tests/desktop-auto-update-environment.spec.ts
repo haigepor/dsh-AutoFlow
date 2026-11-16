@@ -12,7 +12,7 @@ import {
 const RELEASE_ID = '0123456789abcdef0123456789abcdef'
 
 describe('desktop auto-update environment', () => {
-  it.each(['nightly', 'latest'] as const)('retains the selected %s channel for GitHub packages', (channel) => {
+  it.each(['nightly', 'stable'] as const)('retains the selected %s channel for GitHub packages', (channel) => {
     const environment = { DSH_DESKTOP_UPDATE_PROVIDER: 'github', DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository',
       DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/', DSH_DESKTOP_UNSIGNED_UPDATES: '1' }
     expect(resolveDesktopAutoUpdateConfig(environment, 'win32', 'x64').channel).toBe('nightly')

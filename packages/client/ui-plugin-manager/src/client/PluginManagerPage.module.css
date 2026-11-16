@@ -2349,7 +2349,7 @@ button.versionSummary:focus-visible {
   padding: 28px;
   overflow: hidden;
   border-radius: var(--dsw-radius-lg);
-  background-color: #101d3c;
+  background-color: var(--dsw-alias-plugin-example-panel);
   background-image: url('/assets/plugin-bundle-hero.jpg');
   background-position: center;
   background-size: cover;
@@ -2371,12 +2371,12 @@ button.versionSummary:focus-visible {
   width: fit-content;
   max-width: min(100%, 610px);
   padding: 9px 10px 9px 13px;
-  border: 1px solid rgb(255 255 255 / 23%);
+  border: 1px solid var(--dsw-alias-plugin-example-border);
   border-radius: 16px;
-  background: rgb(17 17 23 / 43%);
+  background: var(--dsw-alias-plugin-example-fill);
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   box-shadow: 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px rgb(255 255 255 / 13%);
-  color: #fff;
+  color: var(--dsw-alias-plugin-example-label);
   text-align: left;
   font: inherit;
   font-size: 13px;
@@ -2386,33 +2386,33 @@ button.versionSummary:focus-visible {
 @media (hover: hover) {
 
 .bundleExample:hover {
-  border-color: rgb(255 255 255 / 34%);
-  background: rgb(17 17 23 / 54%);
+  border-color: var(--dsw-alias-plugin-example-border-hover);
+  background: var(--dsw-alias-plugin-example-fill-hover);
 }
 }
 
 @supports not (backdrop-filter: blur(1px)) {
-  .bundleExample { background: #111117; }
+  .bundleExample { background: var(--dsw-alias-plugin-example-solid); }
   @media (hover: hover) {
-  .bundleExample:hover { background: #111117; }
+  .bundleExample:hover { background: var(--dsw-alias-plugin-example-solid); }
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .bundleExample {
-    background: #111117;
+    background: var(--dsw-alias-plugin-example-solid);
     backdrop-filter: none;
   }
   @media (hover: hover) {
   .bundleExample:hover {
-    background: #111117;
+    background: var(--dsw-alias-plugin-example-solid);
     backdrop-filter: none;
   }
   }
 }
 
 .bundleExample:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, #fff);
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-plugin-example-label));
   outline-offset: 2px;
 }
 
@@ -2421,7 +2421,7 @@ button.versionSummary:focus-visible {
   flex: none;
   align-items: center;
   gap: 5px;
-  color: #d9b9ff;
+  color: var(--dsw-alias-plugin-example-badge);
   font-weight: 600;
   font-size: 12px;
   white-space: nowrap;
@@ -2446,7 +2446,7 @@ button.versionSummary:focus-visible {
   height: 28px;
   margin-left: auto;
   border-radius: 50%;
-  background: rgb(255 255 255 / 12%);
+  background: var(--dsw-alias-plugin-example-arrow-fill);
 }
 
 .bundleDescription {

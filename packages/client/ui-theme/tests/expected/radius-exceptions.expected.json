@@ -90,7 +90,7 @@
     ".list: border-radius: 16px",
     ".item: border-radius: 8px"
   ],
-  "ui-settings-account/src/client/AccountNotice.module.css": [
+  "ui-account-notifications/src/client/AccountNotifications.module.css": [
     ".card: border-radius: 16px"
   ],
   "ui-settings-account/src/client/AccountSection.module.css": [

@@ -1110,8 +1110,9 @@ describe('bubblewrap preparation script', () => {
       /^https:\/\/launchpad\.net\/ubuntu\/\+source\/bubblewrap\/[^/]+\/\+build\/\d+\/\+files\/bubblewrap_[^/]+_amd64\.deb$/u,
     )
     expect(script).toContain('https://archive.ubuntu.com/ubuntu/pool/main/b/bubblewrap/bubblewrap_${BUBBLEWRAP_VERSION}_amd64.deb')
-    expect(script).toContain('for source in "$BUBBLEWRAP_POOL_URL" "$BUBBLEWRAP_URL"; do')
-    expect(script.indexOf('sha256sum --check --status')).toBeLessThan(script.indexOf('dpkg-deb --extract'))
+    expect(script).toContain('if ! acquire_verified_archive "$BUBBLEWRAP_POOL_URL" "$BUBBLEWRAP_SHA256" "$archive"; then')
+    expect(script).toContain('acquire_verified_archive "$BUBBLEWRAP_URL" "$BUBBLEWRAP_SHA256" "$archive"')
+    expect(script.indexOf('acquire_verified_archive')).toBeLessThan(script.indexOf('dpkg-deb --extract'))
   })
 
   it('verifies the archive against the pinned digest', () => {

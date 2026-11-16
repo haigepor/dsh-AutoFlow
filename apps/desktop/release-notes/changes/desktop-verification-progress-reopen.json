@@ -1,0 +1,8 @@
+{
+  "id": "desktop-verification-progress-reopen",
+  "category": "fixes",
+  "text": {
+    "en": "Click the update status to reopen progress while downloaded files are being verified.",
+    "zh-CN": "下载文件校验期间，仍可点击更新状态重新打开进度窗口。"
+  }
+}

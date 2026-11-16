@@ -24,28 +24,28 @@ interface SuggestionCategory {
 
 const CATEGORIES: readonly [SuggestionCategory, SuggestionCategory, SuggestionCategory, SuggestionCategory] = [
   {
-    id: 'explore', labelKey: 'explore', icon: IconSearchOutlineRegular, tint: 'var(--dsw-static-blue-500)',
+    id: 'explore', labelKey: 'explore', icon: IconSearchOutlineRegular, tint: 'var(--dsw-alias-hero-explore)',
     tasks: [
       { labelKey: 'explore.task1', prompt: 'explore.prompt1' },
       { labelKey: 'explore.task2', prompt: 'explore.prompt2' },
     ],
   },
   {
-    id: 'build', labelKey: 'build', icon: IconProjectAddOutlineRegular, tint: 'var(--dsw-static-deepseek-500)',
+    id: 'build', labelKey: 'build', icon: IconProjectAddOutlineRegular, tint: 'var(--dsw-alias-hero-build)',
     tasks: [
       { labelKey: 'build.task1', prompt: 'build.prompt1' },
       { labelKey: 'build.task2', prompt: 'build.prompt2' },
     ],
   },
   {
-    id: 'review', labelKey: 'review', icon: IconCompareSplitOutlineRegular, tint: 'var(--dsw-static-green-500)',
+    id: 'review', labelKey: 'review', icon: IconCompareSplitOutlineRegular, tint: 'var(--dsw-alias-hero-review)',
     tasks: [
       { labelKey: 'review.task1', prompt: 'review.prompt1' },
       { labelKey: 'review.task2', prompt: 'review.prompt2' },
     ],
   },
   {
-    id: 'fix', labelKey: 'fix', icon: IconWarningTriangleOutlineRegular, tint: 'var(--dsw-static-amber-500)',
+    id: 'fix', labelKey: 'fix', icon: IconWarningTriangleOutlineRegular, tint: 'var(--dsw-alias-hero-fix)',
     tasks: [
       { labelKey: 'fix.task1', prompt: 'fix.prompt1' },
       { labelKey: 'fix.task2', prompt: 'fix.prompt2' },

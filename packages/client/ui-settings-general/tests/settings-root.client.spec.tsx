@@ -182,7 +182,7 @@ function mount({
     view.rerender(<SettingsRoot {...props} />)
   }
   return {
-    view, renderSlot: renderSlotMock, bump, listeners, reconnect, setConnectionState,
+    view, store: shell, renderSlot: renderSlotMock, bump, listeners, reconnect, setConnectionState,
     setDesktopUpdate, setShortcuts, setOnboardingActive, setMainView,
   }
 }
@@ -354,11 +354,10 @@ it('opens Settings from the contributed sidebar launcher', () => {
 })
 
 it('opens the section requested by the contributed sidebar launcher', () => {
-  const { renderSlot } = mount({ rows: [{ id: 'general', order: 0, label: 'General' }, { id: 'account', order: 1, label: 'Account' }] })
+  const { renderSlot, store } = mount({ rows: [{ id: 'general', order: 0, label: 'General' }, { id: 'account', order: 1, label: 'Account' }] })
   const launcher = renderSlot.mock.calls.find(call => call[0] === 'settings.launcher')!
   act(() => { (launcher[1] as { openSettings: (sectionId?: string) => void }).openSettings('account') })
-  expect(screen.getByTestId('section-account')).toBeTruthy()
-  expect(screen.queryByTestId('section-general')).toBeNull()
+  expect(store.getSnapshot()).toMatchObject({ open: true, activeId: 'account' })
 })
 
 it('shows the effective settings binding on focus and exposes it to assistive technology', () => {

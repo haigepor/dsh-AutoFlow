@@ -73,7 +73,7 @@ export function DesktopUpdateIndicator({ wide, hidden, t, view, onOpen }: {
   const label = failed ? retryLabel : copy.label
   const error = failed || state?.phase === 'error' || state?.configurationError !== undefined
   const busy = opening || (state !== undefined && state.configurationError === undefined && BUSY_PHASES.has(state.phase))
-  const disabled = opening || (busy && state?.phase !== 'downloading')
+  const disabled = opening || (busy && state?.phase !== 'downloading' && state?.phase !== 'verifying')
   return <Tooltip label={failed ? retryLabel : copy.detail} side="top">
     <button type="button" className={css.indicator}
       aria-label={label} aria-disabled={disabled} onClick={() => { if (!disabled) onOpen() }}>

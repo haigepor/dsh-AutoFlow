@@ -33,7 +33,7 @@ export class DesktopUpdateSource {
     if (!this.live || this.bridge === undefined) return
     const state = this.store.getSnapshot()
     if (state.opening || (state.presentation !== undefined && state.presentation.configurationError === undefined
-      && ['checking', 'verifying', 'installing'].includes(state.presentation.phase))) return
+      && ['checking', 'installing'].includes(state.presentation.phase))) return
     const operation = Symbol()
     this.openingOperation = operation
     this.store.set({ ...state, opening: true })

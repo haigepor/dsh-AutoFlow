@@ -152,7 +152,7 @@
       var(--dsw-specific-sidebar-wash-bottom-clear) 68%,
       var(--dsw-specific-sidebar-wash-bottom)
     ),
-    color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, rgb(122 155 240)) 40%, transparent);
+    color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, var(--dsw-alias-sidebar-wash-accent)) 40%, transparent);
 }
 
 /* macOS Reduce Transparency: the OS flattens the window's vibrancy layer to a

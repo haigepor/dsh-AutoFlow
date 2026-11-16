@@ -33,6 +33,14 @@
         "en": "Visual Curator shows image storage usage, increases the storage allowance and cleans unreferenced files after confirmation while protecting saved images and task history. Direct import remembers image provider and model selections.",
         "zh-CN": "视觉策展支持查看图片存储占用、调高存储上限，并在确认后清理未引用文件，保留已保存图片和任务历史；直接导入会记住生图来源与模型选择。"
       }
+    },
+    {
+      "id": "desktop-verification-progress-reopen",
+      "category": "fixes",
+      "text": {
+        "en": "Click the update status to reopen progress while downloaded files are being verified.",
+        "zh-CN": "下载文件校验期间，仍可点击更新状态重新打开进度窗口。"
+      }
     }
   ]
 }

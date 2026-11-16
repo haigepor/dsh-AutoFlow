@@ -562,3 +562,21 @@ html[data-platform='darwin'] body[data-ds-dark-theme] {
   --dsw-specific-sidebar-wash-bottom: rgb(143 137 184 / 0.07);
   --dsw-specific-sidebar-wash-top: rgb(122 155 240 / 0.08);
 }
+
+/* Preserve AutoFlow artwork and translucent surface colors at the theme owner. */
+body {
+  --dsw-alias-plugin-example-panel: #101d3c;
+  --dsw-alias-plugin-example-border: rgb(255 255 255 / 23%);
+  --dsw-alias-plugin-example-fill: rgb(17 17 23 / 43%);
+  --dsw-alias-plugin-example-border-hover: rgb(255 255 255 / 34%);
+  --dsw-alias-plugin-example-fill-hover: rgb(17 17 23 / 54%);
+  --dsw-alias-plugin-example-solid: #111117;
+  --dsw-alias-plugin-example-label: #fff;
+  --dsw-alias-plugin-example-badge: #d9b9ff;
+  --dsw-alias-plugin-example-arrow-fill: rgb(255 255 255 / 12%);
+  --dsw-alias-hero-explore: var(--dsw-static-blue-500);
+  --dsw-alias-hero-build: var(--dsw-static-deepseek-500);
+  --dsw-alias-hero-review: var(--dsw-static-green-500);
+  --dsw-alias-hero-fix: var(--dsw-static-amber-500);
+  --dsw-alias-sidebar-wash-accent: rgb(122 155 240);
+}
