@@ -1,54 +1,73 @@
-version: 0.2.2-rc.1.20261115.3
+version: 0.2.2-rc.3.20261116.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.3-mac-x64-unsigned.zip
-    sha512: AkY8gzD02xD073R9N24BRKg7Xj3XtIsMHMzVyuyyyGDXaeS3+WkXNwsr9loKGmIQ8WHD7Wv511H2GhWB9btBVQ==
-    size: 496957443
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.3-mac-x64-unsigned.zip
-sha512: AkY8gzD02xD073R9N24BRKg7Xj3XtIsMHMzVyuyyyGDXaeS3+WkXNwsr9loKGmIQ8WHD7Wv511H2GhWB9btBVQ==
-releaseDate: '2026-11-15T16:01:46.475Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261116.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261116.1-mac-x64-unsigned.zip
+    sha512: 5VyWkOJTc+ZCuKTRLiWrpLDy7BrseaFK7g0ghpFmH1kBas911jbf2acPD0ByBGah8spE/zpSE/nMb8ytXruiYQ==
+    size: 519895943
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261116.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261116.1-mac-x64-unsigned.zip
+sha512: 5VyWkOJTc+ZCuKTRLiWrpLDy7BrseaFK7g0ghpFmH1kBas911jbf2acPD0ByBGah8spE/zpSE/nMb8ytXruiYQ==
+releaseDate: '2026-11-16T08:24:17.282Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261115.3
+  version: 0.2.2-rc.3.20261116.1
   items:
-    - id: visual-curator-image-options-loading
+    - id: autoflow-rc3-channels
+      category: features
+      text:
+        en: Switch between stable and development Desktop updates in Settings while retaining resumable downloads and installation confirmation.
+        zh-CN: 支持在设置中切换桌面正式版与开发版更新渠道，保留断点续传和安装前确认。
+    - id: autoflow-upstream-rc3
+      category: other
+      text:
+        en: Integrate the official dsh-v0.2.2-rc.3 features and fixes while retaining AutoFlow's interface and custom plugins.
+        zh-CN: 集成官方 dsh-v0.2.2-rc.3 的功能与修复，保留 AutoFlow 界面样式和自定义插件。
+    - id: font-role-default-reset
       category: improvements
       text:
-        en: Image import settings preload the selected provider and reuse its catalog when reopened. Codex account selection reads local metadata without waiting for quota checks or unrelated API catalogs.
-        zh-CN: 图片导入提前加载当前生图来源，重复打开复用目录；Codex 账号选择读取本地信息，无需等待配额查询或未选中 API 来源的目录。
-    - id: visual-curator-import-table-progress
+        en: Show the default text, code and terminal sizes and restore each independently when saved text appears too large.
+        zh-CN: 显示正文、代码和终端的默认字号，已保存的文字过大时可分别恢复默认。
+    - id: visual-curator-image-storage-management
+      category: features
+      text:
+        en: Visual Curator shows image storage usage, increases the storage allowance and cleans unreferenced files after confirmation while protecting saved images and task history. Direct import remembers image provider and model selections.
+        zh-CN: 视觉策展支持查看图片存储占用、调高存储上限，并在确认后清理未引用文件，保留已保存图片和任务历史；直接导入会记住生图来源与模型选择。
+    - id: desktop-verification-progress-reopen
       category: fixes
       text:
-        en: Original import confirmation closes on submission and stays closed after a failure. Batch table rows show progress, errors and retry actions while retaining the selected originals and request identity.
-        zh-CN: 原图导入提交后立即关闭确认弹窗，失败时不再自动重开；导入进度、错误和重试直接显示在批次表格，保留所选原图和请求记录。
-    - id: visual-curator-server-batch-upload
-      category: fixes
-      text:
-        en: Server images complete only when the latest approved output is confirmed received. Incomplete images can be selected again with history retained, and approved results upload together after their batch finishes.
-        zh-CN: 服务器图片仅在最新成品合格且确认上传后标记完成；其余图片支持重新选择并保留历史，批次处理结束后合并上传合格成品。
-    - id: visual-curator-unified-import-confirmation
-      category: fixes
-      text:
-        en: Local, gallery and server originals share one import confirmation for batch name, image account and model. The selected route is retained when an interrupted import resumes.
-        zh-CN: 本地、收藏夹和服务器原图统一确认批次名称、生图账号与模型；中断后继续导入时保留所选生图设置。
+        en: Click the update status to reopen progress while downloaded files are being verified.
+        zh-CN: 下载文件校验期间，仍可点击更新状态重新打开进度窗口。
 releaseNotes: |-
+  ## 新增功能
+
+  - 支持在设置中切换桌面正式版与开发版更新渠道，保留断点续传和安装前确认。
+  - 视觉策展支持查看图片存储占用、调高存储上限，并在确认后清理未引用文件，保留已保存图片和任务历史；直接导入会记住生图来源与模型选择。
+
   ## 体验优化
 
-  - 图片导入提前加载当前生图来源，重复打开复用目录；Codex 账号选择读取本地信息，无需等待配额查询或未选中 API 来源的目录。
+  - 显示正文、代码和终端的默认字号，已保存的文字过大时可分别恢复默认。
 
   ## 问题修复
 
-  - 原图导入提交后立即关闭确认弹窗，失败时不再自动重开；导入进度、错误和重试直接显示在批次表格，保留所选原图和请求记录。
-  - 服务器图片仅在最新成品合格且确认上传后标记完成；其余图片支持重新选择并保留历史，批次处理结束后合并上传合格成品。
-  - 本地、收藏夹和服务器原图统一确认批次名称、生图账号与模型；中断后继续导入时保留所选生图设置。
+  - 下载文件校验期间，仍可点击更新状态重新打开进度窗口。
+
+  ## 其他变更
+
+  - 集成官方 dsh-v0.2.2-rc.3 的功能与修复，保留 AutoFlow 界面样式和自定义插件。
 
   ---
 
+  ## New features
+
+  - Switch between stable and development Desktop updates in Settings while retaining resumable downloads and installation confirmation.
+  - Visual Curator shows image storage usage, increases the storage allowance and cleans unreferenced files after confirmation while protecting saved images and task history. Direct import remembers image provider and model selections.
+
   ## Improvements
 
-  - Image import settings preload the selected provider and reuse its catalog when reopened. Codex account selection reads local metadata without waiting for quota checks or unrelated API catalogs.
+  - Show the default text, code and terminal sizes and restore each independently when saved text appears too large.
 
   ## Bug fixes
 
-  - Original import confirmation closes on submission and stays closed after a failure. Batch table rows show progress, errors and retry actions while retaining the selected originals and request identity.
-  - Server images complete only when the latest approved output is confirmed received. Incomplete images can be selected again with history retained, and approved results upload together after their batch finishes.
-  - Local, gallery and server originals share one import confirmation for batch name, image account and model. The selected route is retained when an interrupted import resumes.
+  - Click the update status to reopen progress while downloaded files are being verified.
+
+  ## Other changes
+
+  - Integrate the official dsh-v0.2.2-rc.3 features and fixes while retaining AutoFlow's interface and custom plugins.
