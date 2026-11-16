@@ -11,6 +11,7 @@ import { execa } from 'execa'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest'
 import * as appBoot from '@deepseek-ai/dsh-app-boot'
+import * as pluginInventory from '@deepseek-ai/dsh-host-plugin-inventory'
 import {
   boot, composeEntries, initProfile, loadProfileDirectory, readProfilePatches, readProfileManifest,
   reconcileProfilePatches, PluginPackages, readPluginMeta, getDshRuntimeVersion,
@@ -1007,6 +1008,179 @@ it('lists bundle versions and current-profile plugin targets', async () => {
       rows: [{ rowId: 'managed', moduleName: pathToFileURL(join(dir, 'node_modules', 'extra', 'plugin.mjs')).href, entryId: 'include:managed' }], overrides: [],
     },
   ])
+})
+
+it.each(['bundles', 'plugins'] as const)('shares concurrent %s enumeration without retaining completed snapshots', async (kind) => {
+  const { manager, ctx } = await fixture('startup')
+  const started = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  let reads = 0
+  const metadata = appBoot.readPluginMetaAsync
+  const inventory = pluginInventory.readPluginInventory
+  const spy = kind === 'bundles'
+    ? vi.spyOn(appBoot, 'readPluginMetaAsync').mockImplementation(async (...args) => {
+      const value = await metadata(...args)
+      if (args[0] === 'extra') { reads++; started.resolve(undefined); await release.promise }
+      return value
+    })
+    : vi.spyOn(pluginInventory, 'readPluginInventory').mockImplementation(async (...args) => {
+      reads++; started.resolve(undefined); await release.promise
+      return inventory(...args)
+    })
+  const list = () => kind === 'bundles' ? manager.listBundles() : manager.listPlugins()
+  const pending = [list(), list(), list()] as const
+  try {
+    await started.promise
+    expect(reads).toBe(1)
+    release.resolve(undefined)
+    const [first, second, third] = await Promise.all(pending)
+    expect(first).toEqual(second)
+    expect(second).toEqual(third)
+    first.pop()
+    expect(second.length).toBe(third.length)
+    expect(first.length).toBe(second.length - 1)
+    await list()
+    expect(reads).toBe(2)
+    await ctx.fiber.dispose()
+    await expect(list()).rejects.toMatchObject({ name: 'AbortError' })
+  } finally {
+    release.resolve(undefined)
+    await Promise.allSettled(pending)
+    spy.mockRestore()
+  }
+})
+
+it('starts a fresh bundle enumeration after a change while older callers finish their own snapshot', async () => {
+  const { manager, ctx, dir } = await fixture('startup')
+  const started = [Promise.withResolvers<undefined>(), Promise.withResolvers<undefined>()] as const
+  const release = [Promise.withResolvers<undefined>(), Promise.withResolvers<undefined>()] as const
+  let reads = 0
+  const metadata = appBoot.readPluginMetaAsync
+  const spy = vi.spyOn(appBoot, 'readPluginMetaAsync').mockImplementation(async (...args) => {
+    const value = await metadata(...args)
+    if (args[0] === 'extra') {
+      const ordinal = reads++
+      started[ordinal]?.resolve(undefined)
+      await release[ordinal]?.promise
+    }
+    return value
+  })
+  const first = manager.listBundles()
+  try {
+    await started[0].promise
+    const path = join(dir, 'node_modules', 'extra', 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { version: string }
+    manifest.version = '2.0.0'
+    writeFileSync(path, JSON.stringify(manifest))
+    ctx.emit('plugin-manager/changed', { reason: 'bundle' })
+    const second = manager.listBundles()
+    await started[1].promise
+    release[0].resolve(undefined)
+    expect((await first).find(row => row.name === 'extra')?.version).toBe('1.0.0')
+    const third = manager.listBundles()
+    expect(reads).toBe(2)
+    release[1].resolve(undefined)
+    const [newer, joined] = await Promise.all([second, third])
+    expect(newer.find(row => row.name === 'extra')?.version).toBe('2.0.0')
+    expect(joined).toEqual(newer)
+    expect(reads).toBe(2)
+  } finally {
+    for (const barrier of release) barrier.resolve(undefined)
+    await first
+    spy.mockRestore()
+  }
+})
+
+it('serves icons returned by an older concurrent snapshot without replacing the newer inventory', async () => {
+  const oldImage = '<svg xmlns="http://www.w3.org/2000/svg"><path fill="red" d="M1 1h2"/></svg>'
+  const newImage = oldImage.replace('red', 'blue')
+  const { manager, ctx, dir } = await fixture('startup', false, (context) => {
+    context.loader.builtins.webserver = WebServer
+  }, {}, undefined, (profileDir) => {
+    writeFileSync(join(profileDir, 'node_modules', 'core', 'cordis.patch.yml'), JSON.stringify([{ insert: [
+      { id: 'webserver', name: 'cordis:webserver', config: { host: '127.0.0.1', port: 0 } },
+      { id: 'manager', name: 'cordis:manager' },
+    ] }]))
+    const path = join(profileDir, 'node_modules', 'extra', 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { icon?: string }
+    manifest.icon = './photo.svg'
+    writeFileSync(path, JSON.stringify(manifest))
+    writeFileSync(join(profileDir, 'node_modules', 'extra', 'photo.svg'), oldImage)
+  })
+  const started = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  const metadata = appBoot.readPluginMetaAsync
+  let reads = 0
+  const spy = vi.spyOn(appBoot, 'readPluginMetaAsync').mockImplementation(async (...args) => {
+    const value = await metadata(...args)
+    if (args[0] === 'extra' && ++reads === 1) { started.resolve(undefined); await release.promise }
+    return value
+  })
+  const first = manager.listBundles()
+  try {
+    await started.promise
+    writeFileSync(join(dir, 'node_modules', 'extra', 'photo.svg'), newImage)
+    ctx.emit('plugin-manager/changed', { reason: 'bundle' })
+    const newer = (await manager.listBundles()).find(row => row.name === 'extra')?.meta?.icon
+    release.resolve(undefined)
+    const older = (await first).find(row => row.name === 'extra')?.meta?.icon
+    if (older === undefined || newer === undefined) throw new Error('Expected declared icon URLs')
+    expect(older).not.toBe(newer)
+    const base = `http://127.0.0.1:${ctx.webServer.port}/`
+    for (const [icon, image] of [[older, oldImage], [newer, newImage]] as const) {
+      const response = await fetch(new URL(icon, base))
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe(image)
+    }
+    await manager.listBundles()
+    expect((await fetch(new URL(older, base))).status).toBe(404)
+    expect((await fetch(new URL(newer, base))).status).toBe(200)
+  } finally {
+    release.resolve(undefined)
+    await first
+    spy.mockRestore()
+  }
+})
+
+it('retries inventory reads after a failed profile read without caching the failure', async () => {
+  const { manager, dir } = await fixture('startup')
+  for (const [file, list] of [
+    ['package.json', () => manager.listBundles()],
+    ['cordis.patch.yml', () => manager.listPlugins()],
+  ] as const) {
+    const path = join(dir, file)
+    const original = readFileSync(path, 'utf8')
+    try {
+      writeFileSync(path, '[')
+      await expect(list()).rejects.toThrow()
+    } finally { writeFileSync(path, original) }
+    expect((await list()).length).toBeGreaterThan(0)
+  }
+})
+
+it('does not publish a shared plugin inventory after disposal', async () => {
+  const { manager, ctx } = await fixture('startup')
+  const started = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  const inventory = pluginInventory.readPluginInventory
+  const spy = vi.spyOn(pluginInventory, 'readPluginInventory').mockImplementation(async (...args) => {
+    const value = await inventory(...args)
+    started.resolve(undefined)
+    await release.promise
+    return value
+  })
+  const pending = [manager.listPlugins(), manager.listPlugins()]
+  const settled = Promise.allSettled(pending)
+  try {
+    await started.promise
+    await ctx.fiber.dispose()
+    release.resolve(undefined)
+    for (const result of await settled) expect(result).toMatchObject({ status: 'rejected', reason: { name: 'AbortError' } })
+  } finally {
+    release.resolve(undefined)
+    await settled
+    spy.mockRestore()
+  }
 })
 
 it('does not recreate feature configuration when metadata settles after disposal', async () => {

@@ -471,6 +471,9 @@ export class PluginManager extends TypertRemoteService {
   private readonly configuredRegistries: Omit<PluginRegistries, 'resolved'>
   private readonly ownerContext: Context
   private readonly abort = new AbortController()
+  private pluginListing: Promise<PluginInfo[]> | undefined
+  private bundleListing: Promise<BundleInfo[]> | undefined
+  private inventoryRevision = 0
   /** Installations by request id, from their call until it settles. */
   private readonly installs = new Map<PluginInstallRequestId, InstallControl>()
   private readonly actions = new Map<string, (input: Record<string, string>, signal: AbortSignal) => Promise<string>>()
@@ -498,6 +501,11 @@ export class PluginManager extends TypertRemoteService {
     this.ownerContext = ctx
     this.profile = ctx.profileContext
     this.restartTimeoutMs = (config as Required<Config>).restartTimeoutMs
+    ctx.on('plugin-manager/changed', () => {
+      this.inventoryRevision++
+      this.pluginListing = undefined
+      this.bundleListing = undefined
+    })
     ctx.on('internal/status', (fiber) => {
       const entry = fiber.entry
       if (entry === undefined || fiber.parent.fiber.entry === entry || this.abort.signal.aborted) return
@@ -927,12 +935,27 @@ export class PluginManager extends TypertRemoteService {
   }
 
   /** Read current plugins, including why a row cannot be changed through the profile patch.
+   * Concurrent callers share an enumeration until it settles or inventory changes; each receives an owned snapshot.
    * @returns Current runtime entries with persistent patch targets.
    */
   @Remote
   async listPlugins(): Promise<PluginInfo[]> {
+    this.abort.signal.throwIfAborted()
+    if (this.pluginListing === undefined) {
+      const pending = this.readPlugins().finally(() => {
+        if (this.pluginListing === pending) this.pluginListing = undefined
+      })
+      this.pluginListing = pending
+    }
+    const snapshot = await this.pluginListing
+    this.abort.signal.throwIfAborted()
+    return structuredClone(snapshot)
+  }
+
+  private async readPlugins(): Promise<PluginInfo[]> {
     const rows = flatten(composeEntries([readProfilePatches('dsh', this.profile)]))
     const snapshot = await readPluginInventory(this.ctx)
+    this.abort.signal.throwIfAborted()
     return snapshot.entries.map((entry) => {
       const actual = [...this.ctx.loader.entries()].find(row => row.id === entry.entryId)
       const candidates = rows.filter(row => row.id === actual?.options.id)
@@ -951,12 +974,24 @@ export class PluginManager extends TypertRemoteService {
   /** Read installed, installation-provided, and offline Official catalog bundles, plus selected non-bundle names.
    * A dependency without a bundle patch is listed, as a `not-bundle` problem, only while it is selected.
    * New and unfinished inventory reads reject once the service is disposed.
+   * Concurrent callers share an enumeration until it settles or inventory changes; each receives an owned snapshot.
    * @returns Package versions, manifest descriptions, the installable spec of profile dependencies, rows, optional
    * display metadata, activation selections, whether the installation offers the bundle, and removal availability.
    */
   @Remote
   async listBundles(): Promise<BundleInfo[]> {
-    return (await this.readBundles(true)).map(bundle => ({ ...bundle, updatable: typeof updateRefusal(bundle, bundle.name) !== 'string' }))
+    this.abort.signal.throwIfAborted()
+    if (this.bundleListing === undefined) {
+      const pending = this.readBundles(true)
+        .then(bundles => bundles.map(bundle => ({ ...bundle, updatable: typeof updateRefusal(bundle, bundle.name) !== 'string' })))
+        .finally(() => {
+          if (this.bundleListing === pending) this.bundleListing = undefined
+        })
+      this.bundleListing = pending
+    }
+    const snapshot = await this.bundleListing
+    this.abort.signal.throwIfAborted()
+    return structuredClone(snapshot)
   }
 
   /** Bundle inventory before update eligibility; release checks skip localized display metadata.
@@ -964,6 +999,7 @@ export class PluginManager extends TypertRemoteService {
    */
   private async readBundles(displayMetadata: boolean): Promise<Omit<BundleInfo, 'updatable'>[]> {
     this.abort.signal.throwIfAborted()
+    const revision = this.inventoryRevision
     const icons = new Map<string, PluginIcon>()
     const iconURL = (image: PluginIcon): string => {
       if (!this.webIcons) return `data:${image.contentType};base64,${image.bytes.toString('base64')}`
@@ -1090,7 +1126,11 @@ export class PluginManager extends TypertRemoteService {
     }
     this.abort.signal.throwIfAborted()
     // 一次完整列表替换资源表，避免反复刷新累积旧图标；未启用的组合包也拥有图标。
-    if (displayMetadata) this.iconAssets = icons
+    if (displayMetadata) {
+      if (revision === this.inventoryRevision) this.iconAssets = icons
+      // A superseded read still returns its snapshot; retain those URLs until the next fresh inventory.
+      else for (const [url, image] of icons) this.iconAssets.set(url, image)
+    }
     return bundles.map(bundle => this.restartBundles.has(bundle.name) ? { ...bundle, restartRequired: true } : bundle)
   }
 
