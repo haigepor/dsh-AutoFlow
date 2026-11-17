@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore, { prepareImageFile } from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { CompatibleVisionProvider, MediaError } from '../src/media/index.ts'
 import type { VisionConfig, VisionInput } from '../src/media/index.ts'
-import { wallpaperGenerationPrompt, wallpaperGenerationReferences } from '../src/media/wallpaper-generation.ts'
+import { wallpaperCompleteCanvasPrompt, wallpaperGenerationPrompt, wallpaperGenerationReferences } from '../src/media/wallpaper-generation.ts'
 import { wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
 import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams } from '../src/media/wallpaper-render.ts'
 import { fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
@@ -183,19 +183,9 @@ test('standalone generated canvases retain one complete image instead of pasting
   const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
   const expected = digest(await sharp(generated).raw().toBuffer())
   assert.equal(digest(await sharp(result.image).removeAlpha().raw().toBuffer()), expected)
-  const native = await renderWallpaper(original, plan, sourceLockSettings, generated, 'protected-context-v2')
-  assert.notEqual(digest(await sharp(native.image).removeAlpha().raw().toBuffer()), expected)
-  const sourceRestored = await renderWallpaper(original, plan, sourceLockSettings, generated, 'generated-canvas-protected-v2')
-  const healthyBackground = { left: 510, top: 1410, width: 1, height: 1 }
-  assert.deepEqual(await sharp(sourceRestored.image).extract({ left: 500, top: 1400, width: 320, height: 480 }).removeAlpha().raw().toBuffer(), sourcePixels)
-  assert.notDeepEqual(await sharp(native.image).extract(healthyBackground).removeAlpha().raw().toBuffer(), pixelRectangle(sourcePixels, 320, 10, 10, 1, 1))
-  const featheredSettings = wallpaperSettingsSchema.parse({ ...sourceLockSettings, backgroundTransitionPixels: 192 })
-  const feathered = await renderWallpaper(original, plan, featheredSettings, generated, 'generated-canvas-protected-v2')
-  assert.deepEqual(await sharp(feathered.image).extract({ left: 500, top: 1400, width: 320, height: 480 }).removeAlpha().raw().toBuffer(), sourcePixels)
+  for (const mode of ['protected-context-v2', 'generated-canvas-protected-v2'] as const) await assert.rejects(renderWallpaper(original, plan, sourceLockSettings, generated, mode), /overlays are disabled/)
   const translucent = await sharp({ create: { width: 1845, height: 3280, channels: 4, background: { r: 193, g: 125, b: 67, alpha: 0.5 } } }).png().toBuffer()
-  const opaque = await renderWallpaper(original, plan, sourceLockSettings, translucent, 'generated-canvas-protected-v2')
-  assert.equal((await sharp(opaque.image).stats()).isOpaque, true)
-  assert.deepEqual(await sharp(opaque.image).extract({ left: 0, top: 0, width: 1, height: 1 }).raw().toBuffer(), Buffer.from([193, 125, 67]))
+  assert.equal((await sharp((await renderWallpaper(original, plan, sourceLockSettings, translucent, 'generated-canvas-v1')).image).stats()).isOpaque, false, 'An incomplete provider canvas cannot be concealed by restoring opaque source pixels')
 })
 
 test('source-edge continuity catches a hard generated seam without rejecting an unbroken edge', async () => {
@@ -222,23 +212,18 @@ test('native generated-frame check finds an authorized hard cut before super-res
   assert.deepEqual((await wallpaperGeneratedFrameSeams(feathered, target, canvas, native, ['top'], settings)).map(seam => seam.edge), ['top'])
 })
 
-test('source-restored composition closes the generated seam outside the original without editing source pixels', async () => {
+test('source-restoring composition is forbidden even for a narrow generated margin', async () => {
   const source = await sharp({ create: { width: settings.width, height: settings.height - 8, channels: 3, background: '#205080' } }).png().toBuffer()
   const generated = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: '#f0d0a0' } }).png().toBuffer()
   const sourcePlan = { ...plan, placement: { scale: 1, left: 0, top: 8 }, regions: [] }
-  const result = await renderWallpaper(source, sourcePlan, settings, generated, 'generated-canvas-protected-v2')
-  assert.deepEqual(await sharp(result.image).extract({ left: 0, top: 8, width: settings.width, height: settings.height - 8 }).removeAlpha().raw().toBuffer(), await sharp(source).raw().toBuffer())
-  assert.deepEqual(await wallpaperSourceSeams(result.image, result.geometry.target, settings), [])
+  await assert.rejects(renderWallpaper(source, sourcePlan, settings, generated, 'generated-canvas-protected-v2'), /overlays are disabled/)
 })
 
-test('wide generated margins retain their defects for review instead of mirroring source objects', async () => {
+test('wide margins cannot enable the retired source restoration compositor', async () => {
   const source = await sharp({ create: { width: settings.width - 200, height: settings.height - 100, channels: 3, background: '#205080' } }).png().toBuffer()
   const generated = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: '#f0d0a0' } }).png().toBuffer()
   const sourcePlan = { ...plan, placement: { scale: 1, left: 100, top: 100 }, regions: [] }
-  const result = await renderWallpaper(source, sourcePlan, settings, generated, 'generated-canvas-protected-v2')
-  const exterior = await sharp(result.image).extract({ left: 99, top: 200, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
-  assert.deepEqual(exterior, Buffer.from([240, 208, 160]))
-  assert.deepEqual(new Set((await wallpaperSourceSeams(result.image, result.geometry.target, settings)).map(seam => seam.edge)), new Set(['top', 'left', 'right']))
+  await assert.rejects(renderWallpaper(source, sourcePlan, settings, generated, 'generated-canvas-protected-v2'), /overlays are disabled/)
 })
 
 test('a full-size source moves only far enough to put its complete subject inside the safe area', () => {
@@ -275,4 +260,14 @@ test('legacy plans remain decodable while plan v6 requires the model scene edit 
   const complete = { ...observation, editPrompt: 'Continue the real coastal sky and gravel while preserving both vehicles and the sea horizon.' }
   assert.deepEqual(await provider(complete).wallpaper({ ...input, wallpaperPrompt }, 'wallpaper-plan', bounds), complete)
   await assert.rejects(provider({ ...complete, placement: plan.placement }).wallpaper({ ...input, wallpaperPrompt }, 'wallpaper-plan', bounds), (error: unknown) => error instanceof MediaError && error.code === 'vision-invalid-output')
+})
+
+test('complete references describe desired placement as unapplied and cannot claim that the source was already moved', () => {
+  const prompt = wallpaperCompleteCanvasPrompt(plan, { width: 320, height: 480 }, settings, [])
+  assert.match(prompt, /"referenceTransformAlreadyApplied":false/)
+  assert.doesNotMatch(prompt, /"referenceTransformAlreadyApplied":true/)
+  assert.match(prompt, /"desiredSourceTransform"/)
+  assert.match(prompt, /first vehicle：完整轮廓占画面宽度约8\.7%，左缘29\.3%、右缘37\.9%/)
+  assert.match(prompt, /second vehicle：完整轮廓占画面宽度约4\.3%/)
+  assert.match(prompt, /必须拉远镜头、等比缩小整组主体/)
 })

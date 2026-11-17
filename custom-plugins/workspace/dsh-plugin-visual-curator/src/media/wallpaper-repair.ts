@@ -1,6 +1,7 @@
 /** Authorized edits open defective regions without unlocking healthy source pixels by default. */
 import sharp from 'sharp'
 import type { WallpaperItem, WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
+import { wallpaperAttemptReview } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
 import { wallpaperSourceContinuationTargets, wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
 
@@ -12,7 +13,7 @@ export function wallpaperSourceRepairNeeded(plan: WallpaperPlan, settings: Wallp
 /** @param mask Existing saved full-canvas edit mask. @param plan Source placement. @param settings Frozen task policy. @param attempts Retained independent defects. @param source Original dimensions. @param clockBackgroundNeedsEdit Measured first-pass defect under an explicitly configured clock policy. @returns An alpha mask opening authorized repair targets; conservative tasks keep their mask. */
 export async function wallpaperRepairMask(mask: Buffer<ArrayBuffer>, plan: WallpaperPlan, settings: WallpaperSettings, attempts: WallpaperItem['attempts'], source: { width: number; height: number }, clockBackgroundNeedsEdit = false): Promise<Buffer<ArrayBuffer>> {
   if (!wallpaperGenerativeRepair(settings)) return mask
-  const review = attempts.findLast(attempt => attempt.review)?.review
+  const review = wallpaperAttemptReview(attempts.findLast(attempt => wallpaperAttemptReview(attempt)))
   const subjectDefect = wallpaperReviewNeedsSubjectEdit(review)
   const edgeTargets = wallpaperSourceContinuationTargets(plan, settings, source).filter(target => target.disposition === 'interior')
   const readabilityDefect = !!settings.processing?.clockContrast && (clockBackgroundNeedsEdit || review?.checks.readability.result !== undefined && review.checks.readability.result !== 'satisfied')

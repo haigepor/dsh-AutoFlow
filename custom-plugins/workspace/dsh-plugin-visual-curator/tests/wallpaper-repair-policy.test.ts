@@ -239,7 +239,7 @@ test('layout correction uniformly fits a complete candidate while incomplete str
   backgroundRetry.review.modelIssues = [{ kind: 'background', check: 'background', code: 'other', reason: 'Background seam remains' }]
   backgroundRetry.review.issues = backgroundRetry.review.modelIssues
   const item = wallpaperItemSchema.parse({ imageVersionId: 'source', familyId: 'family', status: 'needs-review', edits: 1, attempts: [backgroundRetry] })
-  assert.deepEqual(wallpaperEditingRetry(item, settings)?.layoutCorrection, corrected.layoutCorrection, 'A later background edit retains the current candidate placement')
+  assert.equal(wallpaperEditingRetry(item, settings), undefined, 'A failed candidate without confirmed healthy content requires a new source plan')
 })
 
 test('new admission inset leaves drift room inside the same safe area without changing historical placement policy', () => {

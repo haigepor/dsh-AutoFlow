@@ -43,5 +43,10 @@
       "imageModel": "gpt-image-2"
     },
     "storageLimitError": "本地图片存储已达上限，可清理未引用文件或调高上限；已保存图片和历史记录仍保留"
+  },
+  "storageMigration": {
+    "label": "正在复制图片…",
+    "background": true,
+    "closeEnabled": true
   }
 }

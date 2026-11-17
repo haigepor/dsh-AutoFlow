@@ -1998,6 +1998,9 @@ importers:
       '@deepseek-ai/dsh-credentials-local':
         specifier: workspace:*
         version: link:../../../packages/credentials/credentials-local
+      '@deepseek-ai/dsh-error':
+        specifier: workspace:*
+        version: link:../../../packages/util/error
       '@deepseek-ai/dsh-host-directory-picker-native':
         specifier: workspace:*
         version: link:../../../packages/host/directory-picker-native

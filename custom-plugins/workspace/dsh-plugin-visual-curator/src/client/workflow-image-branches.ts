@@ -132,7 +132,8 @@ export function imageWorkflowStageReached(stage: ImageWorkflowStage, item: Wallp
   if (stage === 'rendering') return !!attempt && (!!attempt.canvasId || !!attempt.generation || !!attempt.outputId || !!attempt.nativeReviewCandidate || item.status === 'rendering' || failed === 'rendering')
   if (stage === 'clarity') return !!attempt?.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' || !!imageWorkflowClarity(attempt) && !attempt?.preResolutionReview
   if (stage === 'reviewing') return !!attempt && (!!attempt.review || !!attempt.simulationId || !!attempt.nativeReviewCandidate || item.status === 'reviewing' || failed === 'reviewing')
-  return !!attempt?.outputId && !!attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!attempt.preResolutionReview || attempt.preResolutionReview.finalId === attempt.outputId)
+  const review = wallpaperAttemptReview(attempt)
+  return !!attempt?.outputId && !!review && wallpaperVerdict(review) === 'pass' && (!attempt.preResolutionReview || attempt.preResolutionReview.finalId === attempt.outputId)
 }
 
 /** Stage images stay bound to their own inputs and outputs as later processing completes.
@@ -193,8 +194,8 @@ export function imageWorkflowGallery(stage: ImageWorkflowStage, item: WallpaperI
  * @returns The preceding failed review, or absence for ordinary progression and explicit history.
  */
 export function imageWorkflowPreviousReview(item: WallpaperItem | undefined, attempt = item?.attempts.at(-1)) {
-  if (!item || !attempt || attempt !== item.attempts.at(-1) || attempt.review || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing') return undefined
-  return item.attempts.findLast(prior => prior.revision < attempt.revision && prior.review && wallpaperVerdict(prior.review) !== 'pass')
+  if (!item || !attempt || attempt !== item.attempts.at(-1) || wallpaperAttemptReview(attempt) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing') return undefined
+  return item.attempts.findLast(prior => { const review = wallpaperAttemptReview(prior); return prior.revision < attempt.revision && review && wallpaperVerdict(review) !== 'pass' })
 }
 
 /** A repair cycle follows the current pixels while earlier reviews remain in version history.
@@ -204,10 +205,10 @@ export function imageWorkflowPreviousReview(item: WallpaperItem | undefined, att
 export function imageWorkflowRework(item: WallpaperItem | undefined, status: string, attempt = item?.attempts.at(-1)): { stage: 'rendering' | 'reviewing' | 'passed'; phase: WorkflowPhase; flowing: boolean } | undefined {
   if (!item || !attempt) return undefined
   const current = attempt === item.attempts.at(-1)
-  const rejected = !!attempt.review && wallpaperVerdict(attempt.review) !== 'pass'
-  const precedingRejection = item.attempts.some(prior => prior.revision < attempt.revision && prior.review && wallpaperVerdict(prior.review) !== 'pass')
+  const review = wallpaperAttemptReview(attempt), rejected = !!review && wallpaperVerdict(review) !== 'pass'
+  const precedingRejection = item.attempts.some(prior => { const review = wallpaperAttemptReview(prior); return prior.revision < attempt.revision && review && wallpaperVerdict(review) !== 'pass' })
   if (!rejected && !precedingRejection && attempt.retryFrom !== 'reviewing') return undefined
-  if (attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!current || item.status === 'passed')) return { stage: 'passed', phase: 'completed', flowing: false }
+  if (review && wallpaperVerdict(review) === 'pass' && (!current || item.status === 'passed')) return { stage: 'passed', phase: 'completed', flowing: false }
   if ((status === 'cancelled' || item.status === 'cancelled') && current) return { stage: attempt.outputId ? 'reviewing' : 'rendering', phase: 'cancelled', flowing: false }
   const active = current && ['created', 'running', 'pausing', 'cancelling'].includes(status)
   if (current && item.status === 'reviewing' && attempt.boundaryReview?.status === 'pending') {
@@ -228,8 +229,8 @@ export function imageWorkflowRework(item: WallpaperItem | undefined, status: str
  */
 export function imageWorkflowWindow(item: WallpaperItem | undefined, attempt = item?.attempts.at(-1), inspected?: ImageWorkflowStage) {
   const boundaryPending = attempt?.boundaryReview?.status === 'pending'
-  const failedReview = attempt?.review && !boundaryPending && wallpaperVerdict(attempt.review) !== 'pass'
-  const repairing = item && attempt === item.attempts.at(-1) && item.attempts.some(prior => prior.revision < (attempt?.revision ?? 0) && prior.review && wallpaperVerdict(prior.review) !== 'pass') && (['rendering', 'reviewing'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing')
+  const review = wallpaperAttemptReview(attempt), failedReview = review && !boundaryPending && wallpaperVerdict(review) !== 'pass'
+  const repairing = item && attempt === item.attempts.at(-1) && item.attempts.some(prior => { const review = wallpaperAttemptReview(prior); return prior.revision < (attempt?.revision ?? 0) && review && wallpaperVerdict(review) !== 'pass' }) && (['rendering', 'reviewing'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing')
   const repair = !inspected && !boundaryPending && (failedReview || repairing || imageWorkflowPreviousReview(item, attempt))
   const failed = item && wallpaperFailedStep(item)
   const newOrder = !!attempt?.generationBrief || !!attempt?.preResolutionReview
@@ -238,9 +239,9 @@ export function imageWorkflowWindow(item: WallpaperItem | undefined, attempt = i
     : item.status === 'reviewing' && boundaryPending || attempt.postResolutionReview && item.status !== 'passed' ? 'reviewing'
     : attempt.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' && !attempt.preResolutionReview.finalId ? 'clarity'
     : attempt.clarity?.originalOutputId && !['not-needed', 'passed'].includes(attempt.clarity.status) ? 'clarity'
-    : item.status === 'reviewing' && attempt.simulationId && !attempt.review ? 'reviewing'
+    : item.status === 'reviewing' && attempt.simulationId && !review ? 'reviewing'
     : failed === 'rendering' || item.status === 'rendering' && !attempt.preResolutionReview || !attempt.outputId && !attempt.preResolutionReview ? 'rendering'
-    : !attempt.review || wallpaperVerdict(attempt.review) !== 'pass' ? 'reviewing' : 'final'
+    : !review || wallpaperVerdict(review) !== 'pass' ? 'reviewing' : 'final'
   const record = imageWorkflowDecisionRecord(item, attempt), limited = attempt === item?.attempts.at(-1) && item?.reason === 'decision-round-limit'
   const detail = imageWorkflowDetail(item, attempt)
   const inspecting = detail?.status === 'queued' || detail?.status === 'running'

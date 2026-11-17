@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.23: Image storage management previews usage and reclaimable files, increases the storage allowance and requires a second confirmation before cleanup. Saved originals, outputs and hidden task history stay protected; active image tasks block cleanup. The compact dialog supports light and dark themes and narrow screens. Direct import remembers each provider's account and model within the current profile. This release supports rc.2 and rc.3 Hosts while retaining existing settings and history; restart after active tasks finish.
+Prepared release 0.2.24, pending publication: Cars stay fully inside the safe area, while other co-primary subjects meet stricter containment and critical structures remain protected. Natural background variation is allowed. High-resolution originals prepare wallpaper references without another upload-limit rejection or reduced quality. Complete generated canvases and saved-receipt recovery retain existing work and history. Image storage can move to a selected directory without losing task or image references. Saved policies remain frozen until explicit current-policy adoption. Restart after active tasks finish to load the matching Host and Client.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

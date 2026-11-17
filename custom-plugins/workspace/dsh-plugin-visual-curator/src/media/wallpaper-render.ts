@@ -8,15 +8,27 @@ import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
 
 export { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
 
-/** Render an isotropic placement; only unprotected source-background edges may blend with generated pixels.
+/** Convert one complete provider canvas to the target PNG; no source or candidate pixels are accepted by this renderer.
+ * @param bytes Complete generated image, optionally reconstructed before this call.
+ * @param settings Frozen target dimensions.
+ * @returns The uniformly resized full canvas and its measured input size.
+ */
+export async function renderCompleteWallpaper(bytes: Uint8Array, settings: Pick<WallpaperSettings, 'width' | 'height'>) {
+  const generated = await sharp(bytes).metadata()
+  if (!generated.width || !generated.height || Math.abs(generated.width - generated.height * settings.width / settings.height) > 1) throw new CuratorError('constraint-conflict', 'wallpaper-background', 'The complete provider canvas has a different aspect ratio from the wallpaper.')
+  return { image: await sharp(bytes).resize(settings.width, settings.height, { fit: 'fill' }).toColourspace('srgb').png().toBuffer(), generatedSize: { width: generated.width, height: generated.height } }
+}
+
+/** Render a crop or diagnostic source placement, or deliver an entire generated canvas without restoring source pixels.
  * @param bytes Verified oriented original.
  * @param plan Inferred layout.
  * @param settings Frozen template.
- * @param background Optional generated background; omission leaves transparent uncovered pixels.
- * @param compositionMode Explicit saved-output recovery; generated-canvas-v1 keeps only generated pixels, while generated-canvas-protected-v2 restores healthy original pixels.
+ * @param background Optional complete generated canvas; omission leaves transparent uncovered pixels.
+ * @param compositionMode Historical modes can prepare diagnostic placements; only generated-canvas-v1 permits generated output.
  * @returns Actual image, alpha mask and measured transform.
  */
-export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, background?: Uint8Array, compositionMode: WallpaperCompositionMode = 'source-edge-v1') {
+export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, background?: Uint8Array, compositionMode: WallpaperCompositionMode = 'generated-canvas-v1') {
+  if (background && compositionMode !== 'generated-canvas-v1') throw new CuratorError('constraint-conflict', 'wallpaper-render', 'Source and candidate pixel overlays are disabled. Use one complete provider canvas; saved historical files remain readable.')
   const metadata = await sharp(bytes).metadata()
   if (!metadata.width || !metadata.height) throw new CuratorError('invalid-input', 'wallpaper-render', 'Source dimensions are unavailable.')
   const geometry = wallpaperGeometry({ width: metadata.width, height: metadata.height }, plan, settings)
@@ -70,62 +82,21 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
   const editMask = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: { r: 255, g: 255, b: 255 } } }).joinChannel(protection, { raw }).png().toBuffer()
   let image: Buffer<ArrayBufferLike> = seed
   let generatedSize: { width: number; height: number } | undefined
-  if (background && (geometry.needsOutpaint || compositionMode === 'protected-context-v2' || compositionMode === 'generated-canvas-v1' || compositionMode === 'generated-canvas-protected-v2')) {
-    const generated = await sharp(background).metadata()
-    if (!generated.width || !generated.height || Math.abs(generated.width - generated.height * settings.width / settings.height) > 1) throw new CuratorError('constraint-conflict', 'wallpaper-background', 'The generated background aspect ratio differs from the edit canvas. Replan or choose an output size with the same ratio.')
-    generatedSize = { width: generated.width, height: generated.height }
-    if (compositionMode === 'generated-canvas-v1') image = await sharp(background).resize(settings.width, settings.height, { fit: 'fill' }).toColourspace('srgb').png().toBuffer()
-    else {
-      const rgb = await sharp(seed).removeAlpha().png().toBuffer()
-      // Restored generation keeps every existing source pixel, including deliberately cropped objects at the extension edge.
-      const retained = await sharp(rgb).joinChannel(compositionMode === 'generated-canvas-protected-v2' ? mask.data : blend, { raw }).png().toBuffer()
-      const generatedBackground = sharp(background).resize(settings.width, settings.height, { fit: 'fill' })
-      // Some image edits return partial alpha across the whole frame; only the new source-restored mode uses their RGB as the reviewed opaque canvas.
-      if (compositionMode === 'generated-canvas-protected-v2') generatedBackground.removeAlpha()
-      image = await generatedBackground.composite([{ input: retained, left: 0, top: 0 }]).toColourspace('srgb').png().toBuffer()
-      if (compositionMode === 'generated-canvas-protected-v2') image = await blendWallpaperSourceExterior(image, geometry.target, settings)
-    }
+  if (background) {
+    const complete = await renderCompleteWallpaper(background, settings)
+    image = complete.image; generatedSize = complete.generatedSize
   }
   return { image, mask: editMask, geometry, generatedSize }
 }
 
-/** Preserve a complete, content-reviewed candidate at its corrected placement before reviewing the new background.
+/** Reject the retired candidate-restoration operation; historical callers cannot create pasted outputs.
  * @param candidate Saved complete-candidate pixels. @param plan Its one uniform placement. @param settings Frozen target geometry. @param generated Provider background pixels. @param subjectsOnly Restore protected subject rectangles while leaving defective background editable.
- * @returns Candidate-preserving composition at the provider's native dimensions, before super-resolution.
+ * @returns Never resolves because source and candidate restoration is disabled.
  */
 export async function lockWallpaperCandidate(candidate: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, generated: Uint8Array, subjectsOnly = false): Promise<Buffer> {
   const native = await sharp(generated).metadata()
   const composed = await renderWallpaper(candidate, plan, subjectsOnly ? { ...settings, backgroundContextPixels: 0, backgroundTransitionPixels: 0 } : settings, generated, subjectsOnly ? 'protected-context-v2' : 'generated-canvas-protected-v2')
   return sharp(composed.image).resize(native.width, native.height, { fit: 'fill' }).png().toBuffer()
-}
-
-/** Blend narrow newly exposed edges toward the source boundary, leaving every retained source pixel unchanged.
- * @param image Opaque source-restored canvas.
- * @param target Placed source rectangle within the canvas.
- * @param settings Frozen exterior blend distance.
- * @returns Canvas with a continuous source-to-extension transition outside the original.
- */
-async function blendWallpaperSourceExterior(image: Uint8Array, target: { left: number; top: number; width: number; height: number }, settings: WallpaperSettings): Promise<Buffer> {
-  const { blendPixels } = wallpaperProcessingSchema.parse(settings.processing ?? {}).sourceSeam
-  const right = target.left + target.width, bottom = target.top + target.height
-  const narrow = { left: target.left > 0 && target.left <= blendPixels, right: settings.width > right && settings.width - right <= blendPixels, top: target.top > 0 && target.top <= blendPixels, bottom: settings.height > bottom && settings.height - bottom <= blendPixels }
-  if (!Object.values(narrow).some(Boolean)) return Buffer.isBuffer(image) ? image : Buffer.from(image)
-  const decoded = await sharp(image).removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
-  const { width, height, channels } = decoded.info, pixels = decoded.data
-  const leftLimit = Math.max(0, target.left - blendPixels), rightLimit = Math.min(width, right + blendPixels)
-  const topLimit = Math.max(0, target.top - blendPixels), bottomLimit = Math.min(height, bottom + blendPixels)
-  for (let y = topLimit; y < bottomLimit; y++) for (let x = leftLimit; x < rightLimit; x++) {
-    const dx = x < target.left ? target.left - x : x >= right ? x - right + 1 : 0
-    const dy = y < target.top ? target.top - y : y >= bottom ? y - bottom + 1 : 0
-    const distance = Math.max(dx, dy)
-    if (!distance || distance >= blendPixels || dx && !(x < target.left ? narrow.left : narrow.right) || dy && !(y < target.top ? narrow.top : narrow.bottom)) continue
-    const reflectedX = Math.max(target.left, Math.min(right - 1, x < target.left ? target.left + dx - 1 : x >= right ? right - dx : x))
-    const reflectedY = Math.max(target.top, Math.min(bottom - 1, y < target.top ? target.top + dy - 1 : y >= bottom ? bottom - dy : y))
-    const weight = (1 + Math.cos(Math.PI * (distance - 1) / (blendPixels - 1 || 1))) / 2
-    const at = (y * width + x) * channels, source = (reflectedY * width + reflectedX) * channels
-    for (let channel = 0; channel < 3; channel++) pixels[at + channel] = Math.round(pixels[source + channel]! * weight + pixels[at + channel]! * (1 - weight))
-  }
-  return sharp(pixels, { raw: { width, height, channels } }).png().toBuffer()
 }
 
 /** Measure visible discontinuities where generated pixels meet the exact retained source.

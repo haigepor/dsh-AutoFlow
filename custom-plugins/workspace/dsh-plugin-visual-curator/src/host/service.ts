@@ -40,6 +40,7 @@ import { GalleryService } from './gallery.ts'
 import { GalleryReferenceTasks } from './gallery-tasks.ts'
 import { galleryTaskIdSchema } from '../shared/gallery-task.ts'
 import { referencedImageStorageFiles } from './image-storage.ts'
+import { ImageStorageMigration } from './image-storage-migration.ts'
 import { galleryMediaUrlSchema } from '../shared/gallery.ts'
 import { referencePage } from './reference-pages.ts'
 import { GalleryLogins, type GalleryLoginBrowser } from './gallery-login.ts'
@@ -137,6 +138,8 @@ export class CuratorService {
   private stopping = false
   private selectingLocalFiles = false
   private cleaningStorage = false
+  private readonly storageMigration: ImageStorageMigration
+  private delayedStorageRecovery: (() => Promise<void>) | undefined
   private readonly lifetime = new AbortController()
   private readonly previewReads = createPreviewReads((location, signal) => this.loadPreview(location, signal), () => this.config.source.unsplash.previewConcurrency)
   private readonly datasetReads = createDatasetReads(() => ({ ttlMs: this.config.limits.datasetCacheTtlMs, maxViews: this.config.limits.datasetCacheMaxViews, maxBytes: this.config.limits.datasetCacheMaxBytes }))
@@ -149,12 +152,16 @@ export class CuratorService {
     this.profileId = createHash('sha256').update(resolve(ctx.profileContext.dir)).digest('hex')
     const l = this.config.limits
     this.files = new AssetFiles(join(ctx.profileContext.dir, 'visual-curator'), { maxFileBytes: l.maxImportBytes, maxPixels: l.maxPixels, maxDimension: l.maxDimension, previewMaxDimension: l.previewMaxDimension, maxStorageBytes: l.maxStorageBytes })
+    this.storageMigration = new ImageStorageMigration({ profileId: this.profileId, defaultDirectory: this.files.root, repository: () => this.domain.repository, readUsage: () => this.imageStorageUsage(), files: this.files, jobs: ctx.jobs, signal: this.lifetime.signal, settled: async () => {
+      if (!this.stopping && !this.storageMigration.active) { const recovery = this.delayedStorageRecovery; this.delayedStorageRecovery = undefined; if (recovery) await recovery() }
+    } })
     this.providers = dependencies.providers ?? new ProviderFactory(ctx.credentials, ctx.llm && ctx.attachments ? { llm: ctx.llm, attachments: ctx.attachments } : undefined)
   }
   /** Acquire exclusive persistence before accepting Client or Agent operations. */
   async initialize(): Promise<void> {
     if (this.domainValue || this.stopping) throw new CuratorError('capability-unavailable', 'initialize', 'The provider is already initialized or stopping.')
     this.domainValue = this.dependencies.openDomain ? await this.dependencies.openDomain(this.files) : await openCuratorDomain({ profileId: this.profileId, facility: this.ctx.storageDomain, lockPath: join(this.files.root, 'writer.lock'), commitRetry: () => ({ attempts: this.config.limits.maxRetryAttempts, delayMs: this.config.limits.retryDelayMs }), verifyImage: async image => { await this.files.verifyReference(image.blob) } })
+    const recoveringStorage = await this.storageMigration.initialize()
     // An injected in-memory workflow domain has no matching profile storage for image receipts.
     if (!this.dependencies.openDomain && this.ctx.llm && this.ctx.attachments) {
       const official = await openOfficialImageProvider({ storage: this.ctx.storageDomain, domainName: `visual_curator_openai_images_${this.profileId.slice(0, 24)}`, attachments: this.ctx.attachments, credentials: this.ctx.credentials, config: () => this.config, report: () => { /* Durable task errors are exposed through saved receipts. */ } })
@@ -219,11 +226,21 @@ export class CuratorService {
       return this.action({ operation: 'reference-analyze', args: { styleId: intent.styleId, operationId: `automatic-reference:${intent.styleId}:${intent.draftId}:${intent.revision}`, automaticOrganizationRevision: intent.revision, buildDataset: true, analysisMode: 'pending', analysisScope: 'all', planDigest: plan.view.digest } }, intent.actor, this.lifetime.signal)
     })
     await this.galleryTasks.initialize()
-    await this.engine.resumeAnalyses(this.worker('analyze'))
-    for (const run of this.domain.repository.list('run')) if (run.status === 'interrupted' && dataOf(run).autoResume === true && (isWallpaperRun(run) ? wallpaperAcceptsWork(this.domain, run) : specOf(run).fixed.wallpaperLearning === true)) await this.engine.control(run.id, 'resume', { kind: 'human', id: 'profile-owner', profileId: this.profileId }, this.worker(specOf(run).kind), false)
-    await this.organizationValue.recover()
-    this.launchesValue.recover()
-    await this.serverQueueValue.recover()
+    const organization = this.organizationValue, launches = this.launchesValue, serverQueue = this.serverQueueValue
+    const recovery = async () => {
+      await this.engine.resumeAnalyses(this.worker('analyze'))
+      for (const run of this.domain.repository.list('run')) if (run.status === 'interrupted' && dataOf(run).autoResume === true && (isWallpaperRun(run) ? wallpaperAcceptsWork(this.domain, run) : specOf(run).fixed.wallpaperLearning === true)) await this.engine.control(run.id, 'resume', { kind: 'human', id: 'profile-owner', profileId: this.profileId }, this.worker(specOf(run).kind), false)
+      await organization.recover()
+      launches.recover()
+      await serverQueue.recover()
+    }
+    if (recoveringStorage) { this.delayedStorageRecovery = recovery; await this.storageMigration.resume() }
+    else await recovery()
+  }
+  private imageStorageIdle(): boolean { return !this.engine.busy && !this.galleryTasks!.active && !this.serverQueueValue!.importing && this.foreground.size <= 1 }
+  private async imageStorageUsage() {
+    const view = await this.files.maintainStorage(referencedImageStorageFiles(this.domain.repository))
+    return { ...view, cleanupAllowed: this.imageStorageIdle() && !this.storageMigration.active }
   }
   /** Update volatile vision defaults. Every accepted task continues reading its detached saved spec.
    * @param input Validated current deployment fields supplied by the owning Cordis reference.
@@ -345,6 +362,8 @@ export class CuratorService {
    */
   action(input: ClientActionInput, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     if (this.cleaningStorage) return Promise.reject(new CuratorError('constraint-conflict', 'image-storage', 'Wait for image storage maintenance to finish.'))
+    const migrationRead = sessionReadOperations.has(input.operation) || ['image-storage-read', 'direct-crop-list', 'wallpaper-read', 'wallpaper-options', 'server-queue-read', 'config-read', 'vision-models', 'gallery-reference-tasks'].includes(input.operation)
+    if (this.storageMigration.active && !migrationRead && !['image-storage-migrate', 'image-storage-migration-resume'].includes(input.operation)) return Promise.reject(new CuratorError('constraint-conflict', 'storage-migration', 'Wait for image storage migration to finish.'))
     const cleaning = input.operation === 'image-storage-clean'
     if (cleaning) {
       if (this.foreground.size) return Promise.reject(new CuratorError('constraint-conflict', 'image-storage', 'Wait for current image operations to finish before cleaning.'))
@@ -368,14 +387,27 @@ export class CuratorService {
       const parsed = actionSchema.parse(input), operation = parsed.operation
       const effectiveActor = await this.scopedHuman(actor, parsed.args, signal, sessionReadOperations.has(operation))
       const { sessionToken, ...args } = parsed.args
+      if (operation === 'image-storage-directory-pick') {
+        this.human(actor)
+        const input = z.strictObject({ title: z.string().max(160) }).parse(args)
+        const directory = this.dependencies.pickLocalPaths ? (await this.dependencies.pickLocalPaths('folder', input.title, signal))?.[0] : await pickNativeDirectory(signal, {}, input.title)
+        return directory ? { directory } : { cancelled: true }
+      }
+      if (operation === 'image-storage-migrate' || operation === 'image-storage-migration-resume') {
+        this.human(actor)
+        if (!this.imageStorageIdle()) throw new CuratorError('constraint-conflict', 'storage-migration', 'Finish or stop active image work before moving storage.')
+        if (operation === 'image-storage-migrate') await this.storageMigration.start(args)
+        else await this.storageMigration.resume(args)
+        return toJson({ directory: this.files.root, migration: this.storageMigration.progress() })
+      }
       if (operation === 'image-storage-read' || operation === 'image-storage-clean') {
         this.human(actor)
         const input = operation === 'image-storage-clean' ? z.strictObject({ revision: z.string().min(1), confirm: z.literal(true) }).parse(args) : z.strictObject({}).parse(args)
-        const cleanupAllowed = !this.engine.busy && !this.galleryTasks!.active && !this.serverQueueValue!.importing && this.foreground.size <= 1
+        const cleanupAllowed = this.imageStorageIdle() && !this.storageMigration.active
         if (operation === 'image-storage-clean' && !cleanupAllowed) throw new CuratorError('constraint-conflict', 'image-storage', 'Finish or stop active image work before cleaning storage.')
-        const retained = referencedImageStorageFiles(this.domain.repository)
-        const view = await this.files.maintainStorage(retained, 'revision' in input ? input.revision : undefined)
-        return toJson({ ...view, cleanupAllowed })
+        const cached = this.storageMigration.cachedUsage()
+        const view = cached ?? await this.files.maintainStorage(referencedImageStorageFiles(this.domain.repository), 'revision' in input ? input.revision : undefined)
+        return toJson({ ...view, cleanupAllowed, directory: this.files.root, migration: this.storageMigration.progress() })
       }
       if (operation.startsWith('server-queue-')) {
         this.human(actor)
@@ -1327,7 +1359,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['image-storage-read', 'image-storage-clean', 'server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
+    return await this.workspaceData(request, ['image-storage-read', 'image-storage-clean', 'image-storage-directory-pick', 'image-storage-migrate', 'image-storage-migration-resume', 'server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {
@@ -1381,7 +1413,7 @@ export class CuratorService {
     this.analysisTaskReads.dispose()
     const references = this.galleryTasks?.dispose() ?? Promise.resolve()
     const removals = this.workflowHistoryValue?.dispose() ?? Promise.resolve()
-    const jobs = removals.then(() => Promise.allSettled([references, this.previewReads.dispose(), this.engineValue?.dispose(), this.serverQueueValue?.drain(), this.launchesValue?.drain(), this.organizationValue?.drain(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())]))
+    const jobs = removals.then(() => Promise.allSettled([this.storageMigration.dispose(), references, this.previewReads.dispose(), this.engineValue?.dispose(), this.serverQueueValue?.drain(), this.launchesValue?.drain(), this.organizationValue?.drain(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())]))
     this.lifetime.abort()
     try {
       await Promise.allSettled([...this.foreground])

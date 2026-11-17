@@ -1,3 +1,23 @@
+## Visual Curator 0.2.24
+
+- Keep every visible car part inside the safe area, including peripheral parts; require at least 97% containment for other main subjects and full containment for critical structures. Natural background variation remains allowed.
+- Use complete generated canvases without pasting source images onto them; recover saved reviews and image receipts without repeating generation.
+- Keep planning and final-review geometry consistent, with one bounded automatic correction for confirmed defects. Saved practical-v1 tasks keep their policy until explicit current-policy adoption.
+- Prepare references from archived high-resolution originals or validated image data without repeating upload admission or reducing source quality.
+- Move image storage to a selected directory while retaining originals, saved outputs and task history. Subscription results can use ESPCN; the API key route skips neural upscaling.
+
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261117.1; publication is pending. Restart after active tasks finish to load the matching Host and Client.
+
+## Visual Curator 0.2.24 更新说明
+
+- 汽车所有可见部分完整位于安全区，包括外围部件；其他主要主体至少 97% 位于安全区，关键结构须完全位于安全区，同时允许自然背景变化。
+- 使用完整生成画布，禁止回贴原图；恢复已保存的复审和生图回执，避免重复生成。
+- 统一规划与最终复审的安全区计算，明确成品缺陷最多自动纠正一次；已保存的 practical-v1 任务保留原策略，显式采用当前策略才升级。
+- 准备高分辨率参考图时复用归档原件或已验证图片数据，不重复上传受理检查，也不降低原图质量。
+- 图片存储可迁移到所选目录，保留原图、成品与任务历史；订阅通道可使用 ESPCN，API Key 通道跳过神经超分。
+
+已为 AutoFlow Desktop 0.2.2-rc.3.20261117.1 准备，尚待发布；待当前任务结束后重启，以加载配套 Host 和 Client。
+
 ## Visual Curator 0.2.23
 
 - Preview image storage usage and unreferenced files, then confirm cleanup explicitly. Saved originals, outputs and hidden history remain protected; active image tasks block cleanup.

@@ -31,6 +31,7 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
   const rework = 'rework' in size ? size.rework : undefined
   let failFinal = 'finalFailure' in size
   if (rework === 'legacy') f.service.config.wallpaper.maxEditsPerImage = 1
+  if ('finalFailure' in size) f.service.config.wallpaper.maxEditsPerImage = 1
   const generationIds = new Set<string>()
   let dispatched = 0, reviews = 0, plans = 0, saved: ImageGenerationTask | undefined, submitted: ImageGenerationRequest | undefined
   const readFile = async (reference: Parameters<typeof attachments.readFileStream>[0]) => { const chunks: Uint8Array[] = []; for await (const chunk of attachments.readFileStream(reference)) chunks.push(chunk); return Buffer.concat(chunks) }
@@ -139,7 +140,7 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
       const productions = item.attempts.filter(attempt => attempt.outputId)
       assert.equal(plans, 1, 'Pixel repairs reuse confirmed source observations and geometry')
       assert.ok(productions.slice(1).every(attempt => attempt.retryTarget === 'rendering'))
-      assert.match(submitted!.prompt, /previousDefects/)
+      assert.match(submitted!.prompt, /逐项修复此前实际问题/)
       assert.equal(new Set(productions.map(attempt => attempt.generation?.taskId)).size, count)
       assert.equal(f.repository.list('selection').length, rework === 'limit' ? 0 : 1)
       if (rework === 'limit') assert.equal(item.reason, 'edit-limit')
@@ -152,13 +153,11 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
       assert.equal(f.repository.list('selection').length, 0); assert.ok(item.originalId)
       return
     }
-    assert.equal(item.status, size.expected, item.reason); assert.equal(dispatched, 1); assert.equal(attempt.compositionMode, 'legacyBrief' in size ? 'generated-canvas-protected-v2' : 'generated-canvas-v1')
+    assert.equal(item.status, size.expected, item.reason); assert.equal(dispatched, 1); assert.equal(attempt.compositionMode, 'generated-canvas-v1')
     assert.deepEqual(attempt.generationInput!.references.map(reference => reference.role), ['canvas'])
-    if ('brief' in size) { assert.equal(plans, 2); assert.equal(z.object({ version: z.enum(['style-brief-v2', 'style-brief-v3']) }).parse(specOf(run).fixed.generationPromptPolicy).version, 'legacyBrief' in size ? 'style-brief-v2' : 'style-brief-v3'); assert.equal(attempt.generationBrief?.status, 'saved'); assert.equal(attempt.generationBrief?.reasoningEffort, 'high'); assert.match(submitted!.prompt, /broken dry-brush/); assert.match(submitted!.prompt, /第1张参考图是完整画布及唯一构图依据/); if ('legacyBrief' in size) assert.match(submitted!.prompt, /Host会在交付时逐像素恢复/); else assert.doesNotMatch(submitted!.prompt, /Host会在交付时逐像素恢复/); assert.doesNotMatch(submitted!.prompt, /时钟背景是允许调整的背景区域/); assert.equal(dispatched, 1); assert.equal(dataOf(run).budget.vision, plans + reviews) }
+    if ('brief' in size) { assert.equal(plans, 1); assert.equal(z.object({ enabled: z.boolean() }).parse(specOf(run).fixed.generationPromptPolicy).enabled, false); assert.equal(attempt.generationBrief, undefined); assert.match(submitted!.prompt, /严禁.*嵌入/); assert.doesNotMatch(submitted!.prompt, /Host会在交付时逐像素恢复/); assert.equal(dispatched, 1); assert.equal(dataOf(run).budget.vision, plans + reviews) }
     assert.equal(attempt.generation!.taskId, saved!.taskId); assert.equal(attempt.generationInput!.prompt, submitted!.prompt)
-    const mask = await readFile(submitted!.mask!)
-    const metadata = await sharp(mask).metadata()
-    assert.equal(metadata.width, submitted!.references![0]!.width); assert.equal(metadata.height, submitted!.references![0]!.height)
+    assert.equal(submitted!.mask, undefined, 'A complete scene reference is not a pasted positioning canvas')
     assert.deepEqual(await readFile(saved!.images[0]!.original), generated)
     if (size.reconstruction) { assert.equal(attempt.backgroundResolution?.status, 'passed'); assert.deepEqual(attempt.backgroundResolution.output, { width: 1845, height: 3280 }); assert.equal(attempt.backgroundResolution.input.width, 941) }
     else assert.equal(attempt.backgroundResolution, undefined)
@@ -168,7 +167,7 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
       await f.jobs.drain()
       const current = wallpaperStateSchema.parse(dataOf(f.domain.require('run', rereview.runId)).checkpoint.wallpaper).items[0]!
       assert.equal(current.status, 'passed', current.reason)
-      assert.equal(current.edits, 1); assert.equal(plans, 2); assert.equal(dispatched, 1)
+      assert.equal(current.edits, 1); assert.equal(plans, 1); assert.equal(dispatched, 1)
       assert.deepEqual(current.attempts.at(-1)!.generationBrief, attempt.generationBrief)
     }
 

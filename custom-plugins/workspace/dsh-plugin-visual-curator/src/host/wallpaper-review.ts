@@ -10,7 +10,48 @@ import { toJson } from './runtime.ts'
 import { contentDigest } from '../domain/repository.ts'
 import type { wallpaperClockContrastSchema } from '../shared/wallpaper-policy.ts'
 import type { wallpaperSourceSeams } from '../media/wallpaper-render.ts'
-import { wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
+import { wallpaperBoundaryReviewNeeded, wallpaperPracticalAcceptance } from '../shared/wallpaper-policy.ts'
+import { wallpaperPracticalReviewSchema, type WallpaperPracticalReview } from '../shared/wallpaper-practical.ts'
+
+export { wallpaperBoundaryReviewNeeded } from '../shared/wallpaper-policy.ts'
+
+function practicalReviewFields(review: WallpaperPracticalReview): z.infer<typeof wallpaperSourceReviewV4Schema> {
+  const accepted = { result: 'satisfied' as const, reason: '按原图有意取景范围检查，未见影响使用的明显缺陷；不要求补入画外身体或背面。' }
+  const checks: z.infer<typeof wallpaperSourceReviewV4Schema>['checks'] = { subject: accepted, protection: accepted, clock: accepted, readability: accepted, composition: accepted, background: accepted, style: accepted, clarity: accepted }
+  const issues: z.infer<typeof wallpaperSourceReviewV4Schema>['issues'] = []
+  for (const defect of review.defects.filter(value => value.severity === 'major' && value.kind !== 'layout')) {
+    const check = defect.kind === 'subject-damage' ? 'subject' : defect.kind === 'quality-loss' ? 'clarity' : defect.kind === 'style-change' ? 'style' : 'background'
+    checks[check] = { result: 'violated', reason: defect.reason }
+    issues.push({ kind: check === 'background' ? 'background' : check === 'style' ? 'style' : 'preservation', check, code: 'other', reason: defect.reason,
+      ...(defect.outputRect ? { evidence: { kind: check === 'background' ? 'background-artifact' : check === 'style' ? 'style-change' : check === 'clarity' ? 'detail-loss' : 'distorted-structure', entityIds: [], imageVersionId: review.outputImageVersionId, outputRect: defect.outputRect } } : {}) })
+  }
+  const uncertain = review.uncertainties.length > 0 || review.mode === 'uncertain'
+  const uncertainty = { result: 'unknown' as const, reason: review.uncertainties.join('；') || '实际主体范围尚无法确认，需要人工复核。' }
+  if (uncertain && checks.subject.result === 'satisfied') checks.subject = uncertainty
+  if (uncertain) issues.push({ kind: 'unknown', check: 'subject', code: 'other', reason: uncertainty.reason, ...(review.inspection ? { detail: review.inspection } : {}) })
+  const usableExtent = !review.actualLayout.regions.some(region => region.role === 'subject') && (review.mode === 'scene' || review.mode === 'abstract') ? 'not-applicable' as const : 'complete' as const
+  return { reviewVersion: review.reviewVersion, subject: review.subject, checks, issues, styleResults: [], sourceRepair: accepted, sourceCorrespondence: accepted,
+    subjectIntegrity: { mode: review.mode, source: { extent: usableExtent, reason: accepted.reason, imageVersionId: review.sourceImageVersionId }, output: { extent: uncertain ? 'unknown' : usableExtent, reason: uncertain ? uncertainty.reason : checks.subject.reason, imageVersionId: review.outputImageVersionId }, task: checks.subject },
+    actualLayout: { imageVersionId: review.outputImageVersionId, regions: review.actualLayout.regions } }
+}
+
+/** Reject explicit extra instances before interpreting the model's overall opinion.
+ * @param review Actual full-canvas model observation with optional inventory for newer tasks.
+ * @returns The observation with inventory-backed background failures; original raw output remains in its request record.
+ */
+export function applyWallpaperInventory(review: z.infer<typeof wallpaperSourceReviewV4Schema>): z.infer<typeof wallpaperSourceReviewV4Schema> {
+  if (!review.inventory) return review
+  const findings = [...review.inventory.flatMap(row => row.instances.slice(row.sourceInstances?.length ?? row.instances.length).map(rect => ({ reason: `额外物体 ${row.entityId}：${row.reason}`, rect }))), ...(review.newForeground ?? []).map(row => ({ reason: `新增前景 ${row.name}：${row.reason}`, rect: row.rect }))]
+  const changed = review.inventory.filter(row => row.status !== 'retained' || !row.instances.length)
+  if (!findings.length && !changed.length) return review
+  const subject = changed.length ? { result: changed.some(row => row.status === 'missing' || row.status === 'changed' || !row.instances.length && row.status !== 'uncertain') ? 'violated' as const : 'unknown' as const, reason: changed.map(row => `${row.entityId} (${row.status})：${row.reason}`).join('；') } : review.checks.subject
+  const background = findings.length ? { result: 'violated' as const, reason: findings.map(finding => finding.reason).join('；') } : review.checks.background
+  const correspondence = changed.length ? subject : review.sourceCorrespondence
+  return { ...review, sourceCorrespondence: correspondence, checks: { ...review.checks, subject, background }, issues: [...review.issues,
+    ...changed.map(row => ({ kind: 'preservation' as const, check: 'subject' as const, code: 'other' as const, reason: `${row.entityId} (${row.status})：${row.reason}` })),
+    ...findings.map(finding => ({ kind: 'background' as const, check: 'background' as const, code: 'other' as const, reason: finding.reason, evidence: { kind: 'background-artifact' as const, entityIds: [], imageVersionId: review.actualLayout.imageVersionId, outputRect: finding.rect } })),
+  ].slice(0, 32) }
+}
 
 /** Retain model findings while rejecting objectively unreadable white clock pixels.
  * @param review Independent actual-output review. @param measurement Same output's frozen pixel-contrast evidence.
@@ -107,10 +148,18 @@ export function applyWallpaperStyleReview(output: unknown, standard: StyleStanda
 
 /** @param output Strict direct-original review. @param edgeRepairAuthorized Saved task policy and local evidence authorize frame-edge continuation; omission retains source completeness veto. @param settings Frozen bounds required for complete-canvas review. @returns Source-grounded subject checks plus every independent quality result. */
 export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized = false, settings?: WallpaperSettings): WallpaperReview {
+  const practical = wallpaperPracticalReviewSchema.safeParse(output)
+  if (practical.success) {
+    const effective = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(practicalReviewFields(practical.data), edgeRepairAuthorized, settings))
+    const warnings = practical.data.defects.filter(defect => defect.severity === 'minor' || defect.kind === 'layout').map(defect => defect.reason)
+    const uncertainties = practical.data.mode === 'uncertain' && !practical.data.uncertainties.length ? ['实际主体范围尚无法确认，需要人工复核。'] : practical.data.uncertainties
+    return wallpaperStoredSourceReviewV4Schema.parse({ ...effective, layoutWarnings: [...effective.layoutWarnings, ...warnings], practicalReview: { version: 'practical-v1', warnings, uncertainties } })
+  }
   const balanced = wallpaperSourceReviewV4Schema.safeParse(output)
   if (balanced.success) {
+    balanced.data = applyWallpaperInventory(balanced.data)
     if (!settings) throw new CuratorError('constraint-conflict', 'wallpaper-review', 'Complete-canvas review requires frozen output geometry.')
-    const { actualLayout: observedLayout, sourceCorrespondence, issues: modelIssues, reviewVersion: _version, ...source } = balanced.data
+    const { actualLayout: observedLayout, sourceCorrespondence, issues: modelIssues, reviewVersion: _version, inventory: _inventory, newForeground: _newForeground, ...source } = balanced.data
     const actualLayout = { ...observedLayout, regions: observedLayout.regions.map(region => {
       const evidence = modelIssues.flatMap(issue => issue.evidence?.kind === 'safe-area-overflow' && issue.code !== 'minor-peripheral-overflow' && issue.evidence.imageVersionId === observedLayout.imageVersionId && region.scope === 'core' && region.entityId && issue.evidence.entityIds.includes(region.entityId) ? [issue.evidence.outputRect] : [])
       if (!evidence.length) return region
@@ -119,7 +168,7 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     }) }
     const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2', issues: modelIssues.map(({ kind, reason }) => ({ kind, reason })) }, edgeRepairAuthorized)
     const hasSubject = actualLayout.regions.some(region => region.role === 'subject')
-    const boundary = wallpaperActualBoundary(actualLayout, hasSubject ? 'group' : source.subjectIntegrity.mode, settings)
+    const boundary = wallpaperActualBoundary(actualLayout, wallpaperPracticalAcceptance(settings) ? source.subjectIntegrity.mode : hasSubject ? 'group' : source.subjectIntegrity.mode, settings)
     const checks = { ...base.checks }, modelProtectionCheck = balanced.data.checks.protection
     if (hasSubject && source.subjectIntegrity.output.extent === 'not-applicable') checks.subject = { result: 'unknown', reason: '实际成品标有主体范围，须独立确认其完整性，不能记为不适用' }
     const issues = [...(base.issues.length > modelIssues.length ? [{ ...base.issues[0]!, check: 'subject' as const, code: 'other' as const }] : []), ...modelIssues]
@@ -165,14 +214,6 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
 
 type BalancedReview = z.infer<typeof wallpaperStoredSourceReviewV4Schema>
 type CriticalCheck = keyof BalancedReview['checks'] | 'sourceRepair' | 'sourceCorrespondence'
-
-/** @param review Full-frame findings. @returns Whether a layout-only failure needs one independent boundary measurement before its coordinates can move the candidate. */
-export function wallpaperBoundaryReviewNeeded(review: BalancedReview): boolean {
-  return !review.criticalDetail && review.subjectIntegrity.output.extent === 'complete' && review.sourceCorrespondence.result === 'satisfied'
-    && !wallpaperReviewNeedsSubjectEdit(review) && review.checks.background.result === 'satisfied'
-    && review.modelIssues.every(issue => issue.kind === 'layout' || issue.kind === 'readability')
-    && (review.layoutChecks.length > 0 || review.checks.protection.result !== 'satisfied')
-}
 
 /** @param review Earlier layout-only findings. @param measured Independent high-effort review using actual pixels and a separate safety guide. @param requestId Logged boundary request. @returns The independently measured review, retaining a record that its coordinates were rechecked; correlation alone never changes a verdict. */
 export function applyWallpaperBoundaryDetail(review: BalancedReview, measured: BalancedReview, requestId: string): BalancedReview {

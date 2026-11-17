@@ -1,14 +1,17 @@
 /** Failures returned by media, source and vision adapters; upstream details stay private. */
-export class MediaError extends Error {
+import { HarnessError } from '@deepseek-ai/dsh-error'
+
+/** Typed adapter failures retain their safe client explanation and machine-readable code. */
+export class MediaError extends HarnessError {
   constructor(
-    readonly code: string,
+    code: string,
     readonly stage: string,
     readonly retryable: boolean,
     readonly safeMessage: string,
     readonly suggestedAction: string,
     readonly diagnostics?: { modelOutput: unknown; issues: string[] },
   ) {
-    super(safeMessage)
+    super(safeMessage, code)
     this.name = 'MediaError'
   }
 }

@@ -8,6 +8,7 @@ import { resolveCrop } from './geometry.ts'
 import type { CropUsage, ImageGeometry, NormalizedRect, PixelRect } from './geometry.ts'
 import type { RemoteImageSource } from '../shared/gallery.ts'
 import { remoteReferenceSource } from './remote-reference.ts'
+import { imageStorageInventory, isImageStorageBlob } from './storage-directory.ts'
 
 /** Content-addressed private file; business ownership must be checked before reading it. */
 export interface BlobRef { digest: string; byteLength: number; mime: string; storageRef: string; localSource?: LocalFileSource | undefined; remoteSource?: RemoteImageSource | undefined }
@@ -56,7 +57,11 @@ function rejectAnimation(bytes: Buffer, mime: string): void {
  * Failed imports can leave private, unreferenced blobs; callers never publish their references.
  */
 export class AssetFiles {
-  readonly root: string
+  private rootValue: string
+  /** Current active image directory; task image references remain relative. */
+  get root(): string { return this.rootValue }
+  private readonly readers = new Set<Promise<Buffer>>()
+  private switchingDirectory: Promise<void> | undefined
   readonly processorVersion = `sharp-${sharp.versions.sharp}/vips-${sharp.versions.vips}/visual-normalize-v1`
   private writing: Promise<void> = Promise.resolve()
   private localReading: Promise<void> = Promise.resolve()
@@ -65,7 +70,7 @@ export class AssetFiles {
 
   constructor(root: string, readonly limits: MediaLimits) {
     if (!root.trim()) throw invalidInput('A private media directory is required.')
-    this.root = resolve(root)
+    this.rootValue = resolve(root)
     if (!Object.values(limits).every(n => Number.isSafeInteger(n) && n > 0)) throw invalidInput('Media limits must be positive integers.')
   }
 
@@ -77,24 +82,8 @@ export class AssetFiles {
   maintainStorage(retained: ReadonlySet<string>, expectedRevision?: string) {
     const work = this.writing.then(async () => {
       const inventory = async () => {
-        const files: { ref: string; bytes: number; mtime: number; inode: number; device: number }[] = []
-        const walk = async (directory: string): Promise<void> => {
-          const metadata = await lstat(directory)
-          if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw this.unavailable()
-          for (const entry of await readdir(directory, { withFileTypes: true })) {
-            const path = join(directory, entry.name)
-            if (entry.isSymbolicLink()) throw this.unavailable()
-            if (entry.isDirectory()) await walk(path)
-            else if (entry.isFile()) {
-              const stat = await lstat(path)
-              if (!stat.isFile() || stat.isSymbolicLink()) throw this.unavailable()
-              files.push({ ref: relative(this.root, path).split(sep).join('/'), bytes: stat.size, mtime: stat.mtimeMs, inode: stat.ino, device: stat.dev })
-            }
-          }
-        }
-        await walk(this.root)
-        files.sort((left, right) => left.ref.localeCompare(right.ref))
-        const unused = files.filter(file => /^blobs\/[a-f0-9]{2}\/[a-f0-9]{64}$/.test(file.ref) && file.ref.slice(6, 8) === file.ref.slice(9, 11) && !retained.has(file.ref))
+        const files = await imageStorageInventory(this.root)
+        const unused = files.filter(file => isImageStorageBlob(file.ref) && !retained.has(file.ref))
         const usedBytes = files.reduce((total, file) => total + file.bytes, 0), reclaimableBytes = unused.reduce((total, file) => total + file.bytes, 0)
         return { revision: digest(Buffer.from(JSON.stringify({ files, retained: [...retained].sort() }))), usedBytes, limitBytes: this.limits.maxStorageBytes, retainedBytes: usedBytes - reclaimableBytes, reclaimableBytes, reclaimableFiles: unused.length, unused }
       }
@@ -110,6 +99,24 @@ export class AssetFiles {
       }
       const { unused, ...view } = await inventory()
       return { ...view, freedBytes: preview.reclaimableBytes, freedFiles: preview.reclaimableFiles }
+    })
+    this.writing = work.then(() => {}, () => {})
+    return work
+  }
+
+  /** Drain old-directory readers and writes, durably publish the selected root, then release reads against the new root.
+   * @param directory Verified complete destination. @param commit Persistent location switch; failure leaves the current root active.
+   * @returns Completion after the root changes; new readers wait only during this short cutover.
+   */
+  activateStorageDirectory(directory: string, commit: () => Promise<void>): Promise<void> {
+    const work = this.writing.then(async () => {
+      const gate = Promise.withResolvers<void>()
+      this.switchingDirectory = gate.promise
+      try {
+        await Promise.allSettled([...this.readers])
+        await commit()
+        this.rootValue = directory
+      } finally { this.switchingDirectory = undefined; gate.resolve() }
     })
     this.writing = work.then(() => {}, () => {})
     return work
@@ -269,6 +276,12 @@ export class AssetFiles {
    * @returns Verified bytes; missing, changed and escaped files all fail visibly.
    */
   async read(blob: BlobRef, signal?: AbortSignal): Promise<Buffer> {
+    if (this.switchingDirectory) await this.switchingDirectory
+    const work = this.readNow(blob, signal)
+    this.readers.add(work)
+    try { return await work } finally { this.readers.delete(work) }
+  }
+  private async readNow(blob: BlobRef, signal?: AbortSignal): Promise<Buffer> {
     checkCancelled(signal)
     if (remoteReferenceSource(blob)) throw new MediaError('reference-unavailable', 'media', false, 'This remote reference has no verified local pixel bytes.', 'Use it as a URL reference for visual analysis; pixel cropping and byte exports require an explicit byte import.')
     if (blob.localSource) return await this.readLocal(blob, blob.localSource, signal)

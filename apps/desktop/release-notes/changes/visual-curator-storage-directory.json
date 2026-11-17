@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-storage-directory",
+  "category": "features",
+  "text": {
+    "en": "Visual Curator can move image storage to a selected directory while keeping existing tasks and image history accessible.",
+    "zh-CN": "视觉策展可将图片存储迁移到所选目录，迁移后仍可访问现有任务与图片历史。"
+  }
+}

@@ -30,7 +30,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
   if (mode === 'pre-review-boundary-failure') f.service.config.wallpaper.decision = wallpaperSettingsSchema.parse({ decision: { enabled: false } }).decision
   if (mode.startsWith('pre-review-boundary')) { f.service.config.limits.maxReferenceImages = 8; f.service.config.wallpaper.sourceFrameRepair = wallpaperSettingsSchema.parse({ sourceFrameRepair: { enabled: true } }).sourceFrameRepair }
   if (authorized) f.service.config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'repair-when-needed', maxRepeatedDefects: 2 }
-  if (mode === 'authorized-repair-clock') f.service.config.wallpaper.processing = wallpaperSettingsSchema.parse({ processing: { clockContrast: {} } }).processing
+  if (mode === 'authorized-repair-clock') f.service.config.wallpaper.processing = wallpaperSettingsSchema.parse({ processing: { sourcePreservation: false, clockContrast: {} } }).processing
   f.host.attachments = attachments; f.host.llm = llm
   f.service.config.wallpaper.imageModel = 'isolated-edit-model'
   if (mode === 'framing-limit' || wholeCanvas) f.service.config.wallpaper.maxEditsPerImage = authorized && !mode.startsWith('pre-review-alignment') && !mode.startsWith('pre-review-boundary') ? 2 : 1
@@ -158,7 +158,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
       const created = f.domain.require('run', start.runId), spec = specOf(created)
       const prompts = authorized ? z.record(z.string(), z.json()).parse(spec.fixed.prompts) : { ...z.record(z.string(), z.json()).parse(spec.fixed.prompts), review: { version: 'wallpaper-review-source-v2', text: wallpaperDirectReviewPrompt } }
       // This fixture exercises the saved legacy order; the new order has its own focused cases.
-      const { reviewOrder: _reviewOrder, finalReviewPolicy: _finalReviewPolicy, ...legacyFixed } = spec.fixed
+      const { reviewOrder: _reviewOrder, finalReviewPolicy: _finalReviewPolicy, completeCanvasPolicy: _completeCanvasPolicy, ...legacyFixed } = spec.fixed
       const fixed = { ...legacyFixed, ...(newOrder ? { reviewOrder: 'generation-before-resolution-v1' } : {}), ...(!authorized ? { prompts, promptDigest: contentDigest(prompts), directPolicy: { version: 'source-faithful-v2', promptDigest: contentDigest(prompts) } } : {}) }
       const recorded = runSchema.parse({ ...created, spec: toJson({ ...spec, fixed, specDigest: contentDigest({ kind: spec.kind, config: spec.config, input: spec.input, fixed }) }) })
       const aggregateId = 'run:' + created.id
@@ -224,18 +224,16 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
     }
     if (mode === 'pre-review-placement') {
         const final = item.attempts.at(-1)!
-        assert.equal(item.status, 'needs-review', 'Locking position does not approve the deliberately flat exterior background')
+        assert.equal(item.status, 'passed', 'The complete provider output receives independent acceptance without an old-scene overlay')
         assert.equal(final.review?.checks.protection.result, 'satisfied')
-        assert.equal(final.review?.checks.background.result, 'violated')
+        assert.equal(final.review?.checks.background.result, 'satisfied')
         assert.equal(generations.size, 2)
         assert.equal(reviews, 3)
-        assert.equal(f.repository.list('selection').length, 0)
-        assert.equal(final.layoutCorrection?.version, 'candidate-placement-locked-v2')
-        assert.notEqual(final.preResolutionReview!.nativeId, final.generatedImageId, 'Review receives the locked composition, while the raw provider result is retained')
-        const correction = final.layoutCorrection!.plan
-        const candidate = f.domain.require('imageVersion', correction.imageVersionId), native = f.domain.require('imageVersion', final.preResolutionReview!.nativeId)
-        const alignment = await wallpaperGenerationAlignment(await f.files.read(candidate.blob), await f.files.read(native.blob), correction, wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper), true)
-        assert.ok(alignment?.protectedSourceCorrelation && alignment.protectedSourceCorrelation > 0.99)
+        assert.equal(f.repository.list('selection').length, 1)
+        assert.equal(final.layoutCorrection?.version, 'candidate-placement-v1')
+        assert.equal(final.preResolutionReview!.nativeId, final.generatedImageId, 'Review inspects the exact complete provider output without restoring an older scene')
+        const native = f.domain.require('imageVersion', final.preResolutionReview!.nativeId), generated = f.domain.require('imageVersion', final.generatedImageId!)
+        assert.deepEqual(await f.files.read(native.blob), await f.files.read(generated.blob))
         return
     }
     if (newOrder) {
@@ -359,12 +357,9 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
     const output = f.domain.require('imageVersion', item.attempts.at(-1)!.outputId!)
     assert.deepEqual({ width: output.geometry.width, height: output.geometry.height }, { width: 1845, height: 3280 })
     const last = item.attempts.at(-1)!, settings = wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper)
-    const baseline = await renderWallpaper(original, last.plan, settings, undefined, last.compositionMode)
-    const actualPixels = await sharp(await f.files.read(output.blob)).removeAlpha().raw().toBuffer(), originalPixels = await sharp(baseline.image).removeAlpha().raw().toBuffer()
-    for (const region of baseline.geometry.regions) for (let y = Math.floor(region.top); y < Math.ceil(region.top + region.height); y++) {
-      const start = (y * settings.width + Math.floor(region.left)) * 3, end = (y * settings.width + Math.ceil(region.left + region.width)) * 3
-      assert.ok(actualPixels.subarray(start, end).equals(originalPixels.subarray(start, end)), 'Protected native pixels remain byte-identical')
-    }
+    const complete = f.domain.require('imageVersion', last.generatedImageId!)
+    const providerPixels = await sharp(await f.files.read(complete.blob)).resize(settings.width, settings.height).removeAlpha().raw().toBuffer()
+    assert.deepEqual(await sharp(await f.files.read(output.blob)).removeAlpha().raw().toBuffer(), providerPixels, 'Final pixels come from the complete provider canvas without source restoration')
   } finally { await f.cleanup(); await context.fiber.dispose() }
 })
 

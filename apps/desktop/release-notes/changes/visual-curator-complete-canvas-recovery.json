@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-complete-canvas-recovery",
+  "category": "fixes",
+  "text": {
+    "en": "Fix pasted wallpaper panels and repeated generation during review recovery; saved tasks retain their policy until explicit current-policy review, with originals, versions and generation receipts preserved.",
+    "zh-CN": "修复壁纸回贴重叠及复审恢复时重复生成的问题；历史任务继续使用冻结策略，显式采用当前规则才升级，原图、版本和生图回执均保留。"
+  }
+}

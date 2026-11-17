@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.3/visual-curator-complete-canvas/guide.md
+/:
+  en: 2c43b4cbb8ed771d
+  zh: c93118ac719c4930
+/complete-generated-wallpapers:
+  en: 48e5dcb4586c57bf
+  zh: 45d0c0732d9a8bb6
+/complete-generated-wallpapers/change:
+  en: 56bfb12d18c1c149
+  zh: 42bebf0223833a3c
+/complete-generated-wallpapers/migration:
+  en: c0464b37dccc9ce3
+  zh: 0c82a068ea32239c

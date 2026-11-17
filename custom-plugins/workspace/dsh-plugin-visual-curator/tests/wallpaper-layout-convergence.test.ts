@@ -4,9 +4,9 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewV4Schema, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys, wallpaperItemSchema, wallpaperRepairWithoutProgress, wallpaperReviewReworkAvailable, wallpaperEditingRetry } from '../src/shared/wallpaper.ts'
+import { wallpaperCompositionEligible, wallpaperDisplayState, wallpaperStateSchema, wallpaperProgress, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewV4Schema, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys, wallpaperItemSchema, wallpaperRepairWithoutProgress, wallpaperReviewReworkAvailable, wallpaperEditingRetry } from '../src/shared/wallpaper.ts'
 import { wallpaperCandidatePlacement, wallpaperPositionedLayout } from '../src/shared/wallpaper-geometry.ts'
-import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
+import { applyWallpaperInventory, applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { lockWallpaperCandidate } from '../src/media/wallpaper-render.ts'
 
 const recorded = z.object({ settings: wallpaperSettingsSchema, plan: wallpaperPlanSchema,
@@ -56,18 +56,14 @@ test('positioned layout separates frozen identities from source rectangles', () 
   assert.equal(recorded.plan.objectRoles![0]!.rect.y, 0.13, 'The original observation stays unchanged')
 })
 
-test('layout-only candidate composition preserves moved healthy pixels despite a reframed provider result', async () => {
+test('layout-only candidate restoration is forbidden even when the provider reframes the scene', async () => {
   const settings = wallpaperSettingsSchema.parse({ backgroundTransitionPixels: 0 })
   const pixels = Buffer.alloc(1845 * 3280 * 3)
   for (let y = 1200; y < 1600; y++) for (let x = 400; x < 800; x++) pixels[(y * 1845 + x) * 3] = 255
   const candidate = await sharp(pixels, { raw: { width: 1845, height: 3280, channels: 3 } }).png().toBuffer()
   const background = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: '#00ff00' } }).png().toBuffer()
   const plan = wallpaperPlanSchema.parse({ ...recorded.plan, placement: { scale: 0.5, left: 400, top: 1000 }, regions: [{ name: 'Station', role: 'subject', rect: { x: 0.125, y: 0.083333333333, width: 0.375, height: 0.25 } }] })
-  const result = await sharp(await lockWallpaperCandidate(candidate, plan, settings, background)).removeAlpha().raw().toBuffer()
-  const pixel = (x: number, y: number) => [...result.subarray((y * 1845 + x) * 3, (y * 1845 + x) * 3 + 3)]
-  assert.deepEqual(pixel(650, 1650), [255, 0, 0], 'The corrected subject survives the provider background')
-  assert.deepEqual(pixel(1100, 2400), [0, 0, 0], 'The whole saved scene remains positioned')
-  assert.deepEqual(pixel(4, 4), [0, 255, 0], 'Only newly exposed canvas adopts the generated background')
+  await assert.rejects(lockWallpaperCandidate(candidate, plan, settings, background), /overlays are disabled/)
 })
 
 test('overflow evidence cannot disappear outside the same entity envelope', () => {
@@ -106,7 +102,7 @@ test('allowed subject overflow cannot stop repairs for different background and 
   assert.equal(wallpaperRepairWithoutProgress(item, recorded.settings), false)
 })
 
-test('a localized background defect and layout overflow reuse the candidate while an overlapping defect holds it for inspection', () => {
+test('localized background and layout defects reuse the complete candidate without restoring subject rectangles', () => {
   const base = recorded.cases.find(row => row.expectedPlacement)!
   const quality = review(base.actualLayout)
   const source = { revision: 1, plan: recorded.plan, checks: [], needsOutpaint: true, compositionMode: 'generated-canvas-v1', outputId: base.actualLayout.imageVersionId, review: quality }
@@ -114,20 +110,35 @@ test('a localized background defect and layout overflow reuse the candidate whil
   quality.checks.background = { result: 'violated', reason: background.reason }
   quality.modelIssues.push(background); quality.issues.push(background)
   const item = wallpaperItemSchema.parse({ imageVersionId: recorded.plan.imageVersionId, originalId: recorded.plan.imageVersionId, familyId: 'station', status: 'needs-review', edits: 1, attempts: [source] })
-  assert.equal(wallpaperEditingRetry(item, recorded.settings)?.layoutCorrection?.version, 'candidate-subject-locked-v3')
+  assert.equal(wallpaperEditingRetry(item, recorded.settings)?.layoutCorrection?.version, 'candidate-placement-v1')
   const overlap = item.attempts[0]!.review!
   if (!('modelIssues' in overlap)) throw Error('Fixture must retain model evidence')
   overlap.modelIssues.find(issue => issue.check === 'background')!.evidence!.outputRect = { ...base.actualLayout.regions[0]!.rect }
-  assert.equal(wallpaperCandidatePlacement(item.attempts[0]!, recorded.settings), undefined)
+  assert.ok(wallpaperCandidatePlacement(item.attempts[0]!, recorded.settings), 'A complete generated canvas can repair background beside a protected object without pasting another subject')
 })
 
-test('background repair restores healthy subject pixels while replacing defective pixels inside the old canvas', async () => {
+test('background repair cannot restore subject rectangles over generated pixels', async () => {
   const settings = wallpaperSettingsSchema.parse({ backgroundTransitionPixels: 0, backgroundContextPixels: 0 })
   const candidate = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: '#ff0000' } }).png().toBuffer()
   const generated = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: '#0000ff' } }).png().toBuffer()
   const plan = wallpaperPlanSchema.parse({ ...recorded.plan, placement: { scale: 1, left: 0, top: 0 }, regions: [{ name: 'Healthy subject', role: 'subject', rect: { x: 0.3, y: 0.5, width: 0.2, height: 0.2 } }] })
-  const decoded = await sharp(await lockWallpaperCandidate(candidate, plan, settings, generated, true)).removeAlpha().raw().toBuffer()
-  const pixel = (x: number, y: number) => [...decoded.subarray((y * settings.width + x) * 3, (y * settings.width + x) * 3 + 3)]
-  assert.deepEqual(pixel(700, 1900), [255, 0, 0])
-  assert.deepEqual(pixel(100, 2900), [0, 0, 255])
+  await assert.rejects(lockWallpaperCandidate(candidate, plan, settings, generated, true), /overlays are disabled/)
+})
+
+test('an original group with two cookies retains both; only additional instances override a favorable opinion', () => {
+  const base = wallpaperSourceReviewV4Schema.strip().parse(review(recorded.cases[0]!.actualLayout))
+  const one = { x: 0.4, y: 0.5, width: 0.05, height: 0.05 }, two = { x: 0.5, y: 0.5, width: 0.05, height: 0.05 }
+  const inventory = [{ entityId: 'cookies', status: 'retained' as const, sourceInstances: [one, two], instances: [one, two], reason: 'Two source cookies remain two output cookies.' }]
+  assert.equal(applyWallpaperInventory({ ...base, inventory, newForeground: [] }).checks.background.result, 'satisfied')
+  const extra = applyWallpaperInventory({ ...base, inventory: [{ ...inventory[0]!, instances: [one, two, { ...two, x: 0.6 }] }], newForeground: [] })
+  assert.equal(extra.checks.background.result, 'violated')
+})
+
+test('pasted historical approvals stay stored but cannot appear as currently qualified outputs', () => {
+  const raw = wallpaperStateSchema.parse({ version: 2, skillVersion: 'historical-skill', sourceRunId: 'historical-batch', items: [{ imageVersionId: 'source', originalId: 'source', familyId: 'source', status: 'passed', edits: 1, attempts: [{ revision: 1, plan: recorded.plan, checks: [], needsOutpaint: true, compositionMode: 'background-plate-v2', review: review(recorded.cases[0]!.actualLayout), outputId: 'historical-output' }] }] })
+  const snapshot = structuredClone(raw), presented = wallpaperDisplayState(raw)
+  assert.equal(wallpaperCompositionEligible(raw.items[0]!.attempts[0]), false)
+  assert.equal(presented.items[0]!.status, 'needs-review')
+  assert.equal(wallpaperProgress(raw).passed, 0)
+  assert.deepEqual(raw, snapshot)
 })

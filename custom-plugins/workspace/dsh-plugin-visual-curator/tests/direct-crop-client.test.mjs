@@ -579,13 +579,15 @@ test('image storage opens from the page and requires an explicit second confirma
   const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], previous = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
-  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), cleanRequests = []
-  let storage = { revision: 'preview-before', usedBytes: 4 * 1024 ** 3 - 1000, limitBytes: 4 * 1024 ** 3, retainedBytes: 4 * 1024 ** 3 - 1000 - 1024 ** 2, reclaimableBytes: 1024 ** 2, reclaimableFiles: 2, cleanupAllowed: true }
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), cleanRequests = [], moveRequests = []
+  let storage = { directory: 'C:/isolated-profile/visual-curator', revision: 'preview-before', usedBytes: 4 * 1024 ** 3 - 1000, limitBytes: 4 * 1024 ** 3, retainedBytes: 4 * 1024 ** 3 - 1000 - 1024 ** 2, reclaimableBytes: 1024 ** 2, reclaimableFiles: 2, cleanupAllowed: true }
   const configuration = { ...imageConfig, revision: 'storage-config', visionConfigured: true, limits: { maxImportFiles: 20, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
   const actions = { directScope: () => 'storage-profile', directCrop: async (operation, args) => {
     if (operation === 'direct-crop-list') return { batches: [], total: 0 }
     if (operation === 'wallpaper-options') return imageOptions
     if (operation === 'image-storage-read') return storage
+    if (operation === 'image-storage-directory-pick') return { directory: 'D:/new-library' }
+    if (operation === 'image-storage-migrate') { moveRequests.push(args); storage = { ...storage, cleanupAllowed: false, migration: { id: args.operationId, status: 'running', phase: 'copying', sourceDirectory: storage.directory, targetDirectory: args.directory, totalBytes: 100, totalFiles: 2, copiedBytes: 50, copiedFiles: 1, verifiedBytes: 0, verifiedFiles: 0, removedBytes: 0, removedFiles: 0 } }; return { directory: storage.directory, migration: storage.migration } }
     if (operation === 'image-storage-clean') { cleanRequests.push(args); storage = { ...storage, revision: 'preview-after', usedBytes: storage.retainedBytes, reclaimableBytes: 0, reclaimableFiles: 0, freedBytes: 1024 ** 2, freedFiles: 2 }; return storage }
     throw new Error('Unexpected operation')
   } }
@@ -616,6 +618,24 @@ test('image storage opens from the page and requires an explicit second confirma
     assert(document.querySelector('.vc-image-storage-modal').textContent.includes(zh.imageStorageBusy))
     await act(async () => button(zh.close).click())
     assert.equal(document.querySelector('[role="dialog"]'), null)
+    storage = { ...storage, cleanupAllowed: true }
+    await act(async () => button(zh.imageStorageTitle).click())
+    await act(async () => button(zh.imageStorageChooseDirectory).click())
+    assert.equal(moveRequests.length, 0, 'Picking a directory does not move files before confirmation')
+    assert(document.querySelector('.vc-image-storage-confirm').textContent.includes('D:/new-library'))
+    await act(async () => button(zh.imageStorageStartMove).click())
+    assert.equal(moveRequests.length, 1)
+    assert.equal(moveRequests[0].sourceDirectory, 'C:/isolated-profile/visual-curator')
+    assert.equal(moveRequests[0].confirm, true)
+    assert.equal(button(zh.imageStorageChooseDirectory).disabled, true)
+    const progress = document.querySelector('.vc-image-storage-transfer')
+    assert.deepEqual({ label: progress.querySelector('strong').textContent, background: progress.textContent.includes(zh.imageStorageMoveBackground), closeEnabled: !button(zh.close).disabled }, expected.storageMigration)
+    await act(async () => button(zh.close).click())
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    await act(async () => button(zh.imageStorageTitle).click())
+    assert(document.querySelector('.vc-image-storage-transfer').textContent.includes(zh.imageStorageMoveCopying))
+    assert.equal(moveRequests.length, 1, 'Reopening reads progress without starting a second transfer')
+    await act(async () => button(zh.close).click())
   } finally {
     await act(async () => rendered.unmount()); dom.window.close()
     for (const key of keys) { const descriptor = previous.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }

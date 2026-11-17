@@ -2,8 +2,12 @@
 import { z } from 'zod'
 
 /** @param descriptor Actual compatible-vision request text. @param output Independently scripted fixture findings. @returns The same findings with required current protocol metadata. */
-export function wallpaperFixtureResponse(descriptor: unknown, output: unknown): unknown {
-  const properties = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()) }) }).parse(descriptor).outputSchema.properties
+function fixtureResponse(descriptor: unknown, output: unknown): unknown {
+  const schema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()), $defs: z.record(z.string(), z.unknown()).optional() }) }).parse(descriptor).outputSchema
+  const properties = Object.fromEntries(Object.entries(schema.properties).map(([name, value]) => {
+    const reference = z.object({ $ref: z.string().startsWith('#/$defs/') }).safeParse(value)
+    return [name, reference.success ? schema.$defs?.[reference.data.$ref.slice('#/$defs/'.length)] : value]
+  }))
   const row = z.record(z.string(), z.unknown()).parse(output)
   if (z.object({ const: z.string().optional() }).safeParse(properties.version).data?.const === 'wallpaper-generation-brief-v1') {
     const input = z.object({ input: z.object({ images: z.array(z.object({ imageVersionId: z.string() })) }) }).parse(descriptor).input
@@ -36,4 +40,14 @@ export function wallpaperFixtureResponse(descriptor: unknown, output: unknown): 
       findings: z.array(z.object({ concernId: z.string(), result: z.string() }).passthrough()).parse(row.findings).map(finding => ({ ...finding, scope: 'subject', classification: finding.result === 'resolved' ? 'resolved' : 'observation-limit', blocking: finding.result !== 'resolved' })) }
   }
   return output
+}
+
+/** @param descriptor Actual vision schema and object identities. @param output Scripted pixel findings. @returns Versioned findings with required object counts. */
+export function wallpaperFixtureResponse(descriptor: unknown, output: unknown): unknown {
+  const result = fixtureResponse(descriptor, output)
+  const schema = z.object({ outputSchema: z.object({ required: z.array(z.string()).optional() }), input: z.object({ usage: z.unknown().optional() }) }).parse(descriptor)
+  if (!schema.outputSchema.required?.includes('inventory')) return result
+  const row = z.record(z.string(), z.unknown()).parse(result)
+  const usage = z.object({ objectPolicy: z.object({ objectRoles: z.array(z.object({ entityId: z.string(), role: z.string(), rect: z.unknown() })) }) }).parse(schema.input.usage)
+  return { ...row, inventory: usage.objectPolicy.objectRoles.filter(object => object.role !== 'critical-part').map(object => ({ entityId: object.entityId, status: 'retained', sourceInstances: [object.rect], instances: [object.rect], reason: 'The scripted fixture contains one instance.' })), newForeground: [] }
 }

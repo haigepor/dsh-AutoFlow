@@ -3,12 +3,29 @@ import sharp from 'sharp'
 import type { z } from 'zod'
 import type { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-generation-brief.ts'
 import type { WallpaperPlan, WallpaperItem, WallpaperSettings } from '../shared/wallpaper.ts'
-import { wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
+import { wallpaperAttemptReview, wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair } from '../shared/wallpaper-policy.ts'
+import { wallpaperSafetyInstructions } from '../shared/wallpaper-prompts.ts'
 import { wallpaperLayoutCoordinates, wallpaperPositionedLayout, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
 
 type Region = WallpaperPlan['regions'][number]['rect']
 type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
+
+/** Author one continuous scene from an unmodified full-scene reference; output contains no composited source rectangle.
+ * @param plan Observed source or prior complete candidate and the desired group placement.
+ * @param source Reference dimensions; the placement has not been rasterized into this image.
+ * @param settings Frozen output and safety limits.
+ * @param attempts Prior independent findings.
+ * @returns Exact complete-canvas generation instructions, with no background-plate or pixel-restoration permission.
+ */
+export function wallpaperCompleteCanvasPrompt(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings, attempts: WallpaperItem['attempts']): string {
+  const layout = wallpaperPositionedLayout(plan, source, settings)
+  const previous = wallpaperAttemptReview(attempts.findLast(attempt => wallpaperAttemptReview(attempt)))
+  const safety = wallpaperSafetyInstructions(settings)
+  const framing = layout.positionedRegions.filter(region => region.role === 'subject').map(({ name, rect }) => `${name}：完整轮廓占画面宽度约${(rect.width * 100).toFixed(1)}%，左缘${(rect.x * 100).toFixed(1)}%、右缘${((rect.x + rect.width) * 100).toFixed(1)}%，顶缘${(rect.y * 100).toFixed(1)}%、底缘${((rect.y + rect.height) * 100).toFixed(1)}%`).join('；')
+  const subjectPlacement = safety ? `${safety}非汽车主角的零星细线或末梢可自然外伸，不能把完整物体降为末梢；背景可按原有光照、透视、材质与风格自由延展。` : '主体主要体量放在安全区内，大小自然、清楚可辨，充分利用可用构图区域；细线、末梢、装饰允许少量自然外伸，背景可按原有光照、透视、材质与风格自由延展。'
+  return `将参考图适配为一张自然连续的竖幅成品，保留原图题材、主要主体身份、风格及清楚的关键结构。适用于人物、产品、动物、植物、建筑、车辆、风景与抽象图；按实际画面确定视觉核心，不固定题材或主角数量。${subjectPlacement}不要为了塞入陪衬或细枝末节把主角缩得很小，不要求补出原图有意未入镜的身体或背面。\n唯一参考是未经拼贴的完整原图或已保存完整候选；下述desiredRegions和desiredSourceTransform是期望位置，尚未对参考图实施。根据需要实际完成整组等比缩放和平移，交付完整场景。${safety ? '汽车必须按这些目标框实际适配完整可见车身，不能照原图满幅铺开或放大；目标坐标不是参考图已经移动的证明。' : ''}严禁将原图或局部照片作为矩形贴片嵌入背景，禁止画中画、重复主角、明显拼接边、拉伸、灰色占位或新增界面文字。Host直接采用返回的完整画面，不回贴任何原图像素。\n输出${settings.imageSize}，目标${settings.width}×${settings.height}。主题：${plan.subject}。${framing ? `\n镜头与占幅目标（百分比均相对完整成品）：${framing}。参考主体比目标大时，必须拉远镜头、等比缩小整组主体并延展四周背景；保留身份、形状和组内关系，不能保持原来的满幅大小，也不能通过裁切主体达到目标。` : ''}\n期望布局：${JSON.stringify({ coordinateSystem: layout.coordinateSystem, safe: layout.protectedNormalized, referenceTransformAlreadyApplied: false, desiredSourceTransform: layout.appliedSourceTransform, desiredRegions: layout.positionedRegions, objectRoles: layout.objectRoles })}\n仅修复本轮尚未解决的明确缺陷：${JSON.stringify(previous?.issues ?? [])}`
+}
 
 /** Prepare the edit canvas, original, native detail crops and a separately labelled layout guide.
  * @param original Verified, oriented source pixels. @param canvas Unmarked target canvas. @param layout Diagnostic safe-area overlay. @param plan Current inferred protection regions.
@@ -50,7 +67,7 @@ export async function wallpaperGenerationReferences(original: Uint8Array, canvas
  * @returns Exact prompt with requested native output distinct from input/reference coordinates; no prior verdict is promoted to current acceptance.
  */
 export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPlan, settings: WallpaperSettings, references: readonly { role: Reference['role']; width: number; height: number; sourceRect?: Region }[], attempts: WallpaperItem['attempts'], sourceGeometry?: { width: number; height: number }, opaqueCanvas = false, brief?: z.infer<typeof wallpaperGenerationBriefOutputSchema>): string {
-  const prior = attempts.findLast(attempt => attempt.review)?.review
+  const prior = wallpaperAttemptReview(attempts.findLast(attempt => wallpaperAttemptReview(attempt)))
   if (sourceGeometry && brief) {
     const latest = attempts.at(-1)
     const sourceLock = latest?.compositionMode === 'generated-canvas-protected-v2'
@@ -61,7 +78,7 @@ export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPl
     const clock = settings.processing?.clockContrast
       ? `系统会在画面宽度约25%–75%、高度约15%–31%的区域另行叠加白色日期和时间。该区域原有背景如果过亮，优先自然压暗背景、减弱亮叶和反光，使白字至少达到${settings.processing.clockContrast.minimumRatio}:1对比；此处背景亮度调整优先于背景像素原样保留，但主体、位置和材质必须保留。壁纸本身不绘制时间、日期或界面。`
       : '壁纸本身不绘制系统时间、日期或界面。'
-    const correction = latest?.layoutCorrection ? '第1张是已保存的完整候选，Host已执行本轮整体等比缩放和平移。保持参考画布中的当前位置、内部比例和对象；只补新露出的背景。历史复审中的下移、缩小等动作已经完成，不要再次执行，也不要为铺满画布放大主体。' : ''
+    const correction = latest?.layoutCorrection ? `第1张是已保存的完整候选，Host已执行本轮整体等比缩放和平移。保持参考画布中的当前位置、内部比例和对象；${prior?.checks.background.result === 'violated' ? '修复复审已定位的背景缺陷，并补齐新露出的背景；保留健康主体，交付一张连续完整的画面' : '只补新露出的背景'}。历史复审中的下移、缩小等动作已经完成，不要再次执行，也不要为铺满画布放大主体。` : ''
     const repair = !latest?.layoutCorrection && latest && wallpaperEdgeRepairAuthorized(latest, settings) ? latest.detailAnalysis?.edgeRepair?.instruction : undefined
     const continuationTargets = wallpaperSourceContinuationTargets(plan, settings, sourceGeometry)
     const interiorTargets = continuationTargets.filter(target => target.disposition === 'interior')
@@ -88,7 +105,7 @@ export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPl
     const roleInstruction = references.length > 1 ? '\n第1参考是唯一的构图与定位主画布；第2参考是同一原始输入的画风与健康细节参考，仅恢复纸纹、笔触、毛流、菌褶或实际材质，不复制其原始取景，不产生第二组主体，不以它覆盖主画布布局。' : ''
     return `${instruction}${authored}${roleInstruction}\n${outputInstruction}${clockInstruction ? '\n' + clockInstruction : ''}\n${JSON.stringify({ taskPolicy: settings.repairPolicy, objectRoles: plan.objectRoles, repairTargets: wallpaperGenerativeRepair(settings) ? { truncations: plan.truncations, uncertainties: plan.uncertainties, defects: prior?.issues ?? [], generatedRepair: true } : undefined, sceneEditPrompt: brief?.generationPrompt ?? plan.editPrompt, ...(brief ? { styleAnchors: brief.styleAnchors, detailAnchors: brief.detailAnchors, clockText: brief.clockText, referenceRoles: references.map((reference, index) => ({ image: index + 1, ...reference })) } : {}), output: { size: settings.imageSize, quality: settings.imageQuality }, canvas: references[0], ...(opaqueCanvas ? { canvasEncoding: { placeholderRgb: [128, 128, 128], editablePixels: 'separate-mask-transparent' } } : {}), template: { width: settings.width, height: settings.height, safe: settings.safe, topBuffer: settings.processing?.clockContrast ? settings.topBuffer : 0 }, normalizedPlacement,
       protectedRegions: plan.regions.map(region => ({ name: region.name, entityId: region.entityId, role: region.role, rect: { x: normalizedPlacement.x + region.rect.x * normalizedPlacement.width, y: normalizedPlacement.y + region.rect.y * normalizedPlacement.height, width: region.rect.width * normalizedPlacement.width, height: region.rect.height * normalizedPlacement.height } })),
-      candidatePlacement: correction ? { version: correction.version, sourceImageVersionId: plan.imageVersionId, instruction: `The reference is an independently complete saved candidate, uniformly placed as a whole. Preserve its objects and internal proportions; extend only exposed background${settings.processing?.clockContrast ? ' and repair configured clock contrast' : ''}. Do not enlarge its central scene to fill the canvas.` } : undefined,
+      candidatePlacement: correction ? { version: correction.version, sourceImageVersionId: plan.imageVersionId, instruction: `The reference is an independently complete saved candidate, uniformly placed as a whole. Preserve its objects and internal proportions; ${prior?.checks.background.result === 'violated' ? 'repair the localized background defects and extend exposed background' : 'extend only exposed background'}${settings.processing?.clockContrast ? ' and repair configured clock contrast' : ''}. Return one continuous complete scene. Do not enlarge its central scene to fill the canvas.` } : undefined,
       edgeRepair: repair ? { classification: repair.classification, edges: repair.edges, reason: repair.reason, instruction: repair.instruction, ...(repair.sourceRegion ? { normalizedTargetRegion: { x: normalizedPlacement.x + repair.sourceRegion.x * normalizedPlacement.width, y: normalizedPlacement.y + repair.sourceRegion.y * normalizedPlacement.height, width: repair.sourceRegion.width * normalizedPlacement.width, height: repair.sourceRegion.height * normalizedPlacement.height } } : {}) } : undefined,
       retainedUnknowns: detail?.findings?.filter(finding => finding.result === 'unresolved' && !finding.blocking).map(finding => ({ concernId: finding.concernId, classification: finding.classification, reason: finding.reason })),
       framingFailure: latest?.compositionMode === 'generated-canvas-v1' ? undefined : attempts.findLast(attempt => ['reframed-source', 'misaligned-source'].includes(attempt.generationAlignment?.result ?? ''))?.generationAlignment,

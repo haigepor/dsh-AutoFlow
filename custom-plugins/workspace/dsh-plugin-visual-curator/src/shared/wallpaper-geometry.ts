@@ -1,6 +1,6 @@
 /** Source transforms and protected-region checks run without image decoding. */
 import type { WallpaperItem, WallpaperPlan, WallpaperSettings } from './wallpaper.ts'
-import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit } from './wallpaper-policy.ts'
+import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit, wallpaperPracticalAcceptance } from './wallpaper-policy.ts'
 import { CuratorError } from './errors.ts'
 
 /** Locate source-frame contacts that need bounded continuation after placing a cropped object inside the canvas.
@@ -82,11 +82,23 @@ export function wallpaperSourceContinuationReviewRegions(plan: WallpaperPlan, se
 
 /** Protect the whole observed object with strict core bounds when no smaller critical rectangle was identified.
  * @param plan Observed object mode and source rectangles.
- * @returns Original rectangles plus complete-object core protection, without inventing unobserved structure.
+ * @param settings Frozen acceptance; omitted policy retains historical whole-object protection.
+ * @returns Original rectangles under practical acceptance, otherwise complete-object core protection when needed.
  */
-export function wallpaperObjectProtectionRegions(plan: Pick<WallpaperPlan, 'mode' | 'regions'>): WallpaperPlan['regions'] {
+export function wallpaperObjectProtectionRegions(plan: Pick<WallpaperPlan, 'mode' | 'regions'>, settings?: WallpaperSettings): WallpaperPlan['regions'] {
+  if (settings && wallpaperPracticalAcceptance(settings)) return plan.regions
   if (!['single', 'group'].includes(plan.mode) || plan.regions.some(region => region.role === 'critical')) return plan.regions
   return [...plan.regions, ...plan.regions.filter(region => region.role === 'subject').map(region => ({ ...region, name: `${region.name} · complete-object core protection`, role: 'critical' as const }))]
+}
+
+/** Keep model instructions consistent with frozen object roles; Host-only core copies still constrain rendering.
+ * @param plan Saved source observations and internal protection rectangles.
+ * @returns Model-facing plan without critical copies of frozen primary subjects; the saved plan is unchanged.
+ */
+export function wallpaperModelPlan(plan: WallpaperPlan): WallpaperPlan {
+  const objects = plan.objectRoles
+  if (!objects) return plan
+  return { ...plan, regions: plan.regions.filter(region => region.role !== 'critical' || !objects.some(object => object.role === 'primary' && object.entityId === region.entityId)) }
 }
 
 /** Fit an independently complete saved scene before extending newly exposed canvas.
@@ -97,31 +109,25 @@ export function wallpaperObjectProtectionRegions(plan: Pick<WallpaperPlan, 'mode
 export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'][number], 'plan' | 'review' | 'outputId' | 'compositionMode'>, settings: WallpaperSettings): WallpaperPlan | undefined {
   const review = prior.review
   if (!wallpaperGenerativeRepair(settings) || prior.compositionMode !== 'generated-canvas-v1' || !prior.outputId || !review || !('reviewVersion' in review) || review.reviewVersion !== 'wallpaper-review-source-v4') return undefined
+  if (Object.values(review.checks).some(check => check.result === 'unknown') || review.sourceRepair.result === 'unknown' || review.subjectIntegrity.task.result === 'unknown') return undefined
   if (review.subjectIntegrity.output.extent !== 'complete' || review.sourceCorrespondence.result !== 'satisfied' || wallpaperReviewNeedsSubjectEdit(review)) return undefined
   const issues = review.modelIssues.length ? review.modelIssues : review.issues
-  const layoutDefect = issues.some(issue => issue.kind === 'layout')
+  const layoutDefect = review.layoutChecks.length > 0 || issues.some(issue => issue.kind === 'layout') || review.issues.some(issue => issue.kind === 'layout')
   if (review.checks.background.result === 'unknown') return undefined
   if (!issues.length || issues.some(issue => !['layout', 'readability', 'background'].includes(issue.kind))) return undefined
   if (Object.entries(review.checks).some(([key, check]) => !['subject', 'composition', 'protection', 'clock', 'readability', 'background'].includes(key) && check.result !== 'satisfied')) return undefined
-  if ((review.subjectIntegrity.task.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') && !review.modelIssues.some(issue => issue.kind === 'layout')) return undefined
+  if ((review.subjectIntegrity.task.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') && !layoutDefect) return undefined
   if (review.actualLayout.regions.some(region => region.role === 'anchor' || region.role === 'critical' && region.scope !== 'core')) return undefined
-  const region = ({ name, entityId, role, rect }: typeof review.actualLayout.regions[number]) => ({ name, ...(entityId ? { entityId } : {}), role, rect: { ...rect } })
+  const region = ({ name, entityId, role, rect, safetyClass }: typeof review.actualLayout.regions[number]) => ({ name, ...(entityId ? { entityId } : {}), ...(safetyClass ? { safetyClass } : {}), role, rect: { ...rect } })
   const core = review.actualLayout.regions.filter(region => region.scope === 'core').map(region)
   if (!core.some(region => region.role === 'subject')) return undefined
   if (review.checks.background.result === 'violated') {
     const defects = review.modelIssues.filter(issue => issue.check === 'background')
-    if (!defects.length || defects.some(issue => {
-      const fact = issue.evidence
-      if (!fact || fact.kind !== 'background-artifact' || fact.imageVersionId !== review.actualLayout.imageVersionId) return true
-      return core.some(region => {
-        const a = region.rect, b = fact.outputRect
-        return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
-      })
-    })) return undefined
+    if (!defects.length || defects.some(issue => !issue.evidence || issue.evidence.kind !== 'background-artifact' || issue.evidence.imageVersionId !== review.actualLayout.imageVersionId)) return undefined
   }
-  const regions = [...wallpaperObjectProtectionRegions({ mode: 'group', regions: core }), ...review.actualLayout.regions.filter(region => region.scope === 'peripheral').map(region)]
+  const regions = [...wallpaperObjectProtectionRegions({ mode: 'group', regions: core }, settings), ...(wallpaperPracticalAcceptance(settings) ? [] : review.actualLayout.regions.filter(region => region.scope === 'peripheral').map(region))]
   const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, objectRoles: prior.plan.objectRoles?.map(object => ({ ...object, sourceEdges: [] })), truncations: [], uncertainties: [],
-    editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。整幅画面已按实际主体框等比缩放定位，${review.checks.background.result === 'violated' ? '保护已验收主体和必要结构，仅修复已定位的背景缺陷并补全新露出的背景' : '只补新露出的外围背景'}${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
+    editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。按本轮参考画布提供的等比缩放定位要求，${review.checks.background.result === 'violated' ? '保护已验收主体和必要结构，仅修复已定位的背景缺陷并补全新露出的背景' : '只补新露出的外围背景'}${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
     reason: 'Uniform placement derived from independently reviewed candidate regions; subject and image quality remain subject to final review.' }
   const placement = layoutDefect ? fitWallpaperPlacement(settings, observed, settings, 'subject-first-v2') : { scale: 1, left: 0, top: 0 }
   if (layoutDefect && placement.scale === 1 && placement.left === 0 && placement.top === 0) return undefined
@@ -145,17 +151,45 @@ export function wallpaperLayoutCoordinates(settings: WallpaperSettings) {
     protectedNormalized: { left: bounds.critical.left / settings.width, top: bounds.top / settings.height, right: bounds.critical.right / settings.width, bottom: bounds.critical.bottom / settings.height } }
 }
 
+/** Measure approximate subject placement without treating inferred rectangles as segmentation masks.
+ * @param region Positioned subject core or indispensable detail in output pixels.
+ * @param settings Frozen practical acceptance and exact safe rectangle.
+ * @returns Blocking excess and nonblocking coordinate or small-placement warnings; strict policy has no result.
+ */
+export function wallpaperPracticalRegionBoundary(region: Pick<WallpaperPlan['regions'][number], 'name' | 'role' | 'safetyClass'> & { left: number; top: number; width: number; height: number }, settings: WallpaperSettings): { hard: string[]; warnings: string[] } | undefined {
+  const policy = wallpaperPracticalAcceptance(settings)
+  if (!policy) return undefined
+  const bounds = wallpaperProtectedBounds(settings), tolerance = policy.version === 'practical-v1' ? policy.coordinateTolerancePixels : 0
+  const right = region.left + region.width, bottom = region.top + region.height
+  const overflow = { left: Math.max(0, bounds.critical.left - region.left), top: Math.max(0, bounds.top - region.top), right: Math.max(0, right - bounds.critical.right), bottom: Math.max(0, bottom - bounds.critical.bottom) }
+  const hard: string[] = [], warnings: string[] = []
+  if (region.left < -tolerance || region.top < -tolerance || right > settings.width + tolerance || bottom > settings.height + tolerance) hard.push(`clipped:${region.name}`)
+  if (policy.version === 'practical-v2' && region.safetyClass === 'automobile') {
+    if (Object.values(overflow).some(pixels => pixels > 0)) hard.push(`automobile-outside:${region.name}`)
+  } else if (region.role !== 'subject') {
+    if (Object.values(overflow).some(pixels => pixels > tolerance)) hard.push(`critical-outside:${region.name}`)
+  } else {
+    const insideWidth = Math.max(0, Math.min(right, bounds.critical.right + tolerance) - Math.max(region.left, bounds.critical.left - tolerance))
+    const insideHeight = Math.max(0, Math.min(bottom, bounds.critical.bottom + tolerance) - Math.max(region.top, bounds.top - tolerance))
+    const insideRatio = insideWidth * insideHeight / (region.width * region.height)
+    const edgeRatio = Math.max(Math.max(0, overflow.left - tolerance) / region.width, Math.max(0, overflow.right - tolerance) / region.width, Math.max(0, overflow.top - tolerance) / region.height, Math.max(0, overflow.bottom - tolerance) / region.height)
+    if (insideRatio < policy.minimumCoreInsideRatio || policy.version === 'practical-v1' && edgeRatio > policy.maximumCoreEdgeOverflowRatio) hard.push(`subject-overflow:${region.name}`)
+  }
+  if (!hard.length && Object.values(overflow).some(pixels => pixels > 0)) warnings.push(`core-outside:${region.name}`)
+  return { hard, warnings }
+}
+
 /** Describe only positioned output regions; frozen object identities do not carry source rectangles into output coordinates.
  * @param plan Effective original or complete-candidate placement. @param source Effective reference dimensions. @param settings Frozen output geometry.
  * @returns Output-normalized protection regions and semantic object roles, with the applied source transform explicitly identified.
  */
 export function wallpaperPositionedLayout(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings) {
-  const geometry = wallpaperGeometry(source, plan, settings)
+  const geometry = wallpaperGeometry(source, wallpaperModelPlan(plan), settings)
   return { ...wallpaperLayoutCoordinates(settings), sourceImageVersionId: plan.imageVersionId, referenceTransformAlreadyApplied: true,
     appliedSourceTransform: plan.placement,
-    positionedRegions: geometry.regions.map(region => ({ name: region.name, entityId: region.entityId, role: region.role,
+    positionedRegions: geometry.regions.map(region => ({ name: region.name, entityId: region.entityId, role: region.role, ...(region.safetyClass ? { safetyClass: region.safetyClass } : {}),
       rect: { x: region.left / settings.width, y: region.top / settings.height, width: region.width / settings.width, height: region.height / settings.height } })),
-    objectRoles: plan.objectRoles?.map(({ entityId, name, role }) => ({ entityId, name, role })) }
+    objectRoles: plan.objectRoles?.map(({ entityId, name, role, safetyClass }) => ({ entityId, name, role, ...(safetyClass ? { safetyClass } : {}) })) }
 }
 
 /** Fit all inferred protected regions with the same rounded source geometry used by rendering.
@@ -172,7 +206,8 @@ export function fitWallpaperPlacement(source: { width: number; height: number },
     const width = Math.max(1, Math.round(source.width * scale)), height = Math.max(1, Math.round(source.height * scale))
     let left = -width + 1, right = settings.width - 1, top = -height + 1, bottom = settings.height - 1
     for (const region of observed.regions) {
-      const base = region.role === 'subject' ? bounds.subject : bounds.critical
+      // Practical planning reserves the exact safe band; final review owns small overflow allowances.
+      const base = wallpaperPracticalAcceptance(settings) || region.role !== 'subject' ? bounds.critical : bounds.subject
       const allowed = { left: base.left + inset + (edges.includes('left') ? margin : 0), right: base.right - inset - (edges.includes('right') ? margin : 0), bottom: base.bottom - inset - (edges.includes('bottom') ? margin : 0) }
       left = Math.max(left, Math.ceil(Math.max(0, allowed.left) - region.rect.x * width))
       right = Math.min(right, Math.floor(Math.min(settings.width, allowed.right) - (region.rect.x + region.rect.width) * width))
@@ -214,10 +249,19 @@ export function wallpaperGeometry(source: { width: number; height: number }, pla
   const target = { left: Math.max(0, left), top: Math.max(0, top), width: Math.min(settings.width, left + width) - Math.max(0, left), height: Math.min(settings.height, top + height) - Math.max(0, top) }
   if (target.width <= 0 || target.height <= 0) throw new CuratorError('invalid-input', 'wallpaper-layout', 'The source does not intersect the output canvas.')
   const regions = plan.regions.map(region => ({ ...region, left: left + region.rect.x * width, top: top + region.rect.y * height, width: region.rect.width * width, height: region.rect.height * height }))
-  const checks: string[] = []
+  const checks: string[] = [], warnings: string[] = []
   if (plan.mode === 'uncertain' || plan.uncertainties.length && !wallpaperGenerativeRepair(settings) || !regions.length && (plan.mode === 'single' || plan.mode === 'group')) checks.push('uncertain-subject')
-  if ((plan.mode === 'single' || plan.mode === 'group') && (!regions.some(region => region.role === 'subject') || !regions.some(region => region.role === 'critical'))) checks.push('missing-protected-regions')
+  const acceptance = wallpaperPracticalAcceptance(settings)
+  if ((plan.mode === 'single' || plan.mode === 'group') && (!regions.some(region => region.role === 'subject') || !acceptance && !regions.some(region => region.role === 'critical'))) checks.push('missing-protected-regions')
+  if (acceptance && (plan.mode === 'single' || plan.mode === 'group')) {
+    const subjects = regions.filter(region => region.role === 'subject')
+    const safeArea = settings.safe.width * (bounds.critical.bottom - bounds.top)
+    const subjectArea = subjects.reduce((area, region) => area + region.width * region.height, 0)
+    if (subjects.length && Math.min(subjectArea, safeArea) < safeArea * acceptance.minimumCoreSafeAreaRatio) checks.push('subject-too-small')
+  }
   for (const region of regions) {
+    const practical = wallpaperPracticalRegionBoundary(region, settings)
+    if (practical) { checks.push(...practical.hard); warnings.push(...practical.warnings); continue }
     const right = region.left + region.width, bottom = region.top + region.height
     if (region.left < 0 || region.top < 0 || right > settings.width || bottom > settings.height) checks.push(`clipped:${region.name}`)
     if (region.top < bounds.clockBottom) checks.push(`${settings.processing?.clockContrast ? 'clock-overlap' : 'safe-top-overlap'}:${region.name}`)
@@ -226,5 +270,5 @@ export function wallpaperGeometry(source: { width: number; height: number }, pla
     if (critical && (region.left < bounds.critical.left || right > bounds.critical.right || bottom > bounds.critical.bottom)) checks.push(`critical-outside:${region.name}`)
     if (!critical && (region.left < bounds.subject.left || right > bounds.subject.right || bottom > bounds.subject.bottom)) checks.push(`subject-overflow:${region.name}`)
   }
-  return { width, height, left, top, target, regions, checks: [...new Set(checks)], needsOutpaint: target.width * target.height < settings.width * settings.height }
+  return { width, height, left, top, target, regions, checks: [...new Set(checks)], warnings: [...new Set(warnings)], needsOutpaint: target.width * target.height < settings.width * settings.height }
 }

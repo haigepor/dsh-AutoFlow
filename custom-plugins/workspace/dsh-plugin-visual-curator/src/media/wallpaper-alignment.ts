@@ -27,7 +27,7 @@ export async function wallpaperGenerationAlignment(original: Uint8Array, generat
   const source = await sharp(original).metadata(), output = await sharp(generated).metadata()
   if (!source.width || !source.height || !output.width || !output.height) return undefined
   const geometry = wallpaperGeometry({ width: source.width, height: source.height }, plan, settings)
-  if (!geometry.needsOutpaint) return undefined
+  if (!geometry.needsOutpaint && !verifyProtection) return undefined
   const sample = (bytes: Uint8Array) => sharp(bytes).resize(policy.sampleWidth, policy.sampleHeight, { fit: 'fill' }).removeAlpha().toColourspace('srgb').raw().toBuffer()
   const left = Math.max(0, Math.round(geometry.target.left * output.width / settings.width)), top = Math.max(0, Math.round(geometry.target.top * output.height / settings.height))
   const width = Math.min(output.width - left, Math.max(1, Math.round(geometry.target.width * output.width / settings.width))), height = Math.min(output.height - top, Math.max(1, Math.round(geometry.target.height * output.height / settings.height)))

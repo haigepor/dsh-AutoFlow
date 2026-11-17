@@ -1016,7 +1016,11 @@
   .vc-prompt-editor-document pre { padding: 20px 18px 28px; }
 }
 
-.vc-image-storage-modal { width: min(640px, 100%); color: var(--dsw-alias-label-primary); font: 13px/1.6 var(--dsw-font-family); }
+.vc-image-storage-modal { width: min(640px, 100%); max-height: 100%; color: var(--dsw-alias-label-primary); font: 13px/1.6 var(--dsw-font-family); }
+.vc-image-storage-modal::before { background: var(--dsw-alias-bg-layer-1); backdrop-filter: none; }
+.vc-image-storage-content { flex: 1; min-height: 0; overflow: hidden; }
+.vc-image-storage-content > :first-child, .vc-image-storage-modal > :last-child { flex: none; }
+.vc-image-storage-content > :last-child { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .vc-image-storage-body { display: grid; gap: 16px; min-width: 0; }
 .vc-image-storage-body > p { margin: 0; }
 .vc-image-storage-usage { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); }
@@ -1053,3 +1057,12 @@
 .vc-direct-admission-error > button { flex: none; }
 @media (max-width: 600px) { .vc-direct-admission-error { flex-wrap: wrap; } }
 @media (max-width: 420px) { .vc-image-storage-limit-heading { flex-basis: 100%; } .vc-image-storage-limit-controls { width: 100%; } .vc-image-storage-input { flex: 1; min-width: 0; } .vc-image-storage-actions > div { gap: 6px; } }
+
+.vc-image-storage-directory { display: grid; gap: 8px; min-width: 0; }
+.vc-image-storage-directory-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vc-image-storage-directory strong { font-weight: 500; }
+.vc-image-storage-path { display: block; overflow-wrap: anywhere; user-select: text; font-size: 12px; color: var(--dsw-alias-label-primary); }
+.vc-image-storage-directory p { margin: 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.vc-image-storage-directory .vc-image-storage-confirm, .vc-image-storage-transfer { display: grid; justify-items: start; gap: 8px; }
+.vc-image-storage-transfer { padding: 12px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-1); font-size: 12px; }
+.vc-image-storage-transfer > .vc-image-storage-directory-heading, .vc-image-storage-transfer > progress { width: 100%; }

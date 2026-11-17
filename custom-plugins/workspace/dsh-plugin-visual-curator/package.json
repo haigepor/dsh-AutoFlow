@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-visual-curator",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -343,6 +343,7 @@
     "@deepseek-ai/dsh-compaction-basic": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
     "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-error": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
@@ -383,6 +384,7 @@
     "@deepseek-ai/dsh-compaction-basic": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
     "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-error": "workspace:*",
     "@deepseek-ai/dsh-credentials-local": "workspace:*",
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",

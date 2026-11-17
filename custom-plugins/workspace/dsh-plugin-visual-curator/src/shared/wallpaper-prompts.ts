@@ -1,6 +1,6 @@
 /** Versioned model instructions for source-grounded wallpaper layout and independently reviewed pixels. */
 import { wallpaperDirectPlanPrompt, wallpaperEdgeDetailPrompt, wallpaperEdgeDecisionPrompt, wallpaperOpaqueCanvasPrompt, wallpaperCanvasReviewPromptV4 } from './wallpaper-edit-prompts.ts'
-import { wallpaperGenerativeRepair, wallpaperRepairInstructions } from './wallpaper-policy.ts'
+import { wallpaperGenerativeRepair, wallpaperRepairInstructions, wallpaperPracticalAcceptance } from './wallpaper-policy.ts'
 import { wallpaperRepairPlanPromptV8, wallpaperRepairGenerationPrompt, wallpaperRepairReviewPromptV8 } from './wallpaper-repair-prompts.ts'
 import type { WallpaperSettings } from './wallpaper.ts'
 /** A decision selects one executable recovery action from actual evidence; it never changes acceptance policy. */
@@ -106,6 +106,32 @@ export function sourceFaithfulWallpaperPrompts(settings?: WallpaperSettings) {
     outpaint: { version: 'wallpaper-outpaint-v6' as const, text: `${generationText}\nusage.objectPolicy.objectRoles给出主角、必要结构和陪衬的冻结身份。只有主角及必要结构须进入内侧安全区；陪衬仍须保留原有外观与自然场景关系，可在最终外画框裁切，不能在画面内部留下平切边。不要为了让全部陪衬进入安全区而缩小整组。` }, review: { version: 'wallpaper-review-source-v4' as const, text: noClock ? `${wallpaperRepairReviewPromptV8}\n本任务未设置时钟对比规则，主体上沿只需达到safe.top，不附加topBuffer。clock和readability只记录“未启用”，不得因模拟白字、日期、时间的亮度或背景干扰判失败；主体完整范围和安全区由subject/protection及实际坐标严格核查。生成图自身新增的日期、时间或界面仍须在background报告为缺陷，原图真实且需保留的文字不删。` : wallpaperRepairReviewPromptV8 } }
   return { ...bundle, plan: { version: 'wallpaper-plan-v7' as const, text: noClock ? `${wallpaperDirectPlanPrompt}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束。` : wallpaperDirectPlanPrompt }, detail: wallpaperEdgeDetailPrompt, decision: wallpaperEdgeDecisionPrompt,
     outpaint: { version: 'wallpaper-outpaint-v6' as const, text: noClock ? `${wallpaperOpaqueCanvasPrompt}\n本任务不为模拟时钟调整背景明度。` : wallpaperOpaqueCanvasPrompt }, review: { version: 'wallpaper-review-source-v4' as const, text: noClock ? `${wallpaperCanvasReviewPromptV4}\n本任务未启用时钟对比；clock和readability只记录未启用，不因模拟白字背景判失败。真实主体与关键结构仍须完整位于安全区，生成图自身新增的时间文字按background缺陷报告。` : wallpaperCanvasReviewPromptV4 } }
+}
+
+/** Shared practical acceptance keeps visible subjects useful while allowing natural scene variation. */
+export const wallpaperPracticalInstructions = `按实际图片题材适配锁屏构图：共同主角都清楚、大小自然、各自主要体量合理落在安全区。先识别共同视觉主角，不能只因某物最高、最大、最亮而把它当作唯一主角。多个前景对象共同承担叙事、肖像或产品展示焦点时均为primary，使用group；环境框景、承托物、反射和零散装饰仍是supporting，类别本身不决定主次。细线和同一主角的小附属末端允许小量外伸，不能把完整人物、动物或产品降为peripheral。背景可按原有风格自然发挥。只阻止明显主体损坏、重复主角、贴图拼接、严重模糊或大幅越界；普通背景变化、原图有意取景和轻微审美差异不构成返工理由。无法确认的重要质量疑点保留待检查，不凭猜测重新生图。`
+
+/** Share frozen current safety requirements across source planning, generation and final review.
+ * @param settings Frozen task configuration.
+ * @returns Current category requirements, or no additional instructions for historical policies.
+ */
+export function wallpaperSafetyInstructions(settings: WallpaperSettings): string {
+  const practical = wallpaperPracticalAcceptance(settings)
+  return practical?.version === 'practical-v2' ? `汽车主角的完整可见车身必须100%进入safe安全区，包括车轮、后视镜、车顶、车头、车尾及其它可见结构；汽车不使用外围外伸、坐标误差或比例容差。其他主角各自核心体量至少${(practical.minimumCoreInsideRatio * 100).toFixed(0)}%进入safe。保持主体自然大小、清楚可辨，不能缩成小点，不能漏框、只框车舱或把完整部位降为peripheral来规避。` : ''
+}
+
+/** @param settings Frozen template and source-edit permission. @returns Complete-scene instructions with explicit instance counts and no pasted source restoration. */
+export function completeCanvasWallpaperPrompts(settings: WallpaperSettings) {
+  const prompts = sourceFaithfulWallpaperPrompts(settings)
+  const practical = wallpaperPracticalAcceptance(settings), safety = wallpaperSafetyInstructions(settings)
+  if (practical) return { ...prompts,
+    plan: { version: 'wallpaper-plan-v8' as const, text: `观察唯一原图并返回严格JSON。${wallpaperPracticalInstructions}\n识别single/group/scene/abstract/uncertain及真正视觉核心。objectRoles逐个记录共同主角的稳定entityId、name、primary角色及主要可见体量rect，不能只保留最大或居中的对象；人物与宠物、并列人物或高低不同的展示产品都可能共同主角。真正不可替代的小结构才标critical-part；supporting只记录容易被误认作主角的陪衬，不逐件列出零散装饰。rect不能混入独立承托物、装饰或反射，也不因细枝、吸管、发梢、天线等末端扩大主框。${safety ? `每个primary还须依据原图真实视觉填写safetyClass：汽车为automobile，其他为general；不能按名称猜类，不能把汽车改称general、陪衬或scene来放宽。汽车的rect须包住全部可见车辆结构。${safety}` : ''}sourceEdges与regions是Host按objectRoles.rect计算的重复字段，必须返回但可填[]，无需推算碰边或再次复制主体框；Host为每个primary/critical-part生成对应保护框，不为supporting设框。风景和抽象图以视觉焦点及构图平衡为准，没有对象就不强造完整对象。只记录影响实际可用性的真实uncertainties，不因小字、普通背景、正常遮挡或有意半身构图请求细节放大。editPrompt简短描述题材、风格及背景续接，不声称已经移动或通过。Host计算等比缩放与位置，不能输出placement。` },
+    review: { version: 'wallpaper-review-source-v4' as const, text: `先快速查看actual-wallpaper最终成品和wallpaper-original原图，只返回本次compact outputSchema，protocol固定practical-v1。${wallpaperPracticalInstructions}\nusage.objectPolicy.objectRoles中的primary是已从原图识别的共同主角，逐个在成品核对身份和可见主要体量，沿用准确entityId，每个必须有独立subject/core。不能遗漏、改ID、降为peripheral或切成scene逃避。确实消失的主角应报告major subject-damage，entityId指向该主角并填absent:true，不能捏造框；仅漏框或不确定应重新观察同图，不是生成理由。actualLayout以完整成品归一化坐标，只标真正主角主要体量为subject/core，框紧贴主体本身，不把承托盘、投影、反射、陪衬或空白一起包入主框；少量外围可用subject/peripheral并沿用其主角entityId；peripheral仅限同一主角的细线、毛梢等小附属末端，不能用来表示另一整件陪衬或共同主角。独立supporting不画主体框。脸、标识等真正不可替代的小区才标critical/core，杯盘容纳关系不自动升级为关键部件。主体不能因细节或背景而缩得难辨。${safety ? `${safety}分类由原图冻结，Host按entityId绑定；本次只观察实际坐标和质量，不重新给汽车改类。` : ''}\n只将明确、可定位、影响成品用途的缺陷记major，给outputRect。轻微风格/纹理差异、正常景深、自然新增植物或背景元素记minor或不记缺陷；不要逐件清点装饰、水果、花瓣等。明显重复主角、矩形贴片、画中画、拼接重影仍须major。布局要求由Host按核心坐标统一判断，不以口头结论替代实际框。仅在快速全图确实无法判断关键质量时填写uncertainties，不能把一般审美谨慎写成未知。reason一句简短像素依据，不重复规则。` },
+  }
+  return { ...prompts,
+    plan: { ...prompts.plan, text: `${prompts.plan.text}\n成品必须是一张完整、自然连续的照片。依据原图识别真正主体及共同主角，由生成服务完成整幅构图；禁止把整张原图缩成安全区内的小照片、矩形贴片或画中画。` },
+    review: { ...prompts.review, text: `${prompts.review.text}\n本次必须填写inventory和newForeground。inventory对outputSchema指定的每个entityId恰好记录一次：逐个数实际成品中可见实例，instances为每个实例在完整成品中的归一化框；sourceInstances逐个定位完整原图中同一实体的全部实例，instances逐个定位成品中的全部实例。一项entityId可以包含原本就有的多枚饼干、多粒水果或一组同类物体；原图两枚、成品两枚不是重复新增，原图一个、成品两个才是多出一个。两个数组都必须按真实像素分别计数，不能将多个物体合为一个大框，也不能假定每项entityId只代表一个物体。status按真实像素填写retained/missing/changed/uncertain。newForeground逐项列出原图没有的新前景物体，不能把复制的玩偶、杯子或托盘解释为背景装饰。\n严格检查整幅成品是否存在矩形嵌图、画中画、回贴原图、重复窗框或窗台、重复物体、镜像、重影、软化矩形边缘，以及光线、景深或透视在局部边界突变。任一种贴图或拼接痕迹均在background明确报告violated并给出位置；模糊边缘不能算自然衔接。不得凭主体像素保留、模型自述、尺寸或规划框宣布合格。` },
+  }
 }
 
 /** Original appearance is an independent requirement, never a synthetic dataset-match result. */

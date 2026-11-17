@@ -99,7 +99,7 @@ test('transparent pixels inside a geometrically full source still require backgr
   assert.equal(alpha[1000 * 1845 + 1000], 255)
 })
 
-test('generated background cannot replace protected source pixels; unprotected edges blend at the exact final size', async () => {
+test('complete generated output replaces the diagnostic seed without restoring any source pixels', async () => {
   const source = await sharp({ create: { width: 1000, height: 2000, channels: 3, background: '#ac3922' } }).png().toBuffer()
   const background = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: '#1933d1' } }).png().toBuffer()
   const placed = { ...plan(1100), placement: { scale: 0.5, left: 500, top: 1100 } }
@@ -107,7 +107,7 @@ test('generated background cannot replace protected source pixels; unprotected e
   const metadata = await sharp(result.image).metadata()
   assert.equal(metadata.width, 1845); assert.equal(metadata.height, 3280)
   const retained = await sharp(result.image).extract({ left: 550, top: 1650, width: 50, height: 100 }).removeAlpha().raw().toBuffer()
-  assert.equal(retained.every((value, index) => value === [172, 57, 34][index % 3]), true)
+  assert.equal(retained.every((value, index) => value === [25, 51, 209][index % 3]), true)
   const outer = await sharp(result.image).extract({ left: 0, top: 0, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
   assert.deepEqual([...outer], [25, 51, 209])
   const alpha = await sharp(result.mask).extractChannel('alpha').raw().toBuffer()
@@ -132,35 +132,26 @@ test('one-pixel provider rounding maps the whole edit canvas instead of cropping
   assert.deepEqual(await sharp(result.image).extract({ left: 0, top: 0, width: 1, height: 1 }).removeAlpha().raw().toBuffer(), Buffer.from([25, 51, 209]))
 })
 
-test('explicit protected context keeps every annotated source pixel, opaque output and the original generation mask', async () => {
+test('historical context masks remain inspectable but cannot produce pasted output', async () => {
   const source = await sharp({ create: { width: 1000, height: 2000, channels: 3, background: '#ac3922' } }).png().toBuffer()
   const background = await sharp({ create: { width: 941, height: 1672, channels: 3, background: '#1933d1' } }).png().toBuffer()
-  const placed = { ...plan(1100), placement: { scale: 0.5, left: 500, top: 1100 } }
-  const original = await renderWallpaper(source, placed, settings, background)
-  const explicit = await renderWallpaper(source, placed, settings, background, 'source-edge-v1')
-  const context = await renderWallpaper(source, placed, settings, background, 'protected-context-v1')
-  assert.deepEqual(explicit.image, original.image); assert.deepEqual(context.mask, original.mask); assert.deepEqual(context.geometry, original.geometry)
-  const retained = await sharp(context.image).extract({ left: 550, top: 1650, width: 50, height: 100 }).removeAlpha().raw().toBuffer()
-  assert.equal(retained.every((value, index) => value === [172, 57, 34][index % 3]), true)
-  const distant = await sharp(context.image).extract({ left: 950, top: 2050, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
-  assert.deepEqual([...distant], [25, 51, 209]); assert.equal((await sharp(context.image).stats()).isOpaque, true)
+  for (const mode of ['source-edge-v1', 'protected-context-v1', 'protected-context-v2'] as const) {
+    const seed = await renderWallpaper(source, plan(1100), settings, undefined, mode)
+    assert.deepEqual({ width: (await sharp(seed.mask).metadata()).width, height: (await sharp(seed.mask).metadata()).height }, { width: 1845, height: 3280 })
+    await assert.rejects(renderWallpaper(source, plan(1100), settings, background, mode), /overlays are disabled/)
+  }
   assert.equal(wallpaperSettingsSchema.safeParse({ backgroundContextPixels: -1 }).success, false)
   assert.equal(wallpaperSettingsSchema.safeParse({ backgroundContextPixels: 513 }).success, false)
 })
 
-test('new subject-context generation edits distant old background while retaining protected pixels and nearby context', async () => {
+test('historical subject-context diagnostic masks distinguish healthy source and editable distant background', async () => {
   const source = await sharp({ create: { width: 1000, height: 2000, channels: 3, background: '#ac3922' } }).png().toBuffer()
-  const background = await sharp({ create: { width: 941, height: 1672, channels: 3, background: '#1933d1' } }).png().toBuffer()
-  const original = await renderWallpaper(source, plan(1100), settings, background)
-  const result = await renderWallpaper(source, plan(1100), settings, background, 'protected-context-v2')
+  const original = await renderWallpaper(source, plan(1100), settings, undefined, 'source-edge-v1')
+  const result = await renderWallpaper(source, plan(1100), settings, undefined, 'protected-context-v2')
   const priorAlpha = await sharp(original.mask).extractChannel('alpha').raw().toBuffer(), alpha = await sharp(result.mask).extractChannel('alpha').raw().toBuffer()
   assert.equal(priorAlpha[500 * 1845 + 1000], 255)
   assert.equal(alpha[500 * 1845 + 1000], 0)
   assert.equal(alpha[1150 * 1845 + 550], 255)
   assert.equal(alpha[1150 * 1845 + 700], 255)
   assert.equal(alpha[1150 * 1845 + 800], 0)
-  const retained = await sharp(result.image).extract({ left: 500, top: 1100, width: 100, height: 200 }).removeAlpha().raw().toBuffer()
-  assert.equal(retained.every((value, index) => value === [172, 57, 34][index % 3]), true)
-  assert.deepEqual([...await sharp(result.image).extract({ left: 1000, top: 500, width: 1, height: 1 }).removeAlpha().raw().toBuffer()], [25, 51, 209])
-  assert.equal((await sharp(result.image).stats()).isOpaque, true)
 })

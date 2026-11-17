@@ -32,6 +32,7 @@ function directCropFailure(t: WorkbenchText, failure: unknown, fallback: 'direct
   const parsed = failureSchema.safeParse(failure)
   if (!parsed.success) return t(fallback)
   const { code, stage } = parsed.data
+  if (stage === 'storage-migration' && code === 'constraint-conflict') return t('imageStorageMovingBusy')
   if (fallback === 'directCropDeletePrepareError') return t(stage === 'direct-crop-delete-preview' && code === 'constraint-conflict' ? 'directCropListChanged' : fallback)
   if (fallback === 'directCropDeleteError') return t(code === 'constraint-conflict' ? 'directCropDeleteStopFirst' : fallback)
   if (code === 'invalid-input' && stage === 'media') return t('directCropInvalidImage')

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-large-source-reference",
+  "category": "fixes",
+  "text": {
+    "en": "High-resolution originals already accepted for import can prepare wallpaper references without another upload-limit rejection or reduced source quality.",
+    "zh-CN": "修复已正常导入的高分辨率原图在准备壁纸参考图时再次因上传限额被拒绝的问题，保留原图质量。"
+  }
+}

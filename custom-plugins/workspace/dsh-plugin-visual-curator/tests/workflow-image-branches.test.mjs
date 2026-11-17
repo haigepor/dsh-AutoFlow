@@ -211,14 +211,17 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     delete reviewedAttempt.generatedImageId
     reviewedAttempt.outputId = 'output-99'
     reviewedAttempt.review = {subject:'Car 100',checks:{...reviewChecks,background:{result:'violated',reason:'Visible seam'}},issues:[{kind:'background',reason:'Visible seam'}]}
+    reviewedAttempt.postResolutionReview = { requestId: 'final-review-99', imageVersionId: reviewedAttempt.outputId, digest: 'final-pixels', nativeId: 'native-99', nativeDigest: 'native-pixels', analysisId: 'analysis-99', simulationId: 'simulation-99', review: reviewedAttempt.review }
+    reviewedAttempt.review = { subject: 'Car 100', checks: reviewChecks, issues: [] }
     const current={...reviewedAttempt,revision:2,retryFrom:'reviewing',retryTarget:'rendering'}
-    for(const key of ['review','outputId','simulationId','analysisId','clarity'])delete current[key]
+    for(const key of ['review','outputId','simulationId','analysisId','clarity','postResolutionReview'])delete current[key]
     reviewed.attempts.push(current);reviewed.status='rendering';workflowStatus='running'
     await jump(0);await jump(99)
     const reviewing=()=>globalThis.__vcPlanningProjection.nodes.find(node=>node.data.image.stage==='reviewing')
     const returning=()=>globalThis.__vcPlanningProjection.edges.find(edge=>edge.data.rework)
     assert.equal(reviewing().data.wallpaper.attempt.revision,2,'The review node must follow the version being repaired instead of the previous rejection')
     assert.equal(returning().data.reworkStage,'rendering')
+    assert(win.document.querySelector('[data-step="rendering"] .vc-stage-issue').textContent.includes('Visible seam'), 'The correction card explains the final rejection when its native review passed')
     current.outputId='new-output';current.simulationId='new-simulation';reviewed.status='reviewing'
     await jump(0);await jump(99)
     assert.equal(reviewing().data.phase,'running');assert.equal(reviewing().data.wallpaper.attempt.revision,2)
@@ -232,7 +235,8 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     await jump(0);await jump(99)
     assert.equal(returning().data.reworkStage,'passed');assert.equal(returning().data.phase,'completed')
     assert.equal(reviewing().data.wallpaper.attempt.revision,2)
-    assert.equal(reviewedAttempt.review.checks.background.result,'violated','The preceding rejection remains in immutable history')
+    assert.equal(reviewedAttempt.review.checks.background.result,'satisfied','The passed native review remains in immutable history')
+    assert.equal(reviewedAttempt.postResolutionReview.review.checks.background.result,'violated','The preceding final rejection remains in immutable history')
     await click([...win.document.querySelectorAll('button')].find(button=>button.textContent===zh.wallpaperBatchOverview))
     assert.equal(globalThis.__vcPlanningProjection.nodes.length,expected.overviewNodes)
     assert.equal(win.document.querySelectorAll('[data-image-id]').length,0)
@@ -264,7 +268,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     await directRender(3)
     assert.equal(directReview().data.phase,'completed');assert.equal(directReturn().data.reworkStage,'passed')
     assert.equal(directReturn().markerEnd.color,'var(--dsw-alias-state-success-primary)')
-    assert.equal(reviewedAttempt.review.checks.background.result,'violated')
+    assert.equal(reviewedAttempt.postResolutionReview.review.checks.background.result,'violated')
     for(const key of ['review','outputId','simulationId'])delete current[key]
     reviewed.status='needs-review';workflowStatus='completed'
     await directRender(4)
