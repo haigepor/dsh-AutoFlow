@@ -19,6 +19,7 @@ export const imageStorageMigrationSchema = z.strictObject({
   phase: z.enum(['preparing', 'copying', 'verifying', 'removing-source']),
   sourceDirectory: z.string(), targetDirectory: z.string(),
   totalBytes: z.number().int().nonnegative(), totalFiles: z.number().int().nonnegative(),
+  missingFiles: z.number().int().nonnegative().optional(),
   copiedBytes: z.number().int().nonnegative(), copiedFiles: z.number().int().nonnegative(),
   verifiedBytes: z.number().int().nonnegative(), verifiedFiles: z.number().int().nonnegative(),
   removedBytes: z.number().int().nonnegative(), removedFiles: z.number().int().nonnegative(),

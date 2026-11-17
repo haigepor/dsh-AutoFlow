@@ -119,9 +119,11 @@ export class ImageStorageMigration {
         const inventory = await imageStorageInventory(source)
         const files = inventory.filter(file => isImageStorageBlob(file.ref)).map(file => ({ digest: file.ref.slice(9), bytes: file.bytes }))
         const available = new Set(inventory.map(file => file.ref))
-        for (const ref of referencedImageStorageFiles(this.dependencies.repository())) if (!available.has(ref)) throw new MediaError('reference-unavailable', 'storage-migration', false, 'A referenced source image is missing.', 'Restore the original image library before migrating.')
+        // Historical gaps predate this transfer; preserve their records while verifying every file that still exists.
+        const missingFiles = [...referencedImageStorageFiles(this.dependencies.repository())].filter(ref => !available.has(ref)).length
+        state = await this.save({ ...initial, migration: { ...initial.migration, phase: 'preparing', files, totalFiles: files.length, totalBytes: files.reduce((sum, file) => sum + file.bytes, 0), missingFiles, copiedBytes: 0, copiedFiles: 0, verifiedBytes: 0, verifiedFiles: 0, removedBytes: 0, removedFiles: 0 } })
         await checkMigrationSpace(target, files)
-        state = await this.save({ ...initial, migration: { ...initial.migration, phase: 'copying', files, totalFiles: files.length, totalBytes: files.reduce((sum, file) => sum + file.bytes, 0), copiedBytes: 0, copiedFiles: 0, verifiedBytes: 0, verifiedFiles: 0, removedBytes: 0, removedFiles: 0 } })
+        state = await this.save({ ...state, migration: { ...state.migration, phase: 'copying' } })
         for (const file of files) {
           checkCancelled(signal)
           const migration = state.migration, completed = migration.copiedBytes

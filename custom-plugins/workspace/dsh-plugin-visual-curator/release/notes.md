@@ -1,3 +1,19 @@
+## Visual Curator 0.2.25
+
+- Continue image storage migration when referenced historical files are already missing; retain those records and report the missing-file count.
+- Verify every available file before switching directories. New source-file loss or checksum mismatches still stop migration.
+- Prioritize migration status, destination, progress and resume actions in the storage dialog, with shorter guidance and expandable quota settings.
+
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261117.2; publication is pending. Restart after active tasks finish to load the matching Host and Client.
+
+## Visual Curator 0.2.25 更新说明
+
+- 历史引用文件已缺失时，仍可迁移现有图片，保留相关记录并显示缺失文件数量。
+- 所有现有文件校验通过后才切换目录；迁移中新丢失的源文件或校验不一致仍会阻止切换。
+- 存储弹窗优先显示迁移状态、目标目录、进度和继续迁移操作，精简说明并折叠额度设置。
+
+已为 AutoFlow Desktop 0.2.2-rc.3.20261117.2 准备，尚待发布；待当前任务结束后重启，以加载配套 Host 和 Client。
+
 ## Visual Curator 0.2.24
 
 - Keep every visible car part inside the safe area, including peripheral parts; require at least 97% containment for other main subjects and full containment for critical structures. Natural background variation remains allowed.

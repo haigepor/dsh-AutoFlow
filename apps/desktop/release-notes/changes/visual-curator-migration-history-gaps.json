@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-migration-history-gaps",
+  "category": "fixes",
+  "text": {
+    "en": "Image storage migration can continue when historical image files are already missing, while preserving records and verifying the files that are moved.",
+    "zh-CN": "修复历史图片文件缺失时存储迁移停在准备阶段的问题，迁移现有图片并保留历史记录。"
+  }
+}

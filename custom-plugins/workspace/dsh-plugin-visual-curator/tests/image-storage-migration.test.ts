@@ -1,18 +1,20 @@
 /** Real temporary image files exercise transfer, admission, interruption and directory recovery without model calls. */
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, symlink, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { importedRecords } from '../src/host/imports.ts'
 import { CuratorService } from '../src/host/service.ts'
+import { toJson } from '../src/host/runtime.ts'
 import { CuratorDomain } from '../src/domain/curator.ts'
 import { DomainRepository } from '../src/domain/repository.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 import { MediaError } from '../src/media/errors.ts'
 import { imageStorageViewSchema } from '../src/shared/image-storage.ts'
-import { imageStorageInventory, isImageStorageBlob } from '../src/media/storage-directory.ts'
+import { imageStorageInventory, isImageStorageBlob, prepareStorageDirectory } from '../src/media/storage-directory.ts'
 
 test('migration preserves image identities and hidden history, removes verified old blobs and restores the custom directory on restart', async () => {
   const f = await serviceFixture()
@@ -56,6 +58,79 @@ test('migration preserves image identities and hidden history, removes verified 
     assert.deepEqual(await readFile(join(source, image.originalBlob.storageRef)), f.referenceImage)
     assert.deepEqual(f.http.operations, [], 'Moving files never calls an image or vision model')
   } finally { await restarted?.dispose(); await f.cleanup() }
+})
+
+test('missing historical images do not prevent verified migration of available files or erase the missing records', async () => {
+  const f = await serviceFixture()
+  try {
+    await f.service.initialize()
+    const historical = await f.files.importBytes(f.referenceImage), available = await f.files.importBytes(f.http.image), source = f.files.root
+    const saved = importedRecords(f.profileId, f.actor, historical, { kind: 'local-import', description: 'Earlier saved history' }, 'bytes-allowed')
+    await f.repository.commit({ aggregateId: 'earlier-images', expectedRevision: 0, operationId: 'earlier-images', request: {}, records: saved.records, state: { hidden: true } })
+    await unlink(join(source, historical.originalBlob.storageRef))
+    const before = [...f.repository.list('imageVersion')], target = join(f.root, 'available-images')
+    await mkdir(target)
+    await f.action('image-storage-migrate', { operationId: randomUUID(), sourceDirectory: source, directory: target, confirm: true })
+    await f.jobs.drain()
+    const view = imageStorageViewSchema.parse(await f.action('image-storage-read'))
+    assert.equal(view.migration?.status, 'completed', 'An existing historical gap is not a copy or verification failure')
+    assert.equal(view.migration.missingFiles, 1)
+    assert.equal(view.directory, target)
+    assert.deepEqual(f.repository.list('imageVersion'), before, 'Missing image references and hidden history remain unchanged')
+    assert.deepEqual(await readFile(join(target, available.originalBlob.storageRef)), f.http.image)
+    await assert.rejects(readFile(join(target, historical.originalBlob.storageRef)), { code: 'ENOENT' }, 'Migration cannot restore a file that was already missing')
+    assert.equal((await imageStorageInventory(source)).filter(file => isImageStorageBlob(file.ref)).length, 0)
+  } finally { await f.cleanup() }
+})
+
+test('a legacy failed preparation resumes the same operation with historical gaps and keeps its records', async () => {
+  const f = await serviceFixture()
+  let restarted: CuratorService | undefined
+  try {
+    await f.service.initialize()
+    const image = await f.files.importBytes(f.referenceImage), available = await f.files.importBytes(f.http.image)
+    const saved = importedRecords(f.profileId, f.actor, image, { kind: 'local-import', description: 'Historical gap' }, 'bytes-allowed')
+    await f.repository.commit({ aggregateId: 'history-gap', expectedRevision: 0, operationId: 'history-gap', request: {}, records: saved.records, state: { hidden: true } })
+    await unlink(join(f.files.root, image.originalBlob.storageRef))
+    const { directory: source, migration: _migration, ...usage } = imageStorageViewSchema.parse(await f.action('image-storage-read'))
+    const target = join(f.root, 'legacy-transfer'), id = randomUUID()
+    await mkdir(target); await prepareStorageDirectory(target, source, f.profileId, source)
+    await f.repository.commit({ aggregateId: 'image-storage-location:v1', expectedRevision: 0, operationId: id, request: {}, records: [], state: toJson({ version: 1, directory: source, usage, migration: { id, status: 'failed', phase: 'preparing', sourceDirectory: source, targetDirectory: target, totalFiles: 0, totalBytes: 0, copiedFiles: 0, copiedBytes: 0, verifiedFiles: 0, verifiedBytes: 0, removedFiles: 0, removedBytes: 0, files: [], autoResume: false, errorCode: 'reference-unavailable' } }) })
+    await f.service.dispose()
+    restarted = new CuratorService(f.host, f.service.config, { providers: f.providers, openDomain: async files => new CuratorDomain(f.profileId, new DomainRepository(f.profileId, f.adapter), { verifyImage: async value => { await files.verifyReference(value.blob) } }) })
+    await restarted.initialize()
+    await restarted.action({ operation: 'image-storage-migration-resume', args: { id } }, f.actor, new AbortController().signal)
+    await f.jobs.drain()
+    const view = imageStorageViewSchema.parse(await restarted.action({ operation: 'image-storage-read', args: {} }, f.actor, new AbortController().signal))
+    assert.equal(view.migration?.id, id); assert.equal(view.migration.status, 'completed'); assert.equal(view.migration.missingFiles, 1)
+    assert.deepEqual(new Map(f.repository.list('imageVersion').map(record => [record.id, record])), new Map(saved.records.filter(record => record.kind === 'imageVersion').map(record => [record.id, record])))
+    assert.deepEqual(await readFile(join(target, available.originalBlob.storageRef)), f.http.image)
+  } finally { await restarted?.dispose(); await f.cleanup() }
+})
+
+test('a file lost after inventory still stops migration before changing the active directory', async () => {
+  const f = await serviceFixture()
+  try {
+    await f.service.initialize()
+    const image = await f.files.importBytes(f.referenceImage), source = f.files.root, target = join(f.root, 'source-loss')
+    await mkdir(target)
+    const writeManifest = f.adapter.writeManifest.bind(f.adapter)
+    let removed = false
+    f.adapter.writeManifest = async manifest => {
+      await writeManifest(manifest)
+      if (manifest.aggregateId !== 'image-storage-location:v1') return
+      const state = z.object({ migration: z.object({ phase: z.string() }) }).parse(manifest.state)
+      if (state.migration.phase === 'copying' && !removed) { removed = true; await unlink(join(source, image.originalBlob.storageRef)) }
+    }
+    await f.action('image-storage-migrate', { operationId: randomUUID(), sourceDirectory: source, directory: target, confirm: true })
+    await f.jobs.drain()
+    const view = imageStorageViewSchema.parse(await f.action('image-storage-read'))
+    assert.equal(removed, true)
+    assert.equal(view.directory, source)
+    assert.equal(view.migration?.status, 'failed')
+    assert.equal(view.migration.missingFiles, 0, 'A new source loss cannot become a pre-existing historical warning')
+    assert.equal(view.migration.errorCode, 'reference-unavailable')
+  } finally { await f.cleanup() }
 })
 
 test('an accepted transfer outlives its request, exposes progress and excludes new image work', async () => {

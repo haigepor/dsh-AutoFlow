@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.3.20261117.2",
+  "items": [
+    {
+      "id": "visual-curator-migration-history-gaps",
+      "category": "fixes",
+      "text": {
+        "en": "Image storage migration can continue when historical image files are already missing, while preserving records and verifying the files that are moved.",
+        "zh-CN": "修复历史图片文件缺失时存储迁移停在准备阶段的问题，迁移现有图片并保留历史记录。"
+      }
+    },
+    {
+      "id": "visual-curator-storage-progress-layout",
+      "category": "improvements",
+      "text": {
+        "en": "Image storage shows migration status, progress and recovery actions first, with shorter guidance and expandable quota settings.",
+        "zh-CN": "图片存储弹窗优先显示迁移状态、目标目录和进度，突出继续迁移操作，精简说明并折叠额度设置。"
+      }
+    }
+  ]
+}

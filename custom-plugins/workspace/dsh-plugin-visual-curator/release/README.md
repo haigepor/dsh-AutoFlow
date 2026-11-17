@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Prepared release 0.2.24, pending publication: Cars stay fully inside the safe area, while other co-primary subjects meet stricter containment and critical structures remain protected. Natural background variation is allowed. High-resolution originals prepare wallpaper references without another upload-limit rejection or reduced quality. Complete generated canvases and saved-receipt recovery retain existing work and history. Image storage can move to a selected directory without losing task or image references. Saved policies remain frozen until explicit current-policy adoption. Restart after active tasks finish to load the matching Host and Client.
+Prepared release 0.2.25, pending publication: Image storage migration can continue when historical files are already missing, while preserving their records and verifying every transferred file before switching directories. The storage dialog prioritizes status, progress and recovery actions, with compact usage figures and expandable quota settings. Restart after active tasks finish to load the matching Host and Client.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

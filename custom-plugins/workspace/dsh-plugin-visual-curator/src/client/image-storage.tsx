@@ -29,6 +29,7 @@ export function createImageStorageDialog(React: typeof import('react'), ui: type
         if (parsed.data.code === 'storage-directory-overlap') return t('imageStorageDirectoryOverlap')
         if (parsed.data.code === 'storage-space-insufficient') return t('imageStorageDirectorySpace')
         if (parsed.data.code === 'storage-checksum-mismatch') return t('imageStorageDirectoryChecksum')
+        if (parsed.data.code === 'reference-unavailable') return t('imageStorageDirectoryUnavailable')
         if (parsed.data.code === 'constraint-conflict') return t('imageStorageMovingBusy')
       }
       return t(parsed.success && parsed.data.code === 'revision-conflict' ? 'imageStorageChanged' : parsed.success && parsed.data.stage === 'image-storage' && parsed.data.code === 'constraint-conflict' ? 'imageStorageBusy' : fallback)
@@ -106,30 +107,46 @@ export function createImageStorageDialog(React: typeof import('react'), ui: type
       } catch (failure) { if (!lifetime.current.signal.aborted) setError(failureText(failure, 'imageStorageSaveError')) }
       finally { if (!lifetime.current.signal.aborted) setBusy(null) }
     }
-    return <ui.Modal open title={t('imageStorageTitle')} closeLabel={t('close')} onClose={onClose} className="vc-image-storage-modal" contentClassName="vc-image-storage-content" footer={<div className="vc-image-storage-actions"><ui.Button variant="ghost" disabled={busy !== null} onClick={() => { void refresh(lifetime.current.signal) }}><ui.IconRefreshOutlineRegular size={14} />{t('refresh')}</ui.Button><div><ui.Button variant="outline" onClick={confirming ? () => setConfirming(false) : onClose}>{t(confirming ? 'cancel' : 'close')}</ui.Button><ui.Button variant="primary" disabled={busy !== null || !view?.cleanupAllowed || !view.reclaimableFiles || !!error} onClick={() => { if (confirming) void clean(); else setConfirming(true) }}>{busy === 'clean' && <ui.StateDot state="ongoing" />}{t(confirming ? 'imageStorageConfirmClean' : 'imageStorageClean')}</ui.Button></div></div>}>
+    return <ui.Modal open title={t('imageStorageTitle')} closeLabel={t('close')} onClose={onClose} className="vc-image-storage-modal" contentClassName="vc-image-storage-content" footer={
+      <div className="vc-image-storage-actions">
+        <ui.Button variant="ghost" disabled={busy !== null} onClick={() => { void refresh(lifetime.current.signal) }}><ui.IconRefreshOutlineRegular size={14} />{t('refresh')}</ui.Button>
+        <div>
+          <ui.Button variant="outline" onClick={confirming ? () => setConfirming(false) : onClose}>{t(confirming ? 'cancel' : 'close')}</ui.Button>
+          {destination ? <ui.Button variant="primary" disabled={busy !== null || unresolved || !view?.cleanupAllowed} onClick={() => { void move(false) }}>{t('imageStorageStartMove')}</ui.Button>
+            : migration && migration.status !== 'completed' && !moving ? <ui.Button variant="primary" disabled={busy !== null} onClick={() => { void move(true) }}>{t('imageStorageResumeMove')}</ui.Button>
+              : !moving && <ui.Button variant="primary" disabled={busy !== null || !view?.cleanupAllowed || !view.reclaimableFiles || !!error} onClick={() => { if (confirming) void clean(); else setConfirming(true) }}>{busy === 'clean' && <ui.StateDot state="ongoing" />}{t(confirming ? 'imageStorageConfirmClean' : 'imageStorageClean')}</ui.Button>}
+        </div>
+      </div>
+    }>
       <div className="vc-image-storage-body">
-        {view ? <><section className="vc-image-storage-directory" aria-label={t('imageStorageDirectory')}>
+        {view ? <>
+          {migration && !destination && <section className="vc-image-storage-transfer" role="status" data-status={migration.status}>
+            <div className="vc-image-storage-directory-heading"><strong>{t(migration.status === 'completed' ? 'imageStorageMoveComplete' : migration.status === 'running' ? migration.phase === 'preparing' ? 'imageStorageMovePreparing' : migration.phase === 'copying' ? 'imageStorageMoveCopying' : migration.phase === 'verifying' ? 'imageStorageMoveVerifying' : 'imageStorageMoveRemoving' : migration.status === 'interrupted' ? 'imageStorageMoveInterrupted' : migration.phase === 'preparing' && !migration.totalFiles ? 'imageStorageMoveNotStarted' : 'imageStorageMoveFailed')}</strong>{moving && <span className="vc-image-storage-transfer-status">{migration.totalBytes > 0 && t('imageStorageMoveOverall').replace('{percent}', String(Math.min(100, Math.round((migration.copiedBytes + migration.verifiedBytes + migration.removedBytes) / (migration.totalBytes * 3) * 100))))}<ui.StateDot state="ongoing" /></span>}</div>
+            {migration.status !== 'completed' && <div className="vc-image-storage-transfer-target"><span>{t('imageStorageDestination')}</span><code className="vc-image-storage-path">{migration.targetDirectory}</code></div>}
+            {moving && migration.phase === 'preparing' ? <progress className="vc-image-storage-meter" aria-label={t('imageStorageMoveProgress')} /> : migration.totalFiles > 0 && migration.status !== 'completed' && <progress className="vc-image-storage-meter" max={Math.max(1, migration.totalBytes * 3)} value={migration.copiedBytes + migration.verifiedBytes + migration.removedBytes} aria-label={t('imageStorageMoveProgress')} />}
+            {migration.totalFiles > 0 && <span className="vc-image-storage-transfer-counts">{t('imageStorageMoveCounts').replace('{done}', String(migration.status === 'completed' ? migration.totalFiles : migration.phase === 'removing-source' ? migration.removedFiles : migration.phase === 'verifying' ? migration.verifiedFiles : migration.copiedFiles)).replace('{total}', String(migration.totalFiles))} · {size(migration.totalBytes)}</span>}
+            {migration.missingFiles !== undefined && migration.missingFiles > 0 && <p className="vc-image-storage-transfer-warning">{t('imageStorageMoveMissing').replace('{count}', String(migration.missingFiles))}</p>}
+            {moving && <p>{t('imageStorageMoveBackground')}</p>}
+            {migration.status !== 'completed' && !moving && <p className="vc-image-storage-transfer-error">{migration.errorCode ? failureText({ code: migration.errorCode, stage: 'storage-migration' }, 'imageStorageMoveError') : t('imageStorageMoveError')}</p>}
+            {migration.errorCode && !moving && <details className="vc-image-storage-details"><summary>{t('imageStorageMoveDetails')}</summary><code>{migration.errorCode}</code></details>}
+          </section>}
+          <section className="vc-image-storage-directory" aria-label={t('imageStorageDirectory')}>
           <div className="vc-image-storage-directory-heading"><strong>{t('imageStorageDirectory')}</strong><ui.Button variant="outline" disabled={busy !== null || unresolved || !view.cleanupAllowed || confirming} onClick={() => { void pickDirectory() }}>{t('imageStorageChooseDirectory')}</ui.Button></div>
           <code className="vc-image-storage-path">{view.directory}</code>
-          <p>{t('imageStorageDirectoryHint')}</p>
-          {destination && <div className="vc-image-storage-confirm"><span>{t('imageStorageDestination')}</span><code className="vc-image-storage-path">{destination}</code><p>{t('imageStorageMoveConfirm')}</p><ui.Button variant="primary" disabled={busy !== null || unresolved || !view.cleanupAllowed} onClick={() => { void move(false) }}>{t('imageStorageStartMove')}</ui.Button></div>}
-          {migration && <div className="vc-image-storage-transfer" role="status">
-            <div className="vc-image-storage-directory-heading"><strong>{t(migration.status === 'completed' ? 'imageStorageMoveComplete' : migration.status === 'running' ? migration.phase === 'preparing' ? 'imageStorageMovePreparing' : migration.phase === 'copying' ? 'imageStorageMoveCopying' : migration.phase === 'verifying' ? 'imageStorageMoveVerifying' : 'imageStorageMoveRemoving' : migration.status === 'interrupted' ? 'imageStorageMoveInterrupted' : 'imageStorageMoveFailed')}</strong>{moving && <ui.StateDot state="ongoing" />}</div>
-            {migration.status !== 'completed' && <><code className="vc-image-storage-path">{migration.targetDirectory}</code><progress className="vc-image-storage-meter" max={Math.max(1, migration.totalBytes * 3)} value={migration.copiedBytes + migration.verifiedBytes + migration.removedBytes} aria-label={t('imageStorageMoveProgress')} /><span>{t('imageStorageMoveCounts').replace('{done}', String(migration.phase === 'removing-source' ? migration.removedFiles : migration.phase === 'verifying' ? migration.verifiedFiles : migration.copiedFiles)).replace('{total}', String(migration.totalFiles))} · {size(migration.totalBytes)}</span><p>{t('imageStorageMoveBackground')}</p></>}
-            {migration.status !== 'completed' && !moving && <><p>{migration.errorCode ? failureText({ code: migration.errorCode, stage: 'storage-migration' }, 'imageStorageMoveError') : t('imageStorageMoveError')}</p><ui.Button variant="outline" disabled={busy !== null} onClick={() => { void move(true) }}>{t('imageStorageResumeMove')}</ui.Button></>}
-          </div>}
+          {!migration && !destination && <p>{t('imageStorageDirectoryHint')}</p>}
+          {destination && <div className="vc-image-storage-confirm"><span>{t('imageStorageDestination')}</span><code className="vc-image-storage-path">{destination}</code><p>{t('imageStorageMoveConfirm')}</p></div>}
         </section><section className="vc-image-storage-usage" aria-label={t('imageStorageUsed')}>
           <div className="vc-image-storage-usage-heading"><span>{t('imageStorageUsed')}</span><span>{t('imageStoragePercent').replace('{percent}', String(Math.min(100, Math.round(view.usedBytes / view.limitBytes * 100))))}</span></div>
           <div className="vc-image-storage-total"><strong>{size(view.usedBytes)}</strong><span>/ {size(view.limitBytes)}</span></div>
           <progress className="vc-image-storage-meter" value={view.usedBytes} max={Math.max(view.usedBytes, view.limitBytes)} aria-label={t('imageStorageUsed')} />
           <p className="vc-image-storage-remaining">{t('imageStorageRemaining')} <span>{size(Math.max(0, view.limitBytes - view.usedBytes))}</span></p>
-        </section>
           <dl className="vc-image-storage-metrics"><div><dt>{t('imageStorageRetained')}</dt><dd>{size(view.retainedBytes)}</dd></div><div><dt>{t('imageStorageReclaimable')}</dt><dd>{size(view.reclaimableBytes)}</dd><small>{t('imageStorageFiles').replace('{count}', String(view.reclaimableFiles))}</small></div></dl>
+        </section>
           <p className="vc-image-storage-hint">{t('imageStorageHint')}</p>
           {!view.cleanupAllowed && !unresolved && <p className="vc-notice" role="status">{t('imageStorageBusy')}</p>}
           {!view.reclaimableFiles && <p className="vc-image-storage-empty">{t('imageStorageNothingToClean')}</p>}
           {confirming && <div className="vc-image-storage-confirm" role="alert">{t('imageStorageConfirmHint').replace('{count}', String(view.reclaimableFiles)).replace('{size}', size(view.reclaimableBytes))}</div>}
-          <section className="vc-image-storage-limit"><div className="vc-image-storage-limit-heading"><label htmlFor={id}>{t('imageStorageLimit')}</label><p>{t('imageStorageLimitHint')}</p></div><div className="vc-image-storage-limit-controls"><div className="vc-image-storage-input"><ui.Input id={id} type="number" min="0" step="any" value={limit} disabled={busy !== null || confirming} onChange={event => setLimit(event.currentTarget.value)} /><span>GiB</span></div><ui.Button variant="outline" disabled={busy !== null || confirming || !view.cleanupAllowed || !Number.isSafeInteger(nextLimit) || nextLimit <= 0 || nextLimit < view.usedBytes || nextLimit <= view.limitBytes || !!error} onClick={() => { void saveLimit() }}>{t('imageStorageSaveLimit')}</ui.Button></div></section>
+          <details className="vc-image-storage-limit"><summary>{t('imageStorageLimit')}<span>{size(view.limitBytes)}</span></summary><div className="vc-image-storage-limit-body"><div className="vc-image-storage-limit-heading"><label htmlFor={id}>{t('imageStorageLimit')}</label><p>{t('imageStorageLimitHint')}</p></div><div className="vc-image-storage-limit-controls"><div className="vc-image-storage-input"><ui.Input id={id} type="number" min="0" step="any" value={limit} disabled={busy !== null || confirming} onChange={event => setLimit(event.currentTarget.value)} /><span>GiB</span></div><ui.Button variant="outline" disabled={busy !== null || confirming || !view.cleanupAllowed || !Number.isSafeInteger(nextLimit) || nextLimit <= 0 || nextLimit < view.usedBytes || nextLimit <= view.limitBytes || !!error} onClick={() => { void saveLimit() }}>{t('imageStorageSaveLimit')}</ui.Button></div></div></details>
         </> : busy === 'read' && <div className="vc-image-storage-loading" role="status"><ui.StateDot state="ongoing" />{t('imageStorageLoading')}</div>}
         {notice && <p className="vc-image-storage-result" role="status">{notice}</p>}
         {error && <p className="vc-notice" role="alert">{error}</p>}

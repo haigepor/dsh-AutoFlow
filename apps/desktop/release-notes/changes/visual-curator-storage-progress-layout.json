@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-storage-progress-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Image storage shows migration status, progress and recovery actions first, with shorter guidance and expandable quota settings.",
+    "zh-CN": "图片存储弹窗优先显示迁移状态、目标目录和进度，突出继续迁移操作，精简说明并折叠额度设置。"
+  }
+}
