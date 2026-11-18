@@ -1,3 +1,11 @@
+## Style Prompt 0.2.2
+
+The canvas node menu opens by the add button or the selected point on the canvas and uses the current Desktop menu interface.
+
+## Style Prompt 0.2.2 更新说明
+
+画布节点菜单跟随添加按钮或画布上的触发位置，并适配当前桌面端菜单接口。
+
 ## Style Prompt 0.2.1
 
 Use native resumable image tasks from canvas generation branches, report unavailable capabilities, and preserve accepted image operations during recovery. Improve consistency with the shared local packaging workflow.

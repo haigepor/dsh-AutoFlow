@@ -4,7 +4,7 @@
 
 ## 准备与发布
 
-0.2.1：画布生图分支接入原生可恢复图片任务，明确提示缺失能力，恢复时保留已受理的图片操作，并完善统一的本地打包流程。
+版本 0.2.2。画布节点菜单跟随添加按钮或画布上的触发位置，并适配当前桌面端菜单接口。
 
 风格提示词使用独立的 `style-prompt-v<version>` 标签族。安装包包含 Host、Client、工作台、图标、语言文件和 profile patch。审阅并提交精确源码后运行 `pnpm --filter dsh-plugin-style-prompt run release:prepare --out .artifacts/style-prompt-release`。共享发布工作流检查原生平台，并以 `latest=false` 发布 tarball、SHA-256 列表和更新元数据。
 

@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Preparation and publication
 
-Release 0.2.1: Use native resumable image tasks from canvas generation branches, report unavailable capabilities, and preserve accepted image operations during recovery. Improve consistency with the shared local packaging workflow.
+Version 0.2.2. The canvas node menu opens by the add button or the selected point on the canvas and uses the current Desktop menu interface.
 
 Style Prompt uses the independent `style-prompt-v<version>` tag family. Its package includes Host and Client entries, the workbench, artwork, locale and profile patch. Review and commit the exact source, then run `pnpm --filter dsh-plugin-style-prompt run release:prepare --out .artifacts/style-prompt-release`. The shared release workflow checks native platforms and publishes a tarball, SHA-256 list and update metadata with `latest=false`.
 

@@ -1,3 +1,11 @@
+## Boot Animation 0.4.8
+
+Support AutoFlow Desktop hosts based on DSH 0.2.2-rc.2 and 0.2.2-rc.3.
+
+## Boot Animation 0.4.8 更新说明
+
+支持基于 DSH 0.2.2-rc.2 和 0.2.2-rc.3 的 AutoFlow 桌面端。
+
 ## Boot Animation 0.4.7
 
 Support isolated build output for local plugin packaging and desktop integration.

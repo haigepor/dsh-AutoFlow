@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.8：生图账号选择读取本地账号信息，无需等待网络配额刷新；账号管理页和实际生图受理继续执行原有额度、授权及消费检查。保留现有账号和历史任务。
+版本 0.2.9。生成的图片预览和调用详情集中在对话原请求位置的折叠行内。
 
 本包是随 AutoFlow 分发的独立 Host 插件，显示在已安装插件分区，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `codex-subscription-v<version>` 标签族和 `codex-subscription-update.json` 资产；AFP 与应用使用独立版本族。
 

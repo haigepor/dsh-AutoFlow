@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.3.20261118.4",
+  "items": [
+    {
+      "id": "codex-image-process-disclosure",
+      "category": "improvements",
+      "text": {
+        "en": "Generated image previews and call details appear together in a collapsible row at the original request in the conversation process.",
+        "zh-CN": "对话中的生图预览和调用详情集中在原请求位置的折叠行内，展开后即可查看图片。"
+      }
+    },
+    {
+      "id": "compact-question-composer",
+      "category": "improvements",
+      "text": {
+        "en": "Question panels use a compact two-column layout with a custom answer tile, clear selection states and visible navigation; narrow panels stack choices in one column.",
+        "zh-CN": "提问面板采用紧凑双列布局，提供补充回答卡片和清晰的选中状态，保持翻页操作可见；窄面板自动改为单列。"
+      }
+    },
+    {
+      "id": "default-git-entry",
+      "category": "improvements",
+      "text": {
+        "en": "Git controls are enabled by default in Git projects. One branch entry beside the workspace and mode controls opens Git actions and New worktree options before the first message; after the conversation starts, it appears below the input. Existing Desktop profiles enable it automatically on their first launch after this update. Git inspection failures keep an entry for viewing the error and refreshing. Clean checkouts use a compact dialog, with full-width branch search and wrapping branch names.",
+        "zh-CN": "Git 项目默认启用 Git 操作。第一条消息之前，项目与模式旁只显示一个分支入口，Git 操作和新建工作树选项整合在同一弹窗；开始对话后入口显示在输入框下方。已有桌面配置在本次更新后首次启动时自动启用，无需手动开启插件。Git 检测失败时保留入口，可查看原因并刷新。干净仓库采用紧凑弹窗，分支菜单支持全宽搜索与长名称换行。"
+      }
+    },
+    {
+      "id": "visual-curator-server-queue-pagination",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator loads the next page as you scroll through server images. Select all loads the remaining pages before selecting incomplete images in the current filter.",
+        "zh-CN": "视觉策展的服务器图片列表支持触底自动加载。点击全选会先加载剩余分页，再选择当前筛选下尚未完成的图片。"
+      }
+    }
+  ]
+}

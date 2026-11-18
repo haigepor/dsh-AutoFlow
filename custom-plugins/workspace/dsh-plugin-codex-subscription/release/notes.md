@@ -1,3 +1,11 @@
+## Codex Subscription 0.2.9
+
+Generated image previews and call details appear in one collapsible row at the original request in the conversation.
+
+## Codex Subscription 0.2.9 更新说明
+
+生成的图片预览和调用详情集中在对话原请求位置的折叠行内。
+
 ## Codex Subscription 0.2.8
 
 Image-account selectors read local account metadata without waiting for network quota refreshes. Account management and actual image admission retain their quota, authorization and spending checks. Existing accounts and tasks are retained.
