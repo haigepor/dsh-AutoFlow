@@ -279,7 +279,8 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.equal('retryImage' in mutations[0].args,false);assert.equal('review' in mutations[0].args,false)
     workflowStatus='running';await directRender(5)
     assert.equal(decisionButton().disabled,true)
-    await click([...win.document.querySelectorAll('.vc-decision-card button')].find(button=>button.textContent===zh.wallpaperPause))
+    assert.equal([...win.document.querySelectorAll('.vc-decision-card button')].some(button=>button.textContent===zh.wallpaperPause),false)
+    await click([...win.document.querySelectorAll('.vc-direct-task-actions button')].find(button=>button.textContent===zh.wallpaperPause))
     assert.deepEqual(mutations[1],{operation:'wallpaper-control',args:{runId:'fixture-wallpaper',command:'pause'}})
     reviewed.status='planning'
     reviewed.decisions=[{id:'decision-1',version:'wallpaper-decision-v1',inputDigest:'a'.repeat(64),evidenceDigest:'b'.repeat(64),planRevision:2,round:1,status:'running',reason:'Checking the supplied whole source and native evidence.'}]

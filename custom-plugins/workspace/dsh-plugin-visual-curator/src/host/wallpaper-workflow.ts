@@ -722,8 +722,10 @@ export class WallpaperWorkflows {
   }
 
   private continuationReceipt(operationId: string, request: Record<string, string>, actor: DomainActor): { runId: string } | undefined {
+    const runs = this.deps.domain.repository.list('run')
     const sameOperation = this.deps.domain.repository.get('run', this.deps.engine.operationRunId(operationId, actor))
-    const accepted = sameOperation ?? this.deps.domain.repository.list('run').find(run => isWallpaperRun(run) && specOf(run).input.continuationOf === request.continuationOf && ['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling'].includes(run.status))
+      ?? runs.find(run => isWallpaperRun(run) && specOf(run).input.operationId === operationId)
+    const accepted = sameOperation ?? runs.find(run => isWallpaperRun(run) && specOf(run).input.continuationOf === request.continuationOf && ['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling'].includes(run.status))
     if (!accepted) return undefined
     this.deps.engine.get(accepted.id, actor)
     const saved = specOf(accepted).input

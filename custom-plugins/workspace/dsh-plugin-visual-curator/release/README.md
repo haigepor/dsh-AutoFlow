@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Visual Curator 0.2.28 queues retries for individual images while the batch continues. Replacing an image, cancelling its processing, and applying a plan affect the selected image. Choosing All in the server image list loads the remaining pages and shows progress. Restart after active tasks finish to load the matching Host and Client.
+Visual Curator 0.2.29 queues retries for individual images while the batch continues. Replacing an image, cancelling its processing, and applying a plan affect the selected image. Choosing All in the server image list loads the remaining pages and shows progress. Restart after active tasks finish to load the matching Host and Client.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

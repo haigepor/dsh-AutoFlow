@@ -1,4 +1,4 @@
-## Visual Curator 0.2.28
+## Visual Curator 0.2.29
 
 - Queue a failed image for retry while the batch continues. Its saved step resumes after the running images finish. Pausing holds queued retries until the batch resumes.
 - Replace or cancel one image, or apply a revised plan to it. The other images keep their saved progress and results. Switching images keeps previews and history tied to the selected source.
@@ -6,7 +6,7 @@
 
 Prepared for AutoFlow Desktop 0.2.2-rc.3.20261119.1. Restart after active tasks finish to load the matching Host and Client.
 
-## Visual Curator 0.2.28 更新说明
+## Visual Curator 0.2.29 更新说明
 
 - 批次运行时可为失败图片登记重试。正在处理的图片完成后，系统从该图已保存的步骤继续。暂停批次会保留排队中的重试，继续批次后恢复。
 - 替换、取消处理或应用修订后的规划只作用于选中的图片。其他图片保留已保存的进度和成品。切换图片时，预览和历史跟随选中的原图。
