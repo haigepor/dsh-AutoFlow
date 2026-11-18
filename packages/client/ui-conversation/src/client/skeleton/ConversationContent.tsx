@@ -108,7 +108,7 @@ export function ConversationContent(props: ConversationContentProps) {
     : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
 
   const heroWorkspaceRow = (
-    <div className={css.heroWorkspaceRow}>
+    <div className={css.heroWorkspaceRow} data-hero-workspace-row>
       <WorkspaceChip
         buttonRef={pickerAnchor}
         label={chipTitle}

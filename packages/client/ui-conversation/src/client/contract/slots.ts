@@ -302,7 +302,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe'; owner: HeroAgentPresetOwnerProps }
     /** Task-suggestion cards under the blank-session headline. */
     'conversation.hero.suggestions': { kind: 'single'; scope: 'root'; owner: HeroSuggestionsOwnerProps }
-    /** Compact options right-aligned in the New Session row after the workspace and preset controls; rendered only with a Session. */
+    /** Compact project options after the workspace and preset controls in the New Session row; rendered only with a Session. */
     'conversation.hero.options': { kind: 'list'; scope: 'session' }
     /**
      * Full-width entries above the composer card; fixed overlays must portal to the document body

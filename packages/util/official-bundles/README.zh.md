@@ -28,7 +28,7 @@ kind: "package-library"
 
 ### Profile 模板
 
-`PROFILE_TEMPLATES` 把每个随附 profile 名称（`web`、`headless`、`acp`、`sdk`、`sdk-minimal`）映射到其有序的组合包层列表。App-boot 用模板初始化缺失的随附 profile，`dsh --profile <name> --from-default-profile <template>` 把某个模板复制为自定义 profile。`DEFAULT_PROFILE_BUNDLES` 是 `dsh plugin` 对没有模板的 profile 名称使用的列表。`INSTALLATION_OWNED_PROFILE_TUPLES` 列出早期版本写入随附 profile 的组合包列表；app-boot 把与之完全一致的列表替换为当前模板。新建 Web 和 Desktop profile 默认选择 `dsh-boot-animation`；已有 Web 和 Desktop 选择保持原样，包括关闭启动动画后恢复为旧默认列表的情况。
+`PROFILE_TEMPLATES` 把每个随附 profile 名称（`web`、`headless`、`acp`、`sdk`、`sdk-minimal`）映射到其有序的组合包层列表。App-boot 用模板初始化缺失的随附 profile，`dsh --profile <name> --from-default-profile <template>` 把某个模板复制为自定义 profile。`DEFAULT_PROFILE_BUNDLES` 是 `dsh plugin` 对没有模板的 profile 名称使用的列表。`INSTALLATION_OWNED_PROFILE_TUPLES` 列出早期版本写入随附 profile 的组合包列表；app-boot 把与之完全一致的列表替换为当前模板。新建 Web 和 Desktop profile 默认选择 `dsh-experimental-forge-bundle` 与 `dsh-boot-animation`。Desktop 会为已有 profile 初始化一次 Git 控件，替换已选中的独立工作树组合包，保存 `package.git-default.backup.json` 清单备份并保留用户此后的选择；其他组合包选择保持不变。
 
 ### 可选与已退役组合包
 

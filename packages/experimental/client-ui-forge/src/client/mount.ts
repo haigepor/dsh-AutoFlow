@@ -42,7 +42,6 @@ import { numberOf } from './status.ts'
 import { WorktreeProgress, type WorktreeProgressInjected } from './WorktreeProgress.tsx'
 import { WorktreeSettings } from './WorktreeSettings.tsx'
 import { WorktreeSettingsForm, type WorktreeSettings as WorktreeSettingsFields } from './worktree-settings-form.ts'
-import { WorktreeToggle, type WorktreeToggleInjected } from './WorktreeToggle.tsx'
 
 /** Services required before the Remote contribution mounts. */
 export const inject = ['remote', 'slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'configForms']
@@ -336,11 +335,9 @@ function registerUi(ctx: Context): void {
       },
     }
   }
-  const worktreeFace = (sessionId: SessionId): WorktreeToggleInjected => {
+  const worktreeFace = (sessionId: SessionId): GitBranchInjected['worktree'] => {
     const worktreeCodes: Partial<Record<string, ForgePanelKey>> = { 'forgePanel/session-started': 'toast.worktreeStarted' }
-    const store = storesOf(sessionId)
     return {
-      hooks: { panel: store.panel.hooks.panel },
       request: async from => settled(await ctx.remote.forgePanel.requestWorktree(sessionId, from), 'toast.worktreeFailed', worktreeCodes),
       cancel: async () => settled(await ctx.remote.forgePanel.cancelWorktree(sessionId), 'toast.worktreeFailed', worktreeCodes),
       branches: async () => {
@@ -387,22 +384,24 @@ function registerUi(ctx: Context): void {
       }
     },
   }, HeaderButton))
+  const gitFace = (sessionId: SessionId): GitBranchInjected => ({
+    hooks: { panel: storesOf(sessionId).panel.hooks.panel },
+    read: signal => ctx.remote.forgePanel.gitStatus(sessionId, signal),
+    branches: signal => ctx.remote.forgePanel.branches(sessionId, signal),
+    commit: (target, paths, message) => ctx.remote.forgePanel.gitCommit(sessionId, target, paths, message),
+    push: (target, remote) => ctx.remote.forgePanel.gitPush(sessionId, target, remote),
+    switchBranch: (target, branch) => ctx.remote.forgePanel.gitSwitch(sessionId, target, branch),
+    generate: (target, paths) => ctx.remote.forgePanel.gitMessage(sessionId, target, paths, ctx.locale.getLocale().active),
+    viewChanges: () => { ctx.sidebarRight.openResource(changesAddress({ sessionId, source: { kind: 'local' } }), { params: { scope: 'uncommitted' } }) },
+    viewCheckout: () => { ctx.sidebarRight.openTab(TAB_KIND) },
+    worktree: worktreeFace(sessionId),
+    report: (key, params) => { notices.report(key, { tone: 'success', ...params === undefined ? {} : { params } }) },
+  })
   ctx.slots.inject('conversation.hero.options', () => ctx.slots.register({
-    name: 'conversation.hero.options', id: 'forge-panel.worktree', locale: NS, inject: worktreeFace,
-  }, WorktreeToggle))
+    name: 'conversation.hero.options', id: 'forge-panel.git', order: -1, locale: NS, inject: gitFace,
+  }, GitBranch))
   ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-    name: 'conversation.composer.dock', id: 'forge-panel.git', order: -1, locale: NS,
-    inject: (sessionId: SessionId): GitBranchInjected => ({
-      hooks: { panel: storesOf(sessionId).panel.hooks.panel },
-      read: signal => ctx.remote.forgePanel.gitStatus(sessionId, signal),
-      branches: signal => ctx.remote.forgePanel.branches(sessionId, signal),
-      commit: (target, paths, message) => ctx.remote.forgePanel.gitCommit(sessionId, target, paths, message),
-      push: (target, remote) => ctx.remote.forgePanel.gitPush(sessionId, target, remote),
-      switchBranch: (target, branch) => ctx.remote.forgePanel.gitSwitch(sessionId, target, branch),
-      generate: (target, paths) => ctx.remote.forgePanel.gitMessage(sessionId, target, paths, ctx.locale.getLocale().active),
-      viewChanges: () => { ctx.sidebarRight.openResource(changesAddress({ sessionId, source: { kind: 'local' } }), { params: { scope: 'uncommitted' } }) },
-      report: (key, params) => { notices.report(key, { tone: 'success', ...params === undefined ? {} : { params } }) },
-    }),
+    name: 'conversation.composer.dock', id: 'forge-panel.git', order: -1, locale: NS, inject: gitFace,
   }, GitBranch))
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
     name: 'conversation.input.dock', id: 'forge-panel.worktree', order: 5, locale: NS, inject: progressFace,

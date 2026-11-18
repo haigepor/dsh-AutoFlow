@@ -1,5 +1,5 @@
 ---
-description: "从插件页面启用变更请求面板与 worktree Session。"
+description: "Web 和 Desktop 的 Git 操作、变更请求面板与 worktree Session。"
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-查看每个 Session 的变更请求、检查与代码差异，在 Git 工作树中开始新 Session，或在对话中让模型创建工作树。在 Web 或 Desktop 的插件页面启用“变更请求与工作树”；发布的 profile 默认禁用该功能。GitHub 状态来自宿主上已登录的 `gh` 命令行；创建本地工作树无需 GitHub 认证。
+查看每个 Session 的变更请求、检查与代码差异，在 Git 工作树中开始新 Session，或在对话中让模型创建工作树。Web 和 Desktop 默认启用“变更请求与工作树”；其他 profile 可以在插件页面启用。GitHub 状态来自宿主上已登录的 `gh` 命令行；创建本地工作树无需 GitHub 认证。
 
 ## 目录
 
@@ -25,9 +25,9 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
-打开插件页面，在官方分组中启用“变更请求与工作树”。在 Git 工作区中，发出第一条消息之前在输入框中勾选“工作树”，Session 就会在新的 worktree 中开始。Session 的目录位于 Git 检出中时，标题栏按钮会打开面板。Session 用 `gh pr create` 创建、用 `gh pr view`、`gh pr edit` 或 `gh pr checkout` 打开的 GitHub pull request，以及 Session 所在分支上或之后 `git push` 更新的 pull request，无需额外操作即会作为变更请求出现。在终端运行 `gh auth login --hostname <host>` 登录；缺少登录时，面板会显示这条命令。[面板包](../client-ui-forge/README.zh.md#use-this-package)说明了每个控件。
+Web 和 Desktop 默认包含本组合包。其他 profile 可以在插件页面的官方分组中启用“变更请求与工作树”。在 Git 工作区中，发出第一条消息之前打开 Git 分支入口并勾选“新建工作树”，Session 就会在新的 worktree 中开始。Session 的目录位于 Git 检出中时，标题栏按钮会打开面板。Session 用 `gh pr create` 创建、用 `gh pr view`、`gh pr edit` 或 `gh pr checkout` 打开的 GitHub pull request，以及 Session 所在分支上或之后 `git push` 更新的 pull request，无需额外操作即会作为变更请求出现。在终端运行 `gh auth login --hostname <host>` 登录；缺少登录时，面板会显示这条命令。[面板包](../client-ui-forge/README.zh.md#use-this-package)说明了每个控件。
 
-同一个开关也启用模型的 [`create_worktree`](../tool-worktree/README.zh.md) 工具。关闭后面板和工具一起移除，已有检出目录与分支仍然保留。已选中独立工作树组合包的 profile，请在启用本组合包前按[升级指南](../../../docs/upgrade-guide/v0.2.2-alpha.2/forge-worktree-entry/guide.zh.md)调整配置。
+同一个开关也启用模型的 [`create_worktree`](../tool-worktree/README.zh.md) 工具。关闭后面板和工具一起移除，已有检出目录与分支仍然保留。Desktop 首次为已有 profile 启用 Git 控件时，会替换独立工作树组合包。其他已选中独立组合包的 profile，请在启用本组合包前按[升级指南](../../../docs/upgrade-guide/v0.2.2-alpha.2/forge-worktree-entry/guide.zh.md)调整配置。
 
 -----
 

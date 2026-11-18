@@ -3,20 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/forge-bundle/README.md
 /:
-  en: 75db4d505f21f46f
-  zh: a0e463c38ed59efa
+  en: db0e91e4827383f5
+  zh: ed17415ebaf2db96
 /deepseek-ai-dsh-experimental-forge-bundle:
   en: 567570af44a77fa2
   zh: 3d7722fe3ade65d6
 /deepseek-ai-dsh-experimental-forge-bundle/summary:
-  en: 8d8189bb9a91f049
-  zh: 27f02215d6919b3d
+  en: ba72c82ea5dd9da0
+  zh: bc1b163acc912047
 /deepseek-ai-dsh-experimental-forge-bundle/table-of-contents:
   en: d152484eb41ac6b4
   zh: 2f8a621b991260a1
 /deepseek-ai-dsh-experimental-forge-bundle/use-this-package:
-  en: 33679bed06be4e74
-  zh: 77dcfac9570d1fbc
+  en: 467df23cfcfda11f
+  zh: 4f12e16d138f7465
 /deepseek-ai-dsh-experimental-forge-bundle/understand-the-implementation:
   en: b25e0de13e5e1ed0
   zh: 5b0eff3cf148dfee

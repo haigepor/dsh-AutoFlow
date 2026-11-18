@@ -1298,8 +1298,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     key: 'conversation.hero.options',
     kind: 'list',
     scope: 'session',
-    summary: 'Compact options right-aligned in the New Session row after the workspace and preset controls; rendered only with a Session.',
-    doc: 'Compact options right-aligned in the New Session row after the workspace and preset controls; rendered only with a Session.',
+    summary: 'Compact project options after the workspace and preset controls in the New Session row; rendered only with a Session.',
+    doc: 'Compact project options after the workspace and preset controls in the New Session row; rendered only with a Session.',
     registerOptions: [
       {
         name: 'id',
@@ -1348,7 +1348,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'factory \'conversation.content\' (client-ui-conversation), so it exists while that definition is registered',
     occupants: [
-      'experimental-client-ui-forge WorktreeToggle id \'forge-panel.worktree\'',
+      'experimental-client-ui-forge GitBranch id \'forge-panel.git\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.hero.options\', () => ctx.slots.register(\n      { name: \'conversation.hero.options\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
-import { loadProfileDirectory, readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
+import { loadProfileDirectory, readProfileManifest, readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
 import { runtimeFixture, writePackage } from './runtime-fixture.ts'
 
 const roots: string[] = []
@@ -70,7 +70,7 @@ describe('desktop external plugin profile', () => {
     expect(manager.startupAnimationEnabled()).toBe(false)
   })
 
-  it('enables the shipped curation, sidebar and startup bundles when initializing a new profile', async () => {
+  it('enables the shipped Git, curation, sidebar and startup bundles when initializing a new profile', async () => {
     const { manager } = setup()
     await manager.applyRelease()
     const manifest = JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as {
@@ -78,13 +78,42 @@ describe('desktop external plugin profile', () => {
       dsh: { profile: { bundles: string[] } }
     }
     expect(manifest.dsh.profile.bundles).toEqual([
-      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator',
       'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
       'dsh-boot-animation',
     ])
     expect(manifest.dependencies).toEqual({})
+  })
+
+  it.each([{ previousWorktree: [] }, { previousWorktree: ['@deepseek-ai/dsh-experimental-tool-worktree'] }])('enables Git once for an existing Desktop profile with prior worktree selection $previousWorktree', async ({ previousWorktree }) => {
+    const { manager } = setup()
+    mkdirSync(manager.paths.profile, { recursive: true })
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = {
+      name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: '0.0.0', dependencies: {},
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...previousWorktree, 'dsh-plugin-afp'] } },
+    }
+    const before = JSON.stringify(manifest)
+    writeFileSync(path, before, 'utf8')
+    const patchPath = join(manager.paths.profile, 'cordis.patch.yml')
+    const patch = '- id: dsh-boot-animation\n  disabled: true\n'
+    writeFileSync(patchPath, patch, 'utf8')
+    await manager.applyRelease()
+    expect(readFileSync(join(manager.paths.profile, 'package.git-default.backup.json'), 'utf8')).toBe(before)
+    expect(readProfileManifest('dsh', manager.paths.profile).dsh?.profile?.bundles).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle', 'dsh-plugin-afp',
+    ])
+    expect(readFileSync(patchPath, 'utf8')).toBe(patch)
+    await manager.applyRelease()
+    expect(readProfileManifest('dsh', manager.paths.profile).dsh?.profile?.bundles).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle', 'dsh-plugin-afp',
+    ])
+    writeFileSync(path, before, 'utf8')
+    await manager.applyRelease()
+    expect(readFileSync(path, 'utf8')).toBe(before)
+    expect(readFileSync(join(manager.paths.profile, 'package.git-default.backup.json'), 'utf8')).toBe(before)
   })
 
   it('preserves the former installation defaults without re-enabling startup animation', async () => {
@@ -158,7 +187,7 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const restored = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
     expect(restored.dsh.profile.bundles).toEqual([
-      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', 'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-forge-bundle', 'dsh-plugin-afp', 'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
       'dsh-boot-animation',
     ])
     for (const name of sidebars) {

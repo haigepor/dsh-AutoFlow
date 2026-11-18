@@ -34,7 +34,10 @@ export interface WorktreeToggleInjected {
 }
 
 /** Full props of the New Session option. */
-export type WorktreeToggleProps = InjectFace<WorktreeToggleInjected> & PropsLocale<typeof NS>
+export type WorktreeToggleProps = InjectFace<WorktreeToggleInjected> & PropsLocale<typeof NS> & {
+  /** Hide the idle branch when the containing Git dialog already displays it. */
+  readonly showCurrentBranch?: boolean
+}
 
 type Translate = WorktreeToggleProps['t']
 
@@ -118,7 +121,7 @@ function optionOf(state: ForgePanelState | null): {
  * @returns the option, or nothing outside a known Git checkout, once a turn started,
  * the request settled, or no worktree service is mounted.
  */
-export function WorktreeToggle({ usePanel, request, cancel, branches, t }: WorktreeToggleProps): ReactNode {
+export function WorktreeToggle({ usePanel, request, cancel, branches, showCurrentBranch = true, t }: WorktreeToggleProps): ReactNode {
   const state = usePanel(snapshot => snapshot.state)
   const [pending, setPending] = useState<boolean | null>(null)
   const option = optionOf(state)
@@ -139,7 +142,7 @@ export function WorktreeToggle({ usePanel, request, cancel, branches, t }: Workt
     <span className={css.root} data-forge-worktree="">
       {requested && usable ? (
         <BaseMenu base={state.worktree.request?.from ?? option.current} held={held} branches={branches} request={request} t={t} />
-      ) : (
+      ) : (requested || showCurrentBranch) && (
         <Tooltip label={branchTip} side="bottom" portal openOnClick>
           <button type="button" className={css.current} aria-label={branchTip}
             data-forge-current-branch={requested ? undefined : ''} data-forge-base-branch={requested ? '' : undefined}>

@@ -25,7 +25,7 @@ import { ChangesTabTitle } from '../src/client/ChangesTabTitle.tsx'
 import { ForgeTab, type ForgeTabInjected } from '../src/client/ForgeTab.tsx'
 import { ForgeTabTitle } from '../src/client/ForgeTabTitle.tsx'
 import { HeaderButton, type HeaderButtonInjected } from '../src/client/HeaderButton.tsx'
-import { GitBranch } from '../src/client/GitBranch.tsx'
+import { GitBranch, type GitBranchInjected } from '../src/client/GitBranch.tsx'
 import { en, NS, zh } from '../src/client/locales.ts'
 import { inject, mountForgePanel, TAB_ID, TAB_KIND, WORKTREE_NS, WORKTREE_ROW_KEY } from '../src/client/mount.ts'
 import type { SessionListInjected } from '../src/client/session-list.ts'
@@ -106,8 +106,8 @@ function isHeaderFace(value: Record<string, unknown>): value is Record<string, u
   return typeof value.toggle === 'function' && typeof value.hooks === 'object'
 }
 
-function isWorktreeFace(value: Record<string, unknown>): value is Record<string, unknown> & WorktreeToggleInjected {
-  return typeof value.request === 'function' && typeof value.branches === 'function'
+function isGitFace(value: Record<string, unknown>): value is Record<string, unknown> & GitBranchInjected {
+  return typeof value.read === 'function' && typeof value.worktree === 'object'
 }
 
 function isProgressFace(value: Record<string, unknown>): value is Record<string, unknown> & WorktreeProgressInjected {
@@ -256,12 +256,12 @@ async function fixture() {
   const tabInject = entry('sidebar.right.pane.tab', ForgeTab)?.inject
   const changesInject = entry('sidebar.right.pane.tab', ChangesTab)?.inject
   const headerInject = entry('conversation.session.header.utilities', HeaderButton)?.inject
-  const worktreeInject = entry('conversation.hero.options', WorktreeToggle)?.inject
+  const gitInject = entry('conversation.hero.options', GitBranch)?.inject
   const progressInject = entry('conversation.input.dock', WorktreeProgress)?.inject
   const toastInject = entry('shell.overlay', ActionToast)?.inject
   const rowInject = entry('sidebar.session.row.trailing', SessionRowForge)?.inject
   const hoverInject = entry('sidebar.session.row.hover', SessionHoverForge)?.inject
-  assert(tabInject !== undefined && headerInject !== undefined && worktreeInject !== undefined && toastInject !== undefined)
+  assert(tabInject !== undefined && headerInject !== undefined && gitInject !== undefined && toastInject !== undefined)
   assert(progressInject !== undefined && changesInject !== undefined && rowInject !== undefined && hoverInject !== undefined)
   const tab = (sessionId: SessionId): ForgeTabInjected => {
     const value = tabInject(sessionId as never)
@@ -279,9 +279,9 @@ async function fixture() {
     return value
   }
   const worktree = (sessionId: SessionId): WorktreeToggleInjected => {
-    const value = worktreeInject(sessionId as never)
-    assert(isWorktreeFace(value))
-    return value
+    const value = gitInject(sessionId as never)
+    assert(isGitFace(value))
+    return { ...value.worktree, hooks: value.hooks }
   }
   const progress = (sessionId: SessionId): WorktreeProgressInjected => {
     const value = progressInject(sessionId as never)
@@ -335,7 +335,11 @@ describe('mountForgePanel registration', () => {
     expect(f.entry('conversation.session.header.utilities', HeaderButton)).toMatchObject({ options: { id: 'forge-panel', order: -8 }, locale: NS })
     // The branch is named in the tab and the Session list, not beside the Session title.
     expect(f.ctx.slots.entries('conversation.session.header.actions')).toEqual([])
-    expect(f.entry('conversation.hero.options', WorktreeToggle)).toMatchObject({ options: { id: 'forge-panel.worktree' }, locale: NS })
+    expect(f.entry('conversation.hero.options', WorktreeToggle)).toBeUndefined()
+    expect(f.ctx.slots.entries('conversation.hero.options')).toHaveLength(1)
+    for (const slot of ['conversation.hero.options', 'conversation.composer.dock'] as const) {
+      expect(f.entry(slot, GitBranch)).toMatchObject({ options: { id: 'forge-panel.git', order: -1 }, locale: NS })
+    }
     expect(f.entry('conversation.input.dock', WorktreeProgress)).toMatchObject({ options: { id: 'forge-panel.worktree', order: 5 }, locale: NS })
     expect(f.ctx.slots.entries('conversation.input.left')).toEqual([])
     expect(f.entry('shell.overlay', ActionToast)).toMatchObject({ options: { id: 'forge-panel.toast' }, locale: NS })
@@ -368,6 +372,7 @@ describe('mountForgePanel registration', () => {
       ['sidebar.right.pane.tab.title', ChangesTabTitle],
       ['conversation.session.header.utilities', HeaderButton],
       ['conversation.hero.options', WorktreeToggle],
+      ['conversation.hero.options', GitBranch],
       ['conversation.input.dock', WorktreeProgress],
       ['conversation.composer.dock', GitBranch],
       ['shell.overlay', ActionToast],

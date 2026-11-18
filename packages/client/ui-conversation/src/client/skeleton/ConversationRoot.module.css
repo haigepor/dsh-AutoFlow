@@ -638,14 +638,14 @@
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
 }
 
-/* Plugin options share the row, pushed to its right edge. */
+/* Project options follow the workspace and preset controls and wrap together. */
 .heroOptions {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   min-width: 0;
-  margin-left: auto;
 }
 
 .heroOptions:empty {

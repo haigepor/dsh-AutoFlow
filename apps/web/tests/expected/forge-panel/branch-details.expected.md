@@ -1,1 +1,1 @@
-- 'tooltip "Current branch: feature/a-long-current-branch-name-for-mobile-review"'
+- 'tooltip "Git branch: feature/a-long-current-branch-name-for-mobile-review"'

@@ -1,11 +1,12 @@
-/* Worktree option at the right of the New Session row: the compact 28px chip
-   geometry and secondary ink of the composer mode controls. */
+/* Worktree controls share the Git dialog's compact control geometry. */
 .root {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: 2px;
   min-width: 0;
+  max-width: 100%;
+  align-self: flex-start;
 }
 
 .toggle,
@@ -121,7 +122,7 @@
 @media (max-width: 600px) {
   .root {
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 0;
   }
 

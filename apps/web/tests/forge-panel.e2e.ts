@@ -598,12 +598,14 @@ function textReply(text: string): unknown[] {
 async function requestReleaseWorktree(failureShot: string, followUp = false): Promise<PanelLaunch> {
   const launched = await launchPanel(failureShot, followUp ? 'follow-up' : 'normal')
   const { page } = launched
+  await page.locator('[data-forge-git]').click()
   const option = page.locator('[data-forge-worktree]')
   await option.waitFor({ timeout: 20_000 })
   await option.getByRole('checkbox', { name: '新建工作树', exact: true }).check()
   await option.getByRole('button', { name: '基于 main', exact: true }).click()
   await page.getByRole('menuitem', { name: 'release', exact: true }).click()
   await option.getByRole('button', { name: '基于 release', exact: true }).waitFor()
+  await page.getByRole('dialog', { name: 'Git 分支与改动', exact: true }).getByRole('button', { name: '关闭', exact: true }).click()
   return launched
 }
 
@@ -1573,6 +1575,7 @@ it.skipIf(MODE === 'record')('keeps tall branch and changed-file menus aligned w
   const { scaffold, page, project, tripwire } = await launchPanel('web-e2e-forge-tall-menus')
   await Promise.all(Array.from({ length: 45 }, (_, index) =>
     git(project, 'update-ref', `refs/heads/worktree/long-menu-regression-${index}`, 'HEAD')))
+  await page.locator('[data-forge-git]').click()
   const option = page.locator('[data-forge-worktree]')
   await option.getByRole('checkbox', { name: '新建工作树', exact: true }).check()
   const base = option.getByRole('button', { name: '基于 main', exact: true })
@@ -1587,6 +1590,7 @@ it.skipIf(MODE === 'record')('keeps tall branch and changed-file menus aligned w
   await page.keyboard.press('Escape')
   expect(await base.getAttribute('aria-expanded')).toBe('false')
   await option.getByRole('checkbox', { name: '新建工作树', exact: true }).uncheck()
+  await page.getByRole('dialog', { name: 'Git 分支与改动', exact: true }).getByRole('button', { name: '关闭', exact: true }).click()
 
   await git(project, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
   await git(project, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
@@ -1628,12 +1632,14 @@ it.skipIf(MODE === 'record')('keeps tall branch and changed-file menus aligned w
 
 it.skipIf(MODE === 'record')('aligns localized status rows by their glyphs and keeps long file lists inside one vertical scroller', async () => {
   const { scaffold, page, project, tripwire } = await launchPanel('web-e2e-forge-layout')
-  await page.locator('[data-forge-current-branch]').waitFor()
+  await page.locator('[data-forge-git]').click()
+  await page.locator('[data-forge-worktree]').waitFor()
   await compareOrRefreshGolden(join(EXPECTED, 'worktree-option.expected.md'),
     await captureStableAria(page, '[data-forge-worktree]', scaffold.workspaceCwd), MODE)
+  await page.getByRole('dialog', { name: 'Git 分支与改动', exact: true }).getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '收起侧边栏', exact: true }).click()
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect.poll(() => page.locator('[data-forge-worktree]')
+  await expect.poll(() => page.locator('[data-forge-git]')
     .evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(390)
   await page.setViewportSize({ width: 1680, height: 1000 })
   await git(project, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
@@ -1718,20 +1724,19 @@ it.skipIf(MODE === 'record')('aligns localized status rows by their glyphs and k
   expect(tripwire.warnings).toEqual([])
 })
 
-it.skipIf(MODE === 'record')('keeps long branch details accessible by touch and keyboard across the hero row breakpoints', async () => {
+it.skipIf(MODE === 'record')('keeps the unified Git entry accessible by touch and keyboard across the hero row breakpoints', async () => {
   const branch = 'feature/a-long-current-branch-name-for-mobile-review'
   const { page, scaffold, tripwire } = await launchPanel('web-e2e-forge-branch-details', 'normal', { branch, hasTouch: true })
-  const option = page.locator('[data-forge-worktree]')
-  const chip = option.locator('[data-forge-current-branch]')
+  const chip = page.locator('[data-hero-workspace-row] [data-forge-git]')
   await chip.waitFor()
   await page.getByRole('button', { name: '收起侧边栏', exact: true }).click()
-  for (const [locale, label] of [['zh', `当前分支：${branch}`], ['en', `Current branch: ${branch}`], ['de', `Aktueller Branch: ${branch}`]] as const) {
+  for (const [locale, label] of [['zh', `Git 分支：${branch}`], ['en', `Git branch: ${branch}`], ['de', `Git-Branch: ${branch}`]] as const) {
     await scaffold.ctx.settings.update('locale', { preference: locale })
-    await option.getByRole('button', { name: label, exact: true }).waitFor()
+    await page.getByRole('button', { name: label, exact: true }).waitFor()
     for (const width of [390, 600, 601, 700, 1280]) {
       await page.setViewportSize({ width, height: 844 })
       await chip.scrollIntoViewIfNeeded()
-      await expect.poll(() => option.evaluate((element) => {
+      await expect.poll(() => chip.evaluate((element) => {
         const row = element.closest('[class*="heroWorkspaceRow"]')!
         const ancestors: Element[] = []
         for (let node: Element | null = row; node !== null; node = node.parentElement) ancestors.push(node)
@@ -1743,33 +1748,54 @@ it.skipIf(MODE === 'record')('keeps long branch details accessible by touch and 
     }
   }
   await scaffold.ctx.settings.update('locale', { preference: 'en' })
-  await option.getByRole('button', { name: `Current branch: ${branch}`, exact: true }).waitFor()
+  await page.getByRole('button', { name: `Git branch: ${branch}`, exact: true }).waitFor()
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await chip.locator('span').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
-  const tooltip = page.getByRole('tooltip', { exact: true, name: `Current branch: ${branch}` })
+  const tooltip = page.getByRole('tooltip', { exact: true, name: `Git branch: ${branch}` })
   await chip.tap()
-  await tooltip.waitFor()
-  await compareOrRefreshGolden(join(EXPECTED, 'branch-details.expected.md'), await tooltip.ariaSnapshot(), MODE)
-  await chip.tap()
-  await tooltip.waitFor({ state: 'hidden' })
-  await chip.tap()
-  await tooltip.waitFor()
-  await page.locator('[class*="heroWorkspaceRow"]').tap({ position: { x: 1, y: 1 } })
-  await tooltip.waitFor({ state: 'hidden' })
+  const dialog = page.getByRole('dialog', { name: 'Git branches and changes', exact: true })
+  await dialog.waitFor()
+  expect(await dialog.getByRole('textbox', { name: 'Commit message', exact: true }).count()).toBe(0)
+  const option = dialog.locator('[data-forge-worktree]')
+  expect(await option.locator('[data-forge-current-branch]').count()).toBe(0)
+  expect(await option.getByRole('checkbox').isChecked()).toBe(false)
+  await dialog.getByRole('button', { name: 'Switch branch', exact: true }).click()
+  const branches = page.getByRole('menu')
+  const branchName = branches.getByRole('menuitem', { name: branch, exact: true }).locator('[data-forge-branch-name]')
+  await branchName.waitFor()
+  expect(await branchName.evaluate(element => element.scrollWidth <= element.clientWidth
+    && element.getBoundingClientRect().height > Number.parseFloat(getComputedStyle(element).lineHeight))).toBe(true)
+  const search = branches.getByRole('textbox', { name: 'Search recent local branches', exact: true })
+  expect(await search.evaluate((element) => {
+    const field = element.parentElement
+    const row = element.closest('[data-forge-branch-search]')
+    if (field === null || row === null) return false
+    const input = field.getBoundingClientRect()
+    const container = row.getBoundingClientRect()
+    return container.width - input.width <= 20 && input.left >= container.left && input.right <= container.right
+  })).toBe(true)
+  await search.fill('no-such-branch')
+  await branches.getByText('No matching branches', { exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  expect(await dialog.isVisible()).toBe(true)
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
   await chip.focus()
   await page.keyboard.press('Tab')
   await page.keyboard.press('Shift+Tab')
   await tooltip.waitFor()
-  await page.keyboard.press('Escape')
+  await compareOrRefreshGolden(join(EXPECTED, 'branch-details.expected.md'), await tooltip.ariaSnapshot(), MODE)
+  await page.keyboard.press('Tab')
   await tooltip.waitFor({ state: 'hidden' })
+  await chip.focus()
   await page.keyboard.press('Enter')
-  await tooltip.waitFor()
+  await dialog.waitFor()
   await page.keyboard.press('Escape')
-  await tooltip.waitFor({ state: 'hidden' })
-  expect(await option.getByRole('checkbox').isChecked()).toBe(false)
+  await dialog.waitFor({ state: 'hidden' })
+  expect(await page.locator('[data-forge-git]').count()).toBe(1)
   expect(await page.getByRole('menu').count()).toBe(0)
   await scaffold.ctx.settings.update('locale', { preference: 'zh' })
-  await option.getByRole('checkbox', { name: '新建工作树', exact: true }).waitFor()
+  await page.getByRole('button', { name: `Git 分支：${branch}`, exact: true }).waitFor()
   const { settled } = await sendPrompt(page, scaffold)
   await settled
   expect(tripwire.pageErrors).toEqual([])
@@ -2539,14 +2565,27 @@ it.skipIf(MODE === 'record')('writes a left and a right comment at once, each in
 })
 
 
-it.skipIf(MODE === 'record')('uses the composer Git entry to generate a message, review changes, commit, push, and switch branches', async () => {
+it.skipIf(MODE === 'record')('shows Git before the first prompt and uses the composer entry to generate, review, commit, push, and switch branches', async () => {
   const { scaffold, page, project, tripwire } = await launchPanel('web-e2e-forge-git-actions', 'git-message')
   const remote = join(project, '.git', 'ui-remote.git')
   await git(project, 'init', '--bare', remote)
   await git(project, 'remote', 'set-url', 'origin', remote)
+  const heroRow = page.locator('[data-hero-workspace-row]')
+  await heroRow.locator('[data-forge-git]').waitFor({ timeout: 20_000 })
+  expect(await page.locator('[data-forge-git]').count()).toBe(1)
+  expect(await heroRow.locator('[data-forge-worktree]').count()).toBe(0)
+  expect(await page.locator('[data-composer-dock] [data-forge-git]').count()).toBe(0)
+  await heroRow.locator('[data-forge-git]').click()
+  await page.getByRole('dialog', { name: 'Git 分支与改动', exact: true }).waitFor()
+  await page.getByRole('dialog').getByRole('checkbox', { name: '新建工作树', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('dialog', { name: 'Git 分支与改动', exact: true }).waitFor({ state: 'hidden' })
+  expect(await heroRow.isVisible()).toBe(true)
   const { settled } = await sendPrompt(page, scaffold)
   await settled
   await page.getByText('LIGHTHOUSE', { exact: true }).waitFor()
+  expect(await page.locator('[data-hero-workspace-row]').count()).toBe(0)
+  expect(await page.locator('[data-composer-dock] [data-forge-git]').count()).toBe(1)
   const permission = page.locator('button[aria-label^="访问模式"]').first()
   await permission.click()
   await page.getByRole('menuitem', { name: '完全权限', exact: true }).click()

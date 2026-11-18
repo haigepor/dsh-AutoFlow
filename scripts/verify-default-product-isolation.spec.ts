@@ -48,6 +48,27 @@ afterEach(() => {
 })
 
 describe('default product isolation', () => {
+  it.each(['dependency', 'source', 'composition'])('admits the default Git bundle but rejects another experimental %s', (route) => {
+    const root = fixture()
+    const bundle = '@deepseek-ai/dsh-experimental-forge-bundle'
+    const worktree = '@deepseek-ai/dsh-experimental-worktree'
+    const bundleDir = 'packages/experimental/forge-bundle'
+    const worktreeDir = 'packages/experimental/worktree'
+    write(root, `${bundleDir}/package.json`, { name: bundle, dependencies: { [worktree]: 'workspace:*' },
+      dsh: { bundle: { patch: './cordis.patch.yml' } } })
+    write(root, `${worktreeDir}/package.json`, { name: worktree })
+    write(root, `${bundleDir}/cordis.patch.yml`, [{ insert: [{ id: 'worktree', name: worktree }] }])
+    write(root, `${worktreeDir}/src/index.ts`, 'export {}\n')
+    manifest(root, 'apps/cli/package.json', { dependencies: { [core]: 'workspace:*', [bundle]: 'workspace:*' } })
+    write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}', '${bundle}'] } }\n`
+      + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\n`)
+    expect(verifyDefaultProductIsolation(root).failures).toEqual([])
+    if (route === 'dependency') manifest(root, `${worktreeDir}/package.json`, { dependencies: { [experimental]: 'workspace:*' } })
+    if (route === 'source') write(root, `${worktreeDir}/src/index.ts`, `import '${experimental}'\n`)
+    if (route === 'composition') write(root, `${bundleDir}/cordis.patch.yml`, [{ insert: [{ name: worktree }, { name: experimental }] }])
+    expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`${experimental}: default product must not include experimental packages`)
+  })
+
   it('checks custom workspace bundles selected by the default Web profile', () => {
     const root = fixture()
     const name = 'custom-plugin'

@@ -1,7 +1,7 @@
 /**
- * Keep experimental packages outside default installations, runtime imports, and shipped compositions.
- * The one declared exception is a bundle the launcher names in `OPTIONAL_BUNDLES`: shipped for the person to
- * switch on, selected by no shipped template, its own dependency graph outside the default product's.
+ * Keep unapproved experimental packages outside default installations, imports, and compositions.
+ * Web and Desktop ship the exact Git/Forge package set below for their default checkout controls.
+ * Other experimental bundles remain opt-in through `OPTIONAL_BUNDLES`, outside the default dependency graph.
  */
 
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
@@ -23,6 +23,16 @@ import {
 import { isExperimentalPackageName } from './experimental-package-policy.ts'
 // The independently published entry package owns platform-engine dependencies.
 const EXTERNAL_KIT_PACKAGES = new Set(['@deepseek-ai/libreoffice-kit'])
+// Default conversation Git controls share Forge's checkout, permissions, and worktree services.
+const DEFAULT_GIT_PACKAGES = new Set([
+  '@deepseek-ai/dsh-experimental-forge-bundle',
+  '@deepseek-ai/dsh-experimental-worktree',
+  '@deepseek-ai/dsh-experimental-tool-worktree',
+  '@deepseek-ai/dsh-experimental-forge',
+  '@deepseek-ai/dsh-experimental-forge-github',
+  '@deepseek-ai/dsh-experimental-forge-session',
+  '@deepseek-ai/dsh-experimental-client-ui-forge',
+])
 const PROFILE_SOURCE = 'packages/util/official-bundles/src/bundles.ts'
 const PRESET_PATTERN = 'packages/bundle/web-app/presets/*.patch.yml'
 const RUNTIME_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
@@ -109,8 +119,8 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
   const sources = new Set<string>()
   const configs = new Set<string>()
   let webPluginCount = 0
-  const isExperimental = (pkg: Package): boolean => isExperimentalPackageName(pkg.manifest.name)
-    || display(pkg.directory).startsWith('packages/experimental/')
+  const isExperimental = (pkg: Package): boolean => !DEFAULT_GIT_PACKAGES.has(pkg.manifest.name)
+    && (isExperimentalPackageName(pkg.manifest.name) || display(pkg.directory).startsWith('packages/experimental/'))
   const add = (pkg: Package, origin: string): void => {
     if (isExperimental(pkg)) {
       failures.push(`${origin} -> ${pkg.manifest.name}: default product must not include experimental packages`)
@@ -138,7 +148,7 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
       return
     }
     const packageName = barePackageName(name)
-    if (isExperimentalPackageName(packageName)) {
+    if (isExperimentalPackageName(packageName) && !DEFAULT_GIT_PACKAGES.has(packageName)) {
       failures.push(`${origin} -> ${name}: default product must not include experimental packages`)
       return
     }
@@ -410,6 +420,6 @@ if (import.meta.main) {
   } else {
     console.log(`verify-default-product-isolation: ${String(result.packageCount)} packages, `
       + `${String(result.sourceCount)} runtime sources, ${String(result.configCount)} configurations, `
-      + `${String(result.webPluginCount)} composed Web plugins exclude experimental packages.`)
+      + `${String(result.webPluginCount)} composed Web plugins exclude unapproved experimental packages.`)
   }
 }

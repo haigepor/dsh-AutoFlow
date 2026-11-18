@@ -192,16 +192,32 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
   writeFileSync(join(projectDir, 'pnpm-workspace.yaml'), workspaceFile(), { mode: 0o600 })
 }
 
-/** Initialize the external profile and retire the former desktop bundle with a manifest backup. */
+/**
+ * Initialize Git controls once per profile, preserving manifest backups and subsequent bundle choices.
+ * @param projectDir - external Desktop profile directory.
+ */
 export function createPluginProfile(projectDir: string): void {
   initProfile(projectDir, WEB_PROFILE.bundles)
   const manifest = readProfileManifest('dsh', projectDir)
   const bundles = manifest.dsh?.profile?.bundles ?? []
-  if (!bundles.includes('@deepseek-ai/dsh-desktop-app')) return
+  const gitBackup = join(projectDir, 'package.git-default.backup.json')
+  const initializeGit = !existsSync(gitBackup)
+  if (initializeGit) {
+    writeFileSync(gitBackup, readFileSync(join(projectDir, 'package.json')), { flag: 'wx', mode: 0o600 })
+  }
+  const addGit = initializeGit && bundles.includes('@deepseek-ai/dsh-web-app')
+    && !bundles.includes('@deepseek-ai/dsh-experimental-forge-bundle')
+  const retireDesktop = bundles.includes('@deepseek-ai/dsh-desktop-app')
+  if (!addGit && !retireDesktop) return
   // 桌面载体由独立 Host 提供；只移除已退役条目，保留用户插件、禁用状态和原始备份。
   const backup = join(projectDir, 'package.desktop-app.backup.json')
-  if (!existsSync(backup)) {
+  if (retireDesktop && !existsSync(backup)) {
     writeFileSync(backup, readFileSync(join(projectDir, 'package.json')), { flag: 'wx', mode: 0o600 })
   }
-  writeProfileBundles(projectDir, manifest, bundles.filter(name => name !== '@deepseek-ai/dsh-desktop-app'))
+  writeProfileBundles(projectDir, manifest, bundles.flatMap((name) => {
+    // Forge supplies the standalone bundle's worktree rows; selecting both duplicates their services.
+    if (name === '@deepseek-ai/dsh-desktop-app' || addGit && name === '@deepseek-ai/dsh-experimental-tool-worktree') return []
+    return addGit && name === '@deepseek-ai/dsh-web-app'
+      ? [name, '@deepseek-ai/dsh-experimental-forge-bundle'] : [name]
+  }))
 }

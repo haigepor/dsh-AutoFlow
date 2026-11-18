@@ -1,5 +1,5 @@
 ---
-description: "Enable the change request panel and worktree Sessions from the Plugins page."
+description: "Git controls, change requests and worktree Sessions for Web and Desktop."
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Review each Session's change requests, checks, and diffs, start a new Session in a Git worktree, or ask the model to create one during a conversation. Enable Change requests & worktrees on the Web or Desktop Plugins page; shipped profiles leave it disabled. GitHub status comes from the Host's signed-in `gh` CLI; local worktree creation does not require GitHub authentication.
+Review each Session's change requests, checks, and diffs, start a new Session in a Git worktree, or ask the model to create one during a conversation. Web and Desktop enable Change requests & worktrees by default; other profiles can enable it on the Plugins page. GitHub status comes from the Host's signed-in `gh` CLI; local worktree creation does not require GitHub authentication.
 
 ## Table of Contents
 
@@ -25,9 +25,9 @@ Review each Session's change requests, checks, and diffs, start a new Session in
 <a id="use-this-package"></a>
 ## Use this package
 
-Open Plugins and enable Change requests & worktrees in the Official group. In a Git workspace, check Worktree in the composer before the first message to start the Session in a new worktree. In a Session whose directory is inside a Git checkout, the header button opens the panel. GitHub pull requests that the Session creates with `gh pr create`, opens with `gh pr view`, `gh pr edit`, or `gh pr checkout`, or works on as its branch or updates with a later `git push`, appear as change requests without further steps. Run `gh auth login --hostname <host>` in a terminal to sign in; the panel shows the command when sign-in is missing. The [panel package](../client-ui-forge/README.md#use-this-package) describes each control.
+Web and Desktop include this bundle by default. In other profiles, enable Change requests & worktrees in the Official group of Plugins. In a Git workspace, open the Git branch entry and check New worktree before the first message to start the Session in a new worktree. In a Session whose directory is inside a Git checkout, the header button opens the panel. GitHub pull requests that the Session creates with `gh pr create`, opens with `gh pr view`, `gh pr edit`, or `gh pr checkout`, or works on as its branch or updates with a later `git push`, appear as change requests without further steps. Run `gh auth login --hostname <host>` in a terminal to sign in; the panel shows the command when sign-in is missing. The [panel package](../client-ui-forge/README.md#use-this-package) describes each control.
 
-The same switch enables the model's [`create_worktree`](../tool-worktree/README.md) tool. Turning it off removes both the panel and the tool while retaining existing checkouts and branches. For profiles that already selected the standalone worktree bundle, follow the [upgrade guide](../../../docs/upgrade-guide/v0.2.2-alpha.2/forge-worktree-entry/guide.md) before enabling this bundle.
+The same switch enables the model's [`create_worktree`](../tool-worktree/README.md) tool. Turning it off removes both the panel and the tool while retaining existing checkouts and branches. Desktop replaces the standalone worktree bundle when it first enables these Git controls for an existing profile. In other profiles that already selected the standalone bundle, follow the [upgrade guide](../../../docs/upgrade-guide/v0.2.2-alpha.2/forge-worktree-entry/guide.md) before enabling this bundle.
 
 -----
 
