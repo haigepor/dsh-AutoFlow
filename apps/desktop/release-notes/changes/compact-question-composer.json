@@ -1,0 +1,8 @@
+{
+  "id": "compact-question-composer",
+  "category": "improvements",
+  "text": {
+    "en": "Question panels use a compact two-column layout with a custom answer tile, clear selection states and visible navigation; narrow panels stack choices in one column.",
+    "zh-CN": "提问面板采用紧凑双列布局，提供补充回答卡片和清晰的选中状态，保持翻页操作可见；窄面板自动改为单列。"
+  }
+}

@@ -89,6 +89,8 @@ interface AnswerFieldProps {
   value: string
   /** Empty-field prompt. */
   placeholder: string
+  /** Accessible name when the surrounding answer tile has a visible label. */
+  label?: string
   /** Whether a submission in flight has frozen the field. */
   disabled: boolean
   /** Whether this field takes focus on mount. */
@@ -128,6 +130,7 @@ function AnswerField(props: AnswerFieldProps) {
         disabled={props.disabled}
         rows={1}
         placeholder={props.placeholder}
+        aria-label={props.label}
         onFocus={props.onFocus}
         onChange={props.onChange}
         onKeyDown={props.onKeyDown}
@@ -569,7 +572,7 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
                     className={clsx(
                       css.optionRow,
                       !locked && css.optionRowInteractive,
-                      selected && question.multiSelect !== true && css.optionSelected,
+                      selected && css.optionSelected,
                     )}
                     data-option-row
                     data-expanded={descriptionExpanded || undefined}
@@ -595,7 +598,14 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
                             {selected && <IconCheckOutlineRegular size={12} />}
                           </span>
                         )
-                        : <span className={css.number}>{optionIndex + 1}</span>}
+                        : (
+                          <span className={css.choiceMarker} aria-hidden="true">
+                            <span className={clsx(css.radio, selected && css.radioChecked)}>
+                              {selected && <IconCheckOutlineRegular size={12} />}
+                            </span>
+                            <span className={css.number}>{optionIndex + 1}</span>
+                          </span>
+                        )}
                       <span className={css.optionCopy}>
                         <span className={css.optionLine} data-option-line>
                           <span className={css.optionLabel}>{display.label}</span>
@@ -657,14 +667,18 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
                           <IconEditOutlineRegular size={12} />
                         </span>
                       )}
-                    <AnswerField
-                      variant="inline"
-                      value={draft.custom}
-                      disabled={locked}
-                      placeholder={t('custom.placeholder')}
-                      onChange={draftCustom}
-                      onKeyDown={continueFromCustom}
-                    />
+                    <div className={css.customCopy}>
+                      <span className={css.optionLabel}>{t('custom.label')}</span>
+                      <AnswerField
+                        variant="inline"
+                        value={draft.custom}
+                        disabled={locked}
+                        placeholder={t('custom.placeholder')}
+                        label={t('custom.label')}
+                        onChange={draftCustom}
+                        onKeyDown={continueFromCustom}
+                      />
+                    </div>
                   </div>
                 )
                 : (
