@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-server-queue-pagination",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator loads the next page as you scroll through server images. Select all loads the remaining pages before selecting incomplete images in the current filter.",
+    "zh-CN": "视觉策展的服务器图片列表支持触底自动加载。点击全选会先加载剩余分页，再选择当前筛选下尚未完成的图片。"
+  }
+}

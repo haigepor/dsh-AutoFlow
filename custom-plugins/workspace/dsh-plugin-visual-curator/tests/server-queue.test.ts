@@ -12,10 +12,10 @@ import { serverReworkScenario } from './helpers/server-rework.ts'
 import { ServerQueue } from '../src/host/server-queue.ts'
 import { DirectCropTasks } from '../src/host/direct-crop.ts'
 import { WallpaperWorkflows } from '../src/host/wallpaper-workflow.ts'
-import { RunEngine, dataOf, specOf } from '../src/host/runtime.ts'
+import { RunEngine, dataOf, specOf, toJson } from '../src/host/runtime.ts'
 import { resolveConfig } from '../src/host/config.ts'
 import { wallpaperStateSchema, wallpaperSettingsSchema } from '../src/shared/wallpaper.ts'
-import { serverImageComplete, serverQueueViewSchema } from '../src/shared/server-queue.ts'
+import { serverImageComplete, serverPullSchema, serverQueueViewSchema } from '../src/shared/server-queue.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 import { MediaError } from '../src/media/errors.ts'
 import type { HttpClient } from '../src/media/network.ts'
@@ -24,7 +24,7 @@ import { createCuratorTransport } from '../src/client/transport.ts'
 const expected = JSON.parse(await readFile(new URL('./fixtures/server-queue.expected.json', import.meta.url), 'utf8'))
 const presented = (view: z.infer<typeof serverQueueViewSchema>) => view.items.map(item => ({ serverId: item.id, processing: item.phase, upload: item.transfer?.status ?? null }))
 
-async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview?: Promise<void>; onSecondReview?(): void; onApproved?(): void; rejectCount?: number; rework?: boolean } = {}) {
+async function fixture(count = 1, options: { pageSize?: number; autoDeliver?: boolean; secondReview?: Promise<void>; onSecondReview?(): void; onApproved?(): void; rejectCount?: number; rework?: boolean } = {}) {
   const f = await serviceFixture(); await f.service.initialize()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test', credentialRef: '' }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '' }, limits: { maxRetryAttempts: 0 } })
   const scenario = options.rework ? serverReworkScenario(f.root) : undefined
@@ -33,7 +33,7 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   const md5 = createHash('md5').update(original).digest('hex'), items = Array.from({ length: count }, (_, index) => ({ id: String(index + 11), name: 'same-name.png', title: 'Untrusted article text', img_url: 'https://images.example.test/' + index, md5, size: String(original.length), update_time: '123' }))
   let mode: 'success' | 'timeout' | 'wrong-id' | 'rejected' | 'duplicate-index' | 'partial' = 'success', badReview = false, downloads = 0, maxActive = 0, active = 0
   let reworkTarget: string | undefined, targetReviews = 0
-  const uploadBatches: string[][] = [], rejectedOriginals = new Set<string>()
+  const uploadBatches: string[][] = [], rejectedOriginals = new Set<string>(), pullPages: number[] = []
   const barrier = Promise.withResolvers<void>(), uploads: { id: string; digest: string; width: number; height: number }[] = [], observations: string[] = []
   const http: HttpClient = { request: async (url, request) => {
     if (url.startsWith('https://images.example.test/')) {
@@ -45,7 +45,9 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
     }
     if (request.method === 'GET') {
       assert.equal(request.body, undefined); assert.equal(new URL(url).searchParams.get('token'), 'isolated-token')
-      return { status: 200, headers: {}, bytes: Buffer.from(JSON.stringify({ success: true, data: items, total: items.length, page: 1, pageSize: 20 })) }
+      const page = Number(new URL(url).searchParams.get('page') ?? 1), pageSize = Number(new URL(url).searchParams.get('pageSize') ?? options.pageSize ?? Math.max(20, count))
+      pullPages.push(page)
+      return { status: 200, headers: {}, bytes: Buffer.from(JSON.stringify({ success: true, data: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, pageSize })) }
     }
     assert.match(request.headers?.['content-type'] ?? '', /^multipart\/form-data; boundary=/)
     const form = await new Request(url, { method: 'POST', headers: request.headers ?? {}, body: new Uint8Array(request.body ?? []) }).formData()
@@ -109,8 +111,97 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   await queue.configure({ baseUrl: 'https://api.example.test', auth: { kind: 'postman', path }, allowedMediaOrigins: ['https://images.example.test'] }, f.actor)
   const snapshot = await queue.pull(f.actor, deps.signal)
   const start = async () => { const result = await queue.start({ operationId: 'server-test', name: 'Isolated server batch', snapshotId: snapshot.snapshotId, ids: items.map(item => item.id) }, f.actor, deps.signal); await queue.drain(); await f.jobs.drain(); return f.domain.require('run', result.runId) }
-  return { ...f, queue, deps, direct, engine, items, uploads, uploadBatches, original, observations, start, scenario, reworkTarget: () => reworkTarget, targetReviews: () => targetReviews, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
+  return { ...f, queue, deps, direct, engine, items, uploads, uploadBatches, pullPages, original, observations, start, scenario, reworkTarget: () => reworkTarget, targetReviews: () => targetReviews, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
 }
+
+test('pending pages append every image once and stop at the final page without downloading originals', async () => {
+  const f = await fixture(45, { pageSize: 20 })
+  try {
+    const previewPath = f.queue.read(f.actor).items[0]?.previewPath
+    assert.deepEqual(f.queue.read(f.actor).pagination, { loaded: 20, hasMore: true })
+    assert.deepEqual((await f.queue.pull(f.actor, f.deps.signal, { next: true })).pagination, { loaded: 40, hasMore: true })
+    const complete = await f.queue.pull(f.actor, f.deps.signal, { next: true })
+    assert.deepEqual(complete.pagination, { loaded: 45, hasMore: false })
+    assert.deepEqual(complete.items.map(item => item.id), f.items.map(item => item.id))
+    assert.equal(complete.items[0]?.previewPath, previewPath, 'Appending pages must not reload earlier previews')
+    await f.queue.pull(f.actor, f.deps.signal, { next: true })
+    assert.deepEqual(f.pullPages, [1, 2, 3])
+    assert.equal(f.downloads(), 0)
+    assert.equal(f.uploads.length, 0)
+    const refreshed = await f.queue.pull(f.actor, f.deps.signal)
+    assert.equal(refreshed.items.length, 20)
+    assert.deepEqual(refreshed.pagination, { loaded: 20, hasMore: true })
+  } finally { await f.cleanup() }
+})
+
+test('an ignored page parameter fails without replacing the loaded snapshot and can be retried', async () => {
+  const f = await fixture(45, { pageSize: 20 })
+  try {
+    const before = f.queue.read(f.actor), http = f.deps.http()
+    f.deps.http = () => ({ request: async (url, request) => {
+      const response = await http.request(url, request)
+      const page = serverPullSchema.parse(JSON.parse(response.bytes.toString('utf8')))
+      return { ...response, bytes: Buffer.from(JSON.stringify({ ...page, page: 1 })) }
+    } })
+    await assert.rejects(f.queue.pull(f.actor, f.deps.signal, { next: true }), { code: 'source-protocol-error' })
+    assert.equal(f.queue.read(f.actor).snapshotId, before.snapshotId)
+    assert.deepEqual(f.queue.read(f.actor).pagination, before.pagination)
+    f.deps.http = () => http
+    assert.equal((await f.queue.pull(f.actor, f.deps.signal, { next: true })).items.length, 40)
+  } finally { await f.cleanup() }
+})
+
+test('legacy pending snapshots refresh the first page before continuing without dropping saved records', async () => {
+  const f = await fixture(45, { pageSize: 20 })
+  try {
+    const saved = f.repository.manifests('server-snapshot:')[0]
+    assert.ok(saved)
+    const state = z.record(z.string(), z.unknown()).parse(saved.state)
+    delete state.pagination
+    await f.repository.commit({ aggregateId: saved.aggregateId, expectedRevision: saved.revision, operationId: 'legacy-page', request: {}, records: [], state: toJson(state) })
+    await f.queue.pull(f.actor, f.deps.signal, { next: true })
+    assert.deepEqual(f.pullPages, [1, 1])
+    assert.equal((await f.queue.pull(f.actor, f.deps.signal, { next: true })).items.length, 40)
+    assert.deepEqual(f.pullPages, [1, 1, 2])
+  } finally { await f.cleanup() }
+})
+
+test('changed counts, overlapping pages and truncated pages preserve the earlier complete page for retry', async () => {
+  const f = await fixture(45, { pageSize: 20 })
+  try {
+    const before = f.queue.read(f.actor), http = f.deps.http()
+    let mode = 'count'
+    f.deps.http = () => ({ request: async (url, request) => {
+      const response = await http.request(url, request), reply = serverPullSchema.parse(JSON.parse(response.bytes.toString('utf8')))
+      return { ...response, bytes: Buffer.from(JSON.stringify({ ...reply, total: mode === 'count' ? 44 : reply.total, data: mode === 'overlap' ? [...f.items.slice(0, 1), ...reply.data.slice(1)] : mode === 'short' ? reply.data.slice(1) : reply.data })) }
+    } })
+    for (const scenario of [{ mode: 'count', code: 'revision-conflict' }, { mode: 'overlap', code: 'revision-conflict' }, { mode: 'short', code: 'source-protocol-error' }]) {
+      mode = scenario.mode
+      await assert.rejects(f.queue.pull(f.actor, f.deps.signal, { next: true }), { code: scenario.code })
+      assert.deepEqual(f.queue.read(f.actor), before)
+    }
+    f.deps.http = () => http
+    assert.equal((await f.queue.pull(f.actor, f.deps.signal, { next: true })).items.length, 40)
+  } finally { await f.cleanup() }
+})
+
+test('upload verification finds selected originals beyond the first pending page', async () => {
+  const f = await fixture(21, { pageSize: 20 })
+  try {
+    const snapshot = await f.queue.pull(f.actor, f.deps.signal, { next: true }), selected = f.items.slice(-2)
+    const result = await f.queue.start({ operationId: 'later-page', snapshotId: snapshot.snapshotId, name: 'Later page', ids: selected.map(item => item.id) }, f.actor, f.deps.signal)
+    await f.queue.drain(); await f.jobs.drain()
+    await f.queue.deliver(f.domain.require('run', result.runId))
+    assert.deepEqual(f.uploads.map(row => row.id), selected.map(item => item.id))
+    assert.deepEqual(f.pullPages.slice(-2), [1, 2])
+    const records = [...f.repository.list('run')]
+    const refreshed = await f.queue.pull(f.actor, f.deps.signal)
+    assert.deepEqual(refreshed.pagination, { loaded: 20, hasMore: true })
+    assert.equal(refreshed.items.length, 21, 'The owned later-page task survives a pending-list refresh')
+    assert.equal(refreshed.items.find(item => item.id === selected[1]?.id)?.transfer?.status, 'uploaded')
+    assert.deepEqual(f.repository.list('run'), records)
+  } finally { await f.cleanup() }
+})
 
 test('server originals import concurrently, retain independent IDs and upload only reviewed clean PNGs once', async () => {
   const f = await fixture(2)
@@ -366,12 +457,12 @@ test('an accepted server import remains visible and continues when its client di
 })
 
 
-test('interrupted imports retain verified originals and resume the same batch without automatic restart work', async () => {
-  const f = await fixture(2), originalHttp = f.deps.http()
+test('interrupted imports retain verified originals and resume the same batch after more pages load', async () => {
+  const f = await fixture(3, { pageSize: 2 }), originalHttp = f.deps.http()
   let failSecond = true
   f.deps.http = () => ({ request: async (url, request) => { const response = await originalHttp.request(url, request); if (failSecond && url.endsWith('/1')) throw new MediaError('remote-timeout', 'network', true, 'Isolated import timeout.', 'Retry the import.'); return response } })
   const imageRoute = { imageProvider: 'autoflow-codex', imageSourceId: 'selected-server-account', imageModel: 'gpt-image-2' }
-  const view = f.queue.read(f.actor), input = { operationId: 'resumable-import', name: 'Resumable originals', snapshotId: view.snapshotId, ids: f.items.map(item => item.id), imageRoute }
+  const view = f.queue.read(f.actor), input = { operationId: 'resumable-import', name: 'Resumable originals', snapshotId: view.snapshotId, ids: view.items.map(item => item.id), imageRoute }
   try {
     const receipt = await f.queue.start(input, f.actor, f.deps.signal); await f.queue.drain()
     assert.equal(f.queue.imports(f.actor)[0]!.status, 'failed'); assert.equal(f.queue.imports(f.actor)[0]!.saved, 1); assert.equal(f.downloads(), 2)
@@ -379,6 +470,8 @@ test('interrupted imports retain verified originals and resume the same batch wi
     await f.repository.commit({ aggregateId: manifest.aggregateId, expectedRevision: manifest.revision, operationId: 'isolated-crash-marker', request: { isolated: true }, records: [], state: { ...state, status: 'importing' } })
     const restarted = new ServerQueue(f.deps); await restarted.initialize()
     assert.equal(restarted.imports(f.actor)[0]!.status, 'interrupted'); assert.equal(restarted.imports(f.actor)[0]!.saved, 1); assert.equal(f.downloads(), 2, 'Initialization never silently resumes original downloads')
+    const expanded = await restarted.pull(f.actor, f.deps.signal, { next: true })
+    assert.deepEqual(expanded.items.map(item => item.id), f.items.map(item => item.id))
     failSecond = false
     f.deps.config().wallpaper.imageModel = 'changed-global-model'
     const retry = await restarted.retryImport({ runId: receipt.runId }, f.actor, f.deps.signal); assert.equal(retry.runId, receipt.runId)
@@ -401,10 +494,14 @@ test('queued originals preview on demand without importing files or sending auth
     f.deps.http = () => ({ request: async (url, request) => { const response = await originalHttp.request(url, request); return { ...response, headers: { 'content-type': 'application/octet-stream' } } } })
     const preview = await f.queue.preview(f.items[0]!.id, view.snapshotId, f.actor, f.deps.signal)
     assert.equal(preview.mime, 'image/png'); assert.equal(preview.bytes.equals(f.original), true)
+    const item = view.items[0]; assert.ok(item?.previewPath)
+    const previewKey = new URL(item.previewPath, 'https://isolated.example').searchParams.get('serverSnapshotId'); assert.ok(previewKey)
+    const stablePreview = await f.queue.preview(item.id, previewKey, f.actor, f.deps.signal)
+    assert.equal(stablePreview.bytes.equals(f.original), true)
     assert.equal(f.repository.manifests('server-import:').length, before); assert.equal(f.queue.read(f.actor).items[0]!.imported, false); assert.equal(f.direct.list(f.actor).total, 0); assert.equal(f.uploads.length, 0)
     await assert.rejects(f.queue.preview(f.items[0]!.id, 'stale-snapshot', f.actor, f.deps.signal), error => error instanceof CuratorError && error.code === 'reference-unavailable')
     await assert.rejects(f.queue.preview(f.items[0]!.id, view.snapshotId, { ...f.actor, kind: 'agent' }, f.deps.signal), error => error instanceof CuratorError && error.code === 'owner-denied')
-    assert.equal(f.downloads(), 1)
+    assert.equal(f.downloads(), 2)
   } finally { await f.cleanup() }
 })
 

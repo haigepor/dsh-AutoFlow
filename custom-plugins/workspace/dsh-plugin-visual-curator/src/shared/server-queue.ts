@@ -52,6 +52,7 @@ export type ServerImportView = z.infer<typeof serverImportViewSchema>
 /** Safe progress rows contain no token or remote original URL. */
 export const serverQueueViewSchema = z.object({
   settings: serverQueueSettingsSchema, snapshotId: z.string(), total: z.number().int().nonnegative(), imports: z.array(serverImportViewSchema).default([]), pendingKnown: z.boolean().default(false),
+  pagination: z.object({ loaded: z.number().int().nonnegative(), hasMore: z.boolean() }).optional(),
   items: z.array(z.object({ id: serverImageIdSchema, name: z.string(), imported: z.boolean(), serverPending: z.boolean().optional(), imageVersionId: z.string().optional(), runId: z.string().optional(), importRunId: z.string().optional(), previewPath: z.string().optional(), phase: z.enum(['waiting', 'downloading', 'saved', 'processing', 'attention', 'approved']), receivedBytes: z.number().nonnegative().optional(), totalBytes: z.number().nonnegative().optional(), errorCode: z.string().optional(), warning: z.string().optional(), transfer: serverTransferViewSchema.optional() })),
 })
 export type ServerQueueView = z.infer<typeof serverQueueViewSchema>

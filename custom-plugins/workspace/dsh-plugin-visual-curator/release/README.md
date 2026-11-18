@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Visual Curator 0.2.26 shows paused crop work and remote image receipts separately. Resuming uses the original receipt, retry actions name their target version, and older planning holds can continue from original-image inspection. The canvas reserves its rework line for a new generation. Image storage migration preserves historical records when some files are missing. Restart after active tasks finish to load the matching Host and Client.
+Visual Curator 0.2.27 loads the next page as you scroll near the bottom of the server image list. Select all loads every remaining page before selecting incomplete images in the current filter. Existing imports can still resume after more pages load, and upload checks include images from later pages. Restart after active tasks finish to load the matching Host and Client.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

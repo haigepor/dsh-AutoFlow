@@ -414,7 +414,7 @@ export class CuratorService {
         const server = this.serverQueueValue!
         if (operation === 'server-queue-read') return toJson(server.read(actor))
         if (operation === 'server-queue-configure') return toJson(await server.configure(args, actor))
-        if (operation === 'server-queue-pull') return toJson(await server.pull(actor, signal))
+        if (operation === 'server-queue-pull') return toJson(await server.pull(actor, signal, args))
         if (operation === 'server-queue-start') return toJson(await server.start(args, actor, signal))
         if (operation === 'server-queue-import-delete') return toJson(await server.removeImport(args, actor))
         if (operation === 'server-queue-import-retry') return toJson(await server.retryImport(args, actor, signal))

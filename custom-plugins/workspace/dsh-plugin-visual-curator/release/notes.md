@@ -1,3 +1,19 @@
+## Visual Curator 0.2.27
+
+- Scroll near the bottom of the server image list to load the next page. Select all loads the remaining pages and selects incomplete images in the current filter.
+- Keep loaded rows and the previous selection if a page fails. Appending pages retains earlier previews and allows interrupted imports to resume.
+- Verify images from later pages before uploading approved results. The configured per-batch import limit still applies.
+
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261118.3. Restart after active tasks finish to load the matching Host and Client.
+
+## Visual Curator 0.2.27 更新说明
+
+- 滚动到服务器图片列表底部附近会自动加载下一页。点击全选会加载剩余分页，再选中当前筛选下尚未完成的图片。
+- 分页失败时保留已加载记录和原有选择。追加分页时复用已有预览，中断的导入仍可继续。
+- 上传合格成品前会核对后续页面的图片。单批导入继续遵守现有配置的上限。
+
+已为 AutoFlow Desktop 0.2.2-rc.3.20261118.3 准备。待当前任务结束后重启，以加载配套 Host 和 Client。
+
 ## Visual Curator 0.2.26
 
 - The crop canvas shows local pause status separately from remote image receipts. Resume uses the saved receipt.

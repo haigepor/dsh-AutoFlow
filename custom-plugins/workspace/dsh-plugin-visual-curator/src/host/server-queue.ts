@@ -24,7 +24,8 @@ const importedSchema = z.object({ version: z.literal(1), imageVersionId: z.strin
 const transferSchema = z.object({ version: z.literal(1), status: serverTransferStatusSchema, outputDigest: z.string(), runId: z.string(), receiptIds: z.array(serverImageIdSchema).optional(), message: z.string().optional(), response: z.unknown().optional() })
 const ownerSchema = z.object({ version: z.literal(1), rootRunId: z.string() })
 const bindingSchema = z.object({ version: z.literal(1), environment: z.string(), rootRunId: z.string(), items: z.array(z.object({ id: serverImageIdSchema, sourceVersion: z.string(), imageVersionId: z.string(), sourceDigest: z.string() })) })
-const snapshotSchema = z.object({ version: z.literal(1), environment: z.string(), snapshotId: z.string(), total: z.number(), items: z.array(serverPullSchema.shape.data.element), pendingIds: z.array(serverImageIdSchema).optional(), changedIds: z.array(serverImageIdSchema).optional() })
+const snapshotSchema = z.object({ version: z.literal(1), environment: z.string(), snapshotId: z.string(), total: z.number(), items: z.array(serverPullSchema.shape.data.element), pendingIds: z.array(serverImageIdSchema).optional(), changedIds: z.array(serverImageIdSchema).optional(), pagination: z.object({ page: z.number().int().positive(), pageSize: z.number().int().positive() }).optional() })
+const pullInputSchema = z.strictObject({ next: z.boolean().default(false) })
 const admissionInputSchema = z.strictObject({ operationId: z.string().min(1), snapshotId: z.string(), name: z.string().trim().min(1).max(160), ids: z.array(serverImageIdSchema).min(1), imageRoute: directCropStartSchema.shape.imageRoute })
 const admissionSchema = z.object({ version: z.literal(1), environment: z.string(), runId: z.string(), input: admissionInputSchema, status: z.enum(['importing', 'failed', 'interrupted', 'ready']), createdAt: z.string(), errorCode: z.string().optional() })
 const sourceVersion = (item: ServerImage) => contentDigest({ id: item.id, url: item.img_url, md5: item.md5 ?? null, size: item.size ?? null, updated: item.update_time ?? null })
@@ -147,7 +148,7 @@ export class ServerQueue {
     const snapshot = raw ? snapshotSchema.parse(raw) : undefined
     const importing = this.deps.domain.repository.manifests('server-admission:').map(row => admissionSchema.parse(row.state)).filter(row => row.environment === environment && row.status === 'importing' && !this.deps.domain.repository.get('run', row.runId))
     const bindings = this.deps.domain.repository.manifests('server-binding:').map(manifest => bindingSchema.parse(manifest.state)).filter(binding => binding.environment === environment)
-    return { settings, snapshotId: snapshot?.snapshotId ?? '', total: snapshot?.total ?? 0, pendingKnown: snapshot?.pendingIds !== undefined, imports: this.imports(actor), items: (snapshot?.items ?? []).map(item => {
+    return { settings, snapshotId: snapshot?.snapshotId ?? '', total: snapshot?.total ?? 0, pendingKnown: snapshot?.pendingIds !== undefined, pagination: { loaded: snapshot?.pendingIds?.length ?? 0, hasMore: !!snapshot && (snapshot.pagination ? snapshot.pagination.page * snapshot.pagination.pageSize < snapshot.total : (snapshot.pendingIds?.length ?? 0) < snapshot.total) }, imports: this.imports(actor), items: (snapshot?.items ?? []).map(item => {
       const version = sourceVersion(item), key = sourceKey(environment, item, version), rawImport = this.deps.domain.repository.manifest('server-import:' + key)?.state
       const saved = rawImport ? importedSchema.parse(rawImport) : undefined
       const binding = this.currentBinding(environment, item.id, version, bindings)
@@ -156,19 +157,20 @@ export class ServerQueue {
       const rawTransfer = this.deps.domain.repository.manifest('server-transfer:' + key)?.state, transfer = rawTransfer ? transferSchema.parse(rawTransfer) : undefined
       const outputId = currentItem?.attempts.at(-1)?.outputId, output = outputId ? this.deps.domain.repository.get('imageVersion', outputId) : undefined
       const admission = importing.find(row => row.input.ids.includes(item.id))
-      const preview = saved?.imageVersionId ? { imageVersionId: saved.previewImageVersionId ?? saved.imageVersionId } : { serverImageId: item.id, serverSnapshotId: snapshot!.snapshotId }
+      const preview = saved?.imageVersionId ? { imageVersionId: saved.previewImageVersionId ?? saved.imageVersionId } : { serverImageId: item.id, serverSnapshotId: key }
       return { id: item.id, ...(snapshot?.pendingIds ? { serverPending: snapshot.pendingIds.includes(item.id) } : {}), name: item.name || item.title || item.id, imported: !!saved?.imageVersionId, ...(saved?.imageVersionId ? { imageVersionId: saved.imageVersionId } : {}), previewPath: '/api/visual-curator/resource?' + new URLSearchParams(preview), ...(latest && binding ? { runId: binding.rootRunId } : {}), ...(admission ? { importRunId: admission.runId } : {}), phase: this.progress.has(key) ? 'downloading' : status === 'passed' ? 'approved' : status && ['technical-failed', 'rejected', 'needs-review'].includes(status) ? 'attention' : latest && !['completed', 'failed', 'cancelled'].includes(latest.status) ? 'processing' : saved?.imageVersionId ? 'saved' : 'waiting', ...this.progress.get(key), ...(saved?.errorCode ? { errorCode: saved.errorCode } : {}), ...(snapshot?.changedIds?.includes(item.id) ? { warning: 'server-record-changed' } : {}), ...(transfer ? { transfer: { status: transfer.status, outputDigest: transfer.outputDigest, current: status === 'passed' && output?.blob.digest === transfer.outputDigest, ...(transfer.message ? { message: transfer.message } : {}) } } : {}) }
     }) }
   }
   /** Read a queued image without importing it or changing its processing state.
-   * @param id Server image identity. @param snapshotId Current queue snapshot. @param actor Profile reader. @param signal Request lifetime. @returns Bounded raster bytes held only for this response.
+   * @param id Server image identity. @param snapshotId Queue snapshot or stable source key from the preview URL. @param actor Profile reader. @param signal Request lifetime. @returns Bounded raster bytes held only for this response.
    */
   async preview(id: string, snapshotId: string, actor: DomainActor, signal: AbortSignal): Promise<{ bytes: Buffer; mime: string }> {
     this.owner(actor)
     const settings = this.settings(), environment = environmentOf(settings)
     const snapshot = snapshotSchema.parse(this.deps.domain.repository.manifest('server-snapshot:' + environment)?.state)
     const imageId = serverImageIdSchema.parse(id), item = snapshot.items.find(item => item.id === imageId)
-    if (snapshot.snapshotId !== snapshotId || !item) throw new CuratorError('reference-unavailable', 'server-preview', 'Refresh the server queue before opening this preview.')
+    // 兼容当前队列的旧预览链接；单图来源标识在追加分页时保持不变。
+    if (!item || snapshot.snapshotId !== snapshotId && sourceKey(environment, item, sourceVersion(item)) !== snapshotId) throw new CuratorError('reference-unavailable', 'server-preview', 'Refresh the server queue before opening this preview.')
     this.validateImage(item, settings)
     const response = await this.client(settings, true).request(item.img_url, { ...this.bounds(signal), method: 'GET', maxBytes: this.deps.config().limits.maxReferenceBytes, headers: { accept: 'image/jpeg,image/png,image/webp' } })
     const mime = rasterMime(response.bytes)
@@ -194,27 +196,40 @@ export class ServerQueue {
   configure(raw: unknown, actor: DomainActor): Promise<ServerQueueView> {
     return this.serial(async () => { this.owner(actor); const settings = serverQueueSettingsSchema.parse(raw); this.validSettings(settings); await this.save(settingsKey, settings); await this.recover(); return this.read(actor) })
   }
-  private async pending(settings: ServerQueueSettings, token: string, signal: AbortSignal) {
+  private async pending(settings: ServerQueueSettings, token: string, signal: AbortSignal, page = 1, pageSize?: number) {
     const url = serverQueueApiUrl(settings.baseUrl, 'pull'); url.searchParams.set('token', token)
+    url.searchParams.set('page', String(page))
+    if (pageSize !== undefined) url.searchParams.set('pageSize', String(pageSize))
     const response = await this.client(settings).request(url.href, { ...this.bounds(signal), method: 'GET', headers: { accept: 'application/json' } })
     let reply: z.infer<typeof serverPullSchema>
     try { reply = serverPullSchema.parse(JSON.parse(response.bytes.toString('utf8'))) }
     catch (error) { throw new CuratorError('source-protocol-error', 'server-pull', 'The server did not return a valid pending-image list.', { cause: error }) }
-    if (reply.data.length > this.deps.config().limits.maxCandidates || reply.total < reply.data.length || new Set(reply.data.map(item => item.id)).size !== reply.data.length) throw new CuratorError('source-protocol-error', 'server-pull', 'The server queue has inconsistent counts, exceeds its item limit or repeats an image identity.')
+    if (reply.page !== page || pageSize !== undefined && reply.pageSize !== pageSize || reply.data.length !== Math.min(reply.pageSize, Math.max(0, reply.total - (page - 1) * reply.pageSize)) || reply.data.length > this.deps.config().limits.maxCandidates || new Set(reply.data.map(item => item.id)).size !== reply.data.length) throw new CuratorError('source-protocol-error', 'server-pull', 'The server queue has inconsistent pagination or counts, exceeds its page limit or repeats an image identity.')
     for (const item of reply.data) this.validateImage(item, settings)
     return reply
   }
-  /** @param actor Profile owner. @param signal Read lifetime. @returns Actual bounded server queue; GET has no request body. */
-  pull(actor: DomainActor, signal: AbortSignal): Promise<ServerQueueView> {
+  /** @param actor Profile owner. @param signal Read lifetime. @param raw Refresh or append the next verified page. @returns Merged pending images and retained local history; GET has no request body. */
+  pull(actor: DomainActor, signal: AbortSignal, raw: unknown = {}): Promise<ServerQueueView> {
+    const input = pullInputSchema.parse(raw)
     return this.serial(async () => {
       this.owner(actor); const settings = this.settings(); this.validSettings(settings)
-      const reply = await this.pending(settings, await this.token(settings), signal), environment = environmentOf(settings)
+      const environment = environmentOf(settings)
       const previous = this.deps.domain.repository.manifest('server-snapshot:' + environment), saved = previous ? snapshotSchema.parse(previous.state) : undefined
+      const cursor = saved?.pagination, append = input.next && saved !== undefined && cursor !== undefined
+      if (append && cursor.page * cursor.pageSize >= saved.total) return this.read(actor)
+      const reply = await this.pending(settings, await this.token(settings), signal, append ? cursor.page + 1 : 1, append ? cursor.pageSize : undefined)
+      if (append && reply.total !== saved.total) throw new CuratorError('revision-conflict', 'server-pull', 'The pending list changed during pagination. Refresh the list before selecting all images.')
+      const incoming = new Map((append ? saved.items.filter(item => saved.pendingIds?.includes(item.id)) : []).map(item => [item.id, item]))
+      if (append && reply.data.some(item => incoming.has(item.id))) throw new CuratorError('revision-conflict', 'server-pull', 'Pending images shifted between pages. Refresh the list before selecting all images.')
+      for (const item of reply.data) incoming.set(item.id, item)
       const ownedIds = new Set(this.deps.domain.repository.manifests('server-binding:').map(manifest => bindingSchema.parse(manifest.state)).filter(binding => binding.environment === environment).flatMap(binding => binding.items.map(item => item.id)))
       const retained = saved?.items.filter(item => ownedIds.has(item.id)) ?? []
-      const changedIds = retained.filter(item => { const fresh = reply.data.find(row => row.id === item.id); return !!fresh && sourceVersion(fresh) !== sourceVersion(item) }).map(item => item.id)
-      const items = [...reply.data.map(item => retained.find(prior => prior.id === item.id) ?? item), ...retained.filter(item => !reply.data.some(fresh => fresh.id === item.id))], snapshotId = contentDigest({ pending: reply.data, items, changedIds })
-      await this.save('server-snapshot:' + environment, { version: 1, environment, snapshotId, total: reply.total, items, pendingIds: reply.data.map(item => item.id), changedIds })
+      const changedIds = [...new Set([...(append ? saved.changedIds ?? [] : []), ...retained.filter(item => { const fresh = incoming.get(item.id); return !!fresh && sourceVersion(fresh) !== sourceVersion(item) }).map(item => item.id)])]
+      const items = [...incoming.values()].map(item => retained.find(prior => prior.id === item.id) ?? item).concat(retained.filter(item => !incoming.has(item.id)))
+      // An append keeps the existing selection valid, including admissions awaiting retry.
+      const snapshotId = append ? saved.snapshotId : contentDigest({ pending: reply.data, items, changedIds })
+      const pagination = { page: reply.page, pageSize: reply.pageSize }
+      await this.save('server-snapshot:' + environment, { version: 1, environment, snapshotId, total: reply.total, items, pendingIds: [...incoming.keys()], changedIds, pagination })
       return this.read(actor)
     })
   }
@@ -362,7 +377,16 @@ export class ServerQueue {
     }
     if (!ready.length) return
     let token: string, pending: ServerImage[]
-    try { token = await this.token(settings); pending = (await this.pending(settings, token, signal)).data }
+    try {
+      token = await this.token(settings); pending = []
+      let page = 1, pageSize: number | undefined
+      for (;;) {
+        const reply = await this.pending(settings, token, signal, page, pageSize)
+        pending.push(...reply.data)
+        if (ready.every(row => pending.some(item => item.id === row.source.id)) || reply.page * reply.pageSize >= reply.total) break
+        page++; pageSize = reply.pageSize
+      }
+    }
     catch (error) {
       for (const row of ready) await this.save(row.key, { version: 1, status: 'failed', outputDigest: row.outputDigest, runId, message: safeFailure(error).code })
       return

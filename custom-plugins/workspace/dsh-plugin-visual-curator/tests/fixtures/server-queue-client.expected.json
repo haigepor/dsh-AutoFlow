@@ -1,4 +1,9 @@
 {
+  "pagination": {
+    "loadedRows": [20, 40, 60, 65],
+    "selected": 65,
+    "pageRequests": 4
+  },
   "dialogs": [
     "服务器图片",
     "服务器连接"
