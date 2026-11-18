@@ -1,34 +1,27 @@
-version: 0.2.2-rc.3.20261119.1
+version: 0.2.2-rc.3.20261119.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.1-unsigned/deepseek-harness-0.2.2-rc.3.20261119.1-win-x64-unsigned.exe
-    sha512: mxYZvFJjA1o3dltBSeMStaALcggcLJ+TVQ6fMbl7XE4x0gKMObBY6Q9kkzQdFq7C7TW8PJ3oBMiWccfoNTMj0w==
-    size: 452501057
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.1-unsigned/deepseek-harness-0.2.2-rc.3.20261119.1-win-x64-unsigned.exe
-sha512: mxYZvFJjA1o3dltBSeMStaALcggcLJ+TVQ6fMbl7XE4x0gKMObBY6Q9kkzQdFq7C7TW8PJ3oBMiWccfoNTMj0w==
-releaseDate: '2026-11-18T17:11:36.945Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.2-unsigned/deepseek-harness-0.2.2-rc.3.20261119.2-win-x64-unsigned.exe
+    sha512: 8XdYNaxT6YGp6x1loCku4dda8uGUCfDiVoZ8GYqXs57TWYGHBXC+EpJp/8bCe9cpgzO+HEC3tUp9Rp54xInBLg==
+    size: 452500602
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.2-unsigned/deepseek-harness-0.2.2-rc.3.20261119.2-win-x64-unsigned.exe
+sha512: 8XdYNaxT6YGp6x1loCku4dda8uGUCfDiVoZ8GYqXs57TWYGHBXC+EpJp/8bCe9cpgzO+HEC3tUp9Rp54xInBLg==
+releaseDate: '2026-11-18T19:16:09.673Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.3.20261119.1
+  version: 0.2.2-rc.3.20261119.2
   items:
-    - id: visual-curator-image-retry-queue
+    - id: visual-curator-positioned-outpaint-review
       category: fixes
       text:
-        en: Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.
-        zh-CN: 视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。
-    - id: visual-curator-server-all-filter-pagination
-      category: fixes
-      text:
-        en: Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.
-        zh-CN: 视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。
+        en: Visual Curator uses the planned framing from the first outpainting request. Safety-area confirmation measures the finished image, and final review accounts for the subject scale when checking preserved action props.
+        zh-CN: 视觉策展从首轮扩图起明确使用规划取景。安全区确认测量实际成品，复审按主体缩放评估完整保留的动作道具。
 releaseNotes: |-
   ## 问题修复
 
-  - 视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。
-  - 视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。
+  - 视觉策展从首轮扩图起明确使用规划取景。安全区确认测量实际成品，复审按主体缩放评估完整保留的动作道具。
 
   ---
 
   ## Bug fixes
 
-  - Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.
-  - Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.
+  - Visual Curator uses the planned framing from the first outpainting request. Safety-area confirmation measures the finished image, and final review accounts for the subject scale when checking preserved action props.
