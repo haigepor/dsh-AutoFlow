@@ -140,7 +140,8 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
       const productions = item.attempts.filter(attempt => attempt.outputId)
       assert.equal(plans, 1, 'Pixel repairs reuse confirmed source observations and geometry')
       assert.ok(productions.slice(1).every(attempt => attempt.retryTarget === 'rendering'))
-      assert.match(submitted!.prompt, /逐项修复此前实际问题/)
+      assert.match(submitted!.prompt, /Detail lost on the protected subject/)
+      assert.match(submitted!.prompt, /A visible horizon seam remains/)
       assert.equal(new Set(productions.map(attempt => attempt.generation?.taskId)).size, count)
       assert.equal(f.repository.list('selection').length, rework === 'limit' ? 0 : 1)
       if (rework === 'limit') assert.equal(item.reason, 'edit-limit')
@@ -154,10 +155,10 @@ for (const size of [{ width: 1872, height: 3328, expected: 'passed', reconstruct
       return
     }
     assert.equal(item.status, size.expected, item.reason); assert.equal(dispatched, 1); assert.equal(attempt.compositionMode, 'generated-canvas-v1')
-    assert.deepEqual(attempt.generationInput!.references.map(reference => reference.role), ['canvas'])
-    if ('brief' in size) { assert.equal(plans, 1); assert.equal(z.object({ enabled: z.boolean() }).parse(specOf(run).fixed.generationPromptPolicy).enabled, false); assert.equal(attempt.generationBrief, undefined); assert.match(submitted!.prompt, /严禁.*嵌入/); assert.doesNotMatch(submitted!.prompt, /Host会在交付时逐像素恢复/); assert.equal(dispatched, 1); assert.equal(dataOf(run).budget.vision, plans + reviews) }
+    assert.deepEqual(attempt.generationInput!.references.map(reference => reference.role), ['canvas', 'original', 'layout-only'])
+    if ('brief' in size) { assert.equal(plans, 1); assert.equal(z.object({ enabled: z.boolean() }).parse(specOf(run).fixed.generationPromptPolicy).enabled, false); assert.equal(attempt.generationBrief, undefined); assert.match(submitted!.prompt, /不生成矩形贴片、拼接边界/); assert.doesNotMatch(submitted!.prompt, /Host会在交付时逐像素恢复/); assert.equal(dispatched, 1); assert.equal(dataOf(run).budget.vision, plans + reviews) }
     assert.equal(attempt.generation!.taskId, saved!.taskId); assert.equal(attempt.generationInput!.prompt, submitted!.prompt)
-    assert.equal(submitted!.mask, undefined, 'A complete scene reference is not a pasted positioning canvas')
+    assert.equal(submitted!.mask, undefined, 'The positioned canvas is an input reference; the returned complete provider image owns the delivered pixels')
     assert.deepEqual(await readFile(saved!.images[0]!.original), generated)
     if (size.reconstruction) { assert.equal(attempt.backgroundResolution?.status, 'passed'); assert.deepEqual(attempt.backgroundResolution.output, { width: 1845, height: 3280 }); assert.equal(attempt.backgroundResolution.input.width, 941) }
     else assert.equal(attempt.backgroundResolution, undefined)

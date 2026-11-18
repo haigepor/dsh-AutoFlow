@@ -78,7 +78,7 @@ test('future canvas steps stay absent and recovery never targets an older displa
   item.originalId = 'original'; item.status = 'planning'; delete item.failedStep; delete item.errorCode
   assert.deepEqual(visible(), ['original', 'planning'])
   const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'original', mode: 'single', subject: 'Vehicle', evidence: 'Saved pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 0 }, reason: 'Saved layout' })
-  item.attempts.push({ revision: 1, plan, checks: [], needsOutpaint: true })
+  item.attempts.push({ revision: 1, plan, checks: [], needsOutpaint: true, compositionMode: 'generated-canvas-v1' })
   assert.deepEqual(visible(), ['original', 'planning', 'geometry'])
   const old = item.attempts[0]!
   item.attempts.push({ ...old, revision: 2, generation: { id: 'operation', provider: 'fixture', model: 'fixture', taskId: 'task' } }); item.status = 'needs-review'
@@ -93,6 +93,8 @@ test('future canvas steps stay absent and recovery never targets an older displa
   }
   item.errorCode = 'remote-timeout'
   assert.deepEqual(wallpaperRecovery(view, item, item.attempts.at(-1)), { kind: 'retry', step: 'reviewing' })
+  item.attempts.at(-1)!.compositionMode = 'source-intent-background-v1'
+  assert.deepEqual(wallpaperRecovery(view, item, item.attempts.at(-1)), { kind: 'none' })
 })
 
 test('progressive windows preserve reached stages and distinguish the previous failed review from a new review failure', () => {

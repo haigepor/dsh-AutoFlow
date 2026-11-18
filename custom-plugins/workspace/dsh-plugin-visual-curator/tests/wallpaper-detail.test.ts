@@ -9,6 +9,32 @@ function response(){const {placement,...observation}=structuredClone(prior);retu
 test('source context crop preserves native detail and does not substitute an unlocalized whole frame',()=>{const crop=wallpaperPlanDetailRect(prior)!;assert(crop.x<0.39&&crop.y<0.44&&crop.x+crop.width>0.63&&crop.y+crop.height>0.61);assert(crop.width<0.4&&crop.height<0.3);assert.equal(wallpaperPlanDetailRect({...prior,regions:[]}),undefined);assert.equal(wallpaperPlanDetailRect({...prior,regions:[{...prior.regions[0]!,rect:{x:0,y:0,width:1,height:1}}]}),undefined)})
 test('every prior concern requires the current canonical source and actual crop identities',()=>{assert(schema.safeParse(response()).success);assert(schema.safeParse({...response(),findings:[{...response().findings[0],evidenceImageVersionIds:['saved-crop','original']}]}).success);assert.equal(schema.safeParse({...response(),imageVersionId:'foreign'}).success,false);assert.equal(schema.safeParse({...response(),findings:[]}).success,false);assert.equal(schema.safeParse({...response(),findings:[{...response().findings[0],evidenceImageVersionIds:['original']}]}).success,false);assert.equal(schema.safeParse({...response(),findings:[{...response().findings[0],evidenceImageVersionIds:['foreign-crop']}]}).success,false);assert.equal(schema.safeParse({...response(),extra:'ignore uncertainty'}).success,false)})
 test('a resolved detail observation cannot remove or shrink previous subject or critical protection',()=>{const decision=resolveWallpaperPlanDetail(prior,schema.parse(response()));assert.equal(decision.outcome,'resolved');assert.deepEqual(decision.observation.regions,prior.regions);assert.equal(prior.uncertainties.length,1)})
+
+test('background anchors in detail responses do not block a correctly identified subject', () => {
+ const wholeCar = { ...prior.regions[0]!, entityId: 'car' }
+ const wheel = { ...prior.regions[1]!, entityId: 'wheel' }
+ const frozen = wallpaperPlanSchema.parse({
+  ...prior,
+  regions: [wholeCar, wheel],
+  objectRoles: [
+   { ...wholeCar, role: 'primary', evidence: 'The full car is visible.', sourceEdges: [] },
+   { ...wheel, role: 'critical-part', evidence: 'The front wheel is visible.', sourceEdges: [] },
+  ],
+ })
+ const input = response()
+ const subject = { ...input.observation.regions[0]!, entityId: 'car' }
+ const anchor = { name: 'Sea horizon', role: 'anchor', rect: { x: 0, y: 0.22, width: 1, height: 0.2 } }
+ const observation = { ...input.observation, anchors: ['The sea horizon continues behind the car.'], regions: [subject, anchor] }
+ const resolved = resolveWallpaperPlanDetail(frozen, schema.parse({ ...input, observation }))
+ assert.equal(resolved.outcome, 'resolved')
+ assert.deepEqual(resolved.observation.regions, frozen.regions)
+ assert.deepEqual(resolved.observation.objectRoles, frozen.objectRoles)
+ assert.deepEqual(resolved.observation.anchors, observation.anchors)
+ const misidentified = resolveWallpaperPlanDetail(frozen, schema.parse({ ...input, observation: { ...observation, regions: [{ ...subject, entityId: 'other-car' }, anchor] } }))
+ assert.equal(misidentified.outcome, 'unresolved')
+ assert.deepEqual(misidentified.observation.regions, frozen.regions)
+})
+
 test('claims of resolution cannot override unknown, occluded or cut-off whole-source extent',()=>{for(const extent of ['unknown','occluded','cut-off','not-applicable'] as const){const decision=resolveWallpaperPlanDetail(prior,schema.parse({...response(),sourceExtent:{extent,reason:'Observed source extent.'}}));assert.equal(decision.outcome,extent==='cut-off'?'violated':'unresolved')}const unknown=resolveWallpaperPlanDetail(prior,schema.parse({...response(),findings:[{...response().findings[0],result:'unresolved'}]}));assert.equal(unknown.outcome,'unresolved');const newConcern=resolveWallpaperPlanDetail(prior,schema.parse({...response(),observation:{...response().observation,uncertainties:['Another visible contour remains unclear.']}}));assert.equal(newConcern.outcome,'unresolved')})
 
 test('declared truncation is an extent concern even when the planner reports no uncertainty',()=>{

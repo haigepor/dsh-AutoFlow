@@ -3,6 +3,7 @@
 /** @jsxFrag React.Fragment */
 /** Graphical edits commit source-normalized regions on release; preview zoom never changes placement or protection data. */
 import type { WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
+import { wallpaperPlacementScaleOptions } from '../shared/wallpaper-geometry.ts'
 import type { WorkbenchText } from './workbench-locale.ts'
 import { createSelectField } from './select-field.tsx'
 import { dragWallpaperPlan, editWallpaperRegion, wallpaperEditorImageSize } from './wallpaper-plan-editor-geometry.ts'
@@ -103,12 +104,22 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
       if (current.current !== active.plan && !disabled) onChange(current.current)
     }
     const size = wallpaperEditorImageSize(source, draft), placement = draft.placement, region = selected === null ? undefined : draft.regions[selected]
+    const scaleOptions = wallpaperPlacementScaleOptions(source, draft, settings)
     const roleKeys = { subject: 'wallpaperEditorSubject', critical: 'wallpaperEditorCritical', anchor: 'wallpaperEditorAnchor' } as const
     const editRegion = (patch: Partial<WallpaperPlan['regions'][number]>) => {
       if (selected === null) return
       commit({ ...draft, regions: draft.regions.map((value, index) => index === selected ? { ...value, ...patch } : value) })
     }
     const setPlacement = (patch: Partial<WallpaperPlan['placement']>) => commit({ ...draft, placement: { ...placement, ...patch } })
+    const setScale = (value: number) => {
+      const scale = Math.max(Number.EPSILON, Math.min(scaleOptions.maximum, value))
+      const center = scaleOptions.center
+      setPlacement(center ? {
+        scale,
+        left: Math.round(placement.left + center.x * (size.width - Math.max(1, Math.round(source.width * scale)))),
+        top: Math.round(placement.top + center.y * (size.height - Math.max(1, Math.round(source.height * scale)))),
+      } : { scale })
+    }
     const legend = [
       ['safe', 'wallpaperEditorSafe', 'wallpaperEditorSafeHint'], ['clock', 'wallpaperEditorClock', 'wallpaperEditorClockHint'],
       ['buffer', 'wallpaperEditorBuffer', 'wallpaperEditorBufferHint'], ['center', 'wallpaperEditorCenter', 'wallpaperEditorCenterHint'],
@@ -164,8 +175,8 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
         <fieldset disabled={disabled}><legend>{t('wallpaperEditorPlacement')}</legend><div className="vc-plan-editor-fields vc-plan-editor-placement">
           <NumberField label={t('wallpaperEditorLeft')} value={placement.left} step="1" change={left => setPlacement({ left: Math.round(left) })} />
           <NumberField label={t('wallpaperEditorTop')} value={placement.top} step="1" change={top => setPlacement({ top: Math.round(top) })} />
-          <NumberField label={t('wallpaperEditorScale')} value={placement.scale} min={Number.EPSILON} max={1} step="0.01" change={scale => setPlacement({ scale: Math.max(Number.EPSILON, Math.min(1, scale)) })} />
-        </div><small className="vc-plan-editor-help">{t('wallpaperEditorNoUpscale')}</small></fieldset>
+          <NumberField label={t('wallpaperEditorScale')} value={placement.scale} min={Number.EPSILON} max={scaleOptions.maximum} step="0.01" change={setScale} />
+        </div><small className="vc-plan-editor-help">{t(scaleOptions.center ? 'wallpaperEditorSubjectFillScale' : settings.sourceIntentPolicy?.version === 'source-intent-v2' ? 'wallpaperEditorReferenceScale' : 'wallpaperEditorNoUpscale')}</small></fieldset>
         <fieldset disabled={disabled}><legend>{t('wallpaperEditorRegions')} · {draft.regions.length} / 32</legend>
           <SelectField label={t('wallpaperEditorRegions')} value={selected === null ? '' : String(selected)} options={[{ value: '', label: t('wallpaperEditorNoRegion') }, ...draft.regions.map((value, index) => ({ value: String(index), label: `${index + 1}. ${value.name} · ${t(roleKeys[value.role])}` }))]} disabled={disabled} onChange={value => setSelected(value === '' ? null : Number(value))} />
           {region ? <>

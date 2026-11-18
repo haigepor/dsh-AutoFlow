@@ -87,8 +87,8 @@ for (const mode of ['first-pass', 'background-retry', 'inventory-retry', 'saved-
   llm.getImageGeneration = async handle => { const task = tasks.get(handle.id); if (!task) throw Object.assign(new Error('No saved receipt'), { code: 'IMAGE_GENERATION_NOT_FOUND' }); return task }
   llm.startImageGeneration = async request => {
     generations++
-    assert.equal(request.references?.length, 1, 'Generation receives a single complete reference')
-    assert.equal(request.mask, undefined); assert.match(request.prompt, /严禁.*嵌入/)
+    assert.equal(request.references?.length, 3, 'Generation receives the positioned master, original and safety guide')
+    assert.equal(request.mask, undefined); assert.match(request.prompt, /不生成矩形贴片、拼接边界/)
     if ((transient || unknown) && generations === 1) {
       const task: ImageGenerationTask = { id: request.id, provider: request.provider, model: request.model, taskId: brandString<ImageGenerationTaskId>('failed-background'), state: unknown ? 'outcome-unknown' : 'failed', images: [], error: { code: unknown ? 'interrupted-after-send' : 'IMAGE_GENERATION_FAILED', message: unknown ? 'The remote outcome is unknown.' : 'OpenAI rejected the image edit (HTTP 503)' } }
       tasks.set(request.id, task); return task
@@ -163,7 +163,7 @@ for (const mode of ['first-pass', 'background-retry', 'inventory-retry', 'saved-
     assert.deepEqual(requests, retry ? ['1', 'wallpaper-review-source-v4', 'wallpaper-review-source-v4'] : ['1', 'wallpaper-review-source-v4'])
     assert.equal(item.attempts.length, retry || transient ? 2 : 1)
     const attempt = item.attempts.at(-1); assert.ok(attempt?.review && attempt.outputId && item.originalId)
-    assert.equal(attempt.compositionMode, 'generated-canvas-v1'); assert.equal(attempt.generationInput?.version, 'wallpaper-edit-input-v4'); assert.equal(attempt.generationBrief, undefined); assert.equal(attempt.preResolutionReview, undefined); assert.equal(attempt.boundaryReview, undefined)
+    assert.equal(attempt.compositionMode, 'generated-canvas-v1'); assert.equal(attempt.generationInput?.version, 'wallpaper-edit-input-v5'); assert.equal(attempt.generationBrief, undefined); assert.equal(attempt.preResolutionReview, undefined); assert.equal(attempt.boundaryReview, undefined)
     const review = wallpaperStoredSourceReviewV4Schema.parse(attempt.review)
     assert.equal(review.preservationProof, undefined); assert.equal(wallpaperVerdict(review), 'pass')
     const actual = f.domain.require('imageVersion', attempt.outputId), source = f.domain.require('imageVersion', item.originalId)

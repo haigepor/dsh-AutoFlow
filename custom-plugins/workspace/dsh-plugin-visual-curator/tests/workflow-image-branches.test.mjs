@@ -110,10 +110,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     const reviewed=items[99],reviewedAttempt=reviewed.attempts[0],reviewChecks=Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:'Observed output'}]))
     reviewed.status='needs-review';reviewedAttempt.outputId='output-99';reviewedAttempt.simulationId='simulation-99';reviewedAttempt.review={subject:'Car 100',checks:{...reviewChecks,background:{result:'violated',reason:'Visible seam'}},issues:[{kind:'background',reason:'Visible seam'}]}
     await jump(99)
-    const feedback=globalThis.__vcPlanningProjection.edges.find(edge=>edge.data.rework)
-    assert(feedback);assert(feedback.source.endsWith(':image-step:reviewing:reviewing'));assert(feedback.target.endsWith(':image-step:rendering:rendering'))
-    assert.equal(feedback.data.phase,'attention');assert.equal(feedback.markerEnd.type,'arrow');assert.equal(feedback.data.flowing,false)
-    assert.equal(feedback.label,zh.directCropReworkStopped);assert.equal(feedback.ariaLabel,zh.directCropReworkStopped)
+    assert.equal(globalThis.__vcPlanningProjection.edges.some(edge=>edge.data.rework),false,'A failed review alone does not start image rework')
     const station = JSON.parse(await readFile(new URL('./fixtures/station-boundary-pending.json', import.meta.url), 'utf8'))
     const pending = station.item.attempts[0]
     const reviewPixels = pending.nativeReviewCandidate.nativeId
@@ -213,7 +210,8 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     reviewedAttempt.review = {subject:'Car 100',checks:{...reviewChecks,background:{result:'violated',reason:'Visible seam'}},issues:[{kind:'background',reason:'Visible seam'}]}
     reviewedAttempt.postResolutionReview = { requestId: 'final-review-99', imageVersionId: reviewedAttempt.outputId, digest: 'final-pixels', nativeId: 'native-99', nativeDigest: 'native-pixels', analysisId: 'analysis-99', simulationId: 'simulation-99', review: reviewedAttempt.review }
     reviewedAttempt.review = { subject: 'Car 100', checks: reviewChecks, issues: [] }
-    const current={...reviewedAttempt,revision:2,retryFrom:'reviewing',retryTarget:'rendering'}
+    const generation={id:'rework-generation',provider:'fixture',model:'fixture',taskId:'rework-task'}
+    const current={...reviewedAttempt,revision:2,retryFrom:'reviewing',retryTarget:'rendering',generation,compositionMode:'generated-canvas-v1'}
     for(const key of ['review','outputId','simulationId','analysisId','clarity','postResolutionReview'])delete current[key]
     reviewed.attempts.push(current);reviewed.status='rendering';workflowStatus='running'
     await jump(0);await jump(99)
@@ -269,7 +267,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.equal(directReview().data.phase,'completed');assert.equal(directReturn().data.reworkStage,'passed')
     assert.equal(directReturn().markerEnd.color,'var(--dsw-alias-state-success-primary)')
     assert.equal(reviewedAttempt.postResolutionReview.review.checks.background.result,'violated')
-    for(const key of ['review','outputId','simulationId'])delete current[key]
+    for(const key of ['review','outputId','simulationId','generation'])delete current[key]
     reviewed.status='needs-review';workflowStatus='completed'
     await directRender(4)
     const decisionNode=()=>globalThis.__vcPlanningProjection.nodes.find(node=>node.data.stage==='decision')

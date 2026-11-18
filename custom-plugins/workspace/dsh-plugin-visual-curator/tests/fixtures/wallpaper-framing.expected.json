@@ -1,0 +1,12 @@
+{
+  "promptVersion": "wallpaper-source-framing-v1",
+  "operation": "wallpaper-plan",
+  "imageRoles": ["wallpaper-original", "wallpaper-original-detail-only", "wallpaper-original-detail-only", "wallpaper-original-detail-only", "wallpaper-original-detail-only"],
+  "status": "needs-review",
+  "reason": "source-framing-conflict",
+  "resolution": "blocked",
+  "generations": 0,
+  "recovery": "none",
+  "gallery": ["wallpaperSource", "wallpaperFramingAnnotation"],
+  "citedCropCounts": [4, 4, 4]
+}

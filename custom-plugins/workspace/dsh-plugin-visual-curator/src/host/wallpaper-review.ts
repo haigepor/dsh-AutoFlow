@@ -1,7 +1,7 @@
 /** Frozen style coverage and original/output subject evidence independently constrain wallpaper acceptance. */
 import { z } from 'zod'
 import type { StyleStandard, Json } from '../shared/model.ts'
-import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
+import { wallpaperGeometry, type WallpaperSourceLayout } from '../shared/wallpaper-geometry.ts'
 import { wallpaperActualBoundary } from './wallpaper-boundary.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { wallpaperSubjectIntegritySchema, wallpaperReviewKeys, wallpaperReviewSchema, wallpaperReviewV2Schema, wallpaperReviewV3Schema, wallpaperReviewV4Schema, wallpaperSourceReviewSchema, wallpaperSourceReviewV2Schema, wallpaperSourceReviewV3Schema, wallpaperSourceReviewV4Schema, wallpaperStoredSourceReviewV3Schema, wallpaperStoredSourceReviewV4Schema, type WallpaperSettings, wallpaperStoredSourceReviewV2Schema, wallpaperStoredReviewV4Schema, wallpaperStoredReviewV2Schema, wallpaperStoredReviewV3Schema, wallpaperSubjectCheck, type WallpaperReview } from '../shared/wallpaper.ts'
@@ -30,7 +30,23 @@ function practicalReviewFields(review: WallpaperPracticalReview): z.infer<typeof
   if (uncertain && checks.subject.result === 'satisfied') checks.subject = uncertainty
   if (uncertain) issues.push({ kind: 'unknown', check: 'subject', code: 'other', reason: uncertainty.reason, ...(review.inspection ? { detail: review.inspection } : {}) })
   const usableExtent = !review.actualLayout.regions.some(region => region.role === 'subject') && (review.mode === 'scene' || review.mode === 'abstract') ? 'not-applicable' as const : 'complete' as const
-  return { reviewVersion: review.reviewVersion, subject: review.subject, checks, issues, styleResults: [], sourceRepair: accepted, sourceCorrespondence: accepted,
+  let sourceCorrespondence: z.infer<typeof wallpaperSourceReviewV4Schema>['sourceCorrespondence'] = accepted
+  if (review.protocol === 'practical-v2') {
+    const results = review.sourcePreservation.flatMap(row => (['framing', 'appearance', 'relationships'] as const).map(key => ({ entityId: row.entityId, key, ...row[key] })))
+    for (const check of results.filter(check => check.result !== 'satisfied')) {
+      const target = check.key === 'appearance' ? 'subject' : 'composition'
+      if (checks[target].result !== 'violated') checks[target] = { result: check.result, reason: check.reason }
+      issues.push({ kind: check.result === 'unknown' ? 'unknown' : 'preservation', check: 'sourceCorrespondence', code: 'other', reason: `${check.entityId} · ${check.key}: ${check.reason}` })
+    }
+    if (review.sourceStyle.result !== 'satisfied') {
+      if (checks.style.result !== 'violated') checks.style = review.sourceStyle
+      issues.push({ kind: review.sourceStyle.result === 'unknown' ? 'unknown' : 'style', check: 'sourceCorrespondence', code: 'other', reason: review.sourceStyle.reason })
+    }
+    const explicit = [...results, review.sourceStyle]
+    const firstFailure = explicit.find(check => check.result === 'violated') ?? explicit.find(check => check.result === 'unknown')
+    sourceCorrespondence = firstFailure ? { result: firstFailure.result, reason: firstFailure.reason } : { result: 'satisfied', reason: '原图取景、可见外观、实体关系及媒介风格均已逐项对照实际成品确认。' }
+  }
+  return { reviewVersion: review.reviewVersion, subject: review.subject, checks, issues: issues.slice(0, 32), styleResults: [], sourceRepair: accepted, sourceCorrespondence,
     subjectIntegrity: { mode: review.mode, source: { extent: usableExtent, reason: accepted.reason, imageVersionId: review.sourceImageVersionId }, output: { extent: uncertain ? 'unknown' : usableExtent, reason: uncertain ? uncertainty.reason : checks.subject.reason, imageVersionId: review.outputImageVersionId }, task: checks.subject },
     actualLayout: { imageVersionId: review.outputImageVersionId, regions: review.actualLayout.regions } }
 }
@@ -146,14 +162,15 @@ export function applyWallpaperStyleReview(output: unknown, standard: StyleStanda
   return wallpaperStoredReviewV2Schema.parse({ ...review, checks: { ...review.checks, style: { result, reason } }, modelStyleCheck: review.checks.style, styleMatch, issues: styleMatch.verdict === 'matched' ? review.issues.filter(issue => issue.kind !== 'style') : review.issues })
 }
 
-/** @param output Strict direct-original review. @param edgeRepairAuthorized Saved task policy and local evidence authorize frame-edge continuation; omission retains source completeness veto. @param settings Frozen bounds required for complete-canvas review. @returns Source-grounded subject checks plus every independent quality result. */
-export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized = false, settings?: WallpaperSettings): WallpaperReview {
+/** @param output Strict direct-original review. @param edgeRepairAuthorized Saved task policy and local evidence authorize frame-edge continuation; omission retains source completeness veto. @param settings Frozen bounds required for complete-canvas review. @param sourceLayout Frozen output focus and minimum source-relative size. @returns Source-grounded subject checks plus every independent quality result. */
+export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized = false, settings?: WallpaperSettings, sourceLayout?: WallpaperSourceLayout): WallpaperReview {
   const practical = wallpaperPracticalReviewSchema.safeParse(output)
   if (practical.success) {
-    const effective = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(practicalReviewFields(practical.data), edgeRepairAuthorized, settings))
+    const effective = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(practicalReviewFields(practical.data), edgeRepairAuthorized, settings, sourceLayout))
     const warnings = practical.data.defects.filter(defect => defect.severity === 'minor' || defect.kind === 'layout').map(defect => defect.reason)
-    const uncertainties = practical.data.mode === 'uncertain' && !practical.data.uncertainties.length ? ['实际主体范围尚无法确认，需要人工复核。'] : practical.data.uncertainties
-    return wallpaperStoredSourceReviewV4Schema.parse({ ...effective, layoutWarnings: [...effective.layoutWarnings, ...warnings], practicalReview: { version: 'practical-v1', warnings, uncertainties } })
+    const sourceUnknowns = practical.data.protocol === 'practical-v2' ? [...practical.data.sourcePreservation.flatMap(row => (['framing', 'appearance', 'relationships'] as const).filter(key => row[key].result === 'unknown').map(key => `${row.entityId} · ${key}: ${row[key].reason}`)), ...(practical.data.sourceStyle.result === 'unknown' ? [practical.data.sourceStyle.reason] : [])] : []
+    const uncertainties = [...(practical.data.mode === 'uncertain' && !practical.data.uncertainties.length ? ['实际主体范围尚无法确认，需要人工复核。'] : practical.data.uncertainties), ...sourceUnknowns].slice(0, 4)
+    return wallpaperStoredSourceReviewV4Schema.parse({ ...effective, layoutWarnings: [...effective.layoutWarnings, ...warnings], practicalReview: { version: practical.data.protocol, warnings, uncertainties, ...(practical.data.protocol === 'practical-v2' ? { sourcePreservation: practical.data.sourcePreservation, sourceStyle: practical.data.sourceStyle } : {}) } })
   }
   const balanced = wallpaperSourceReviewV4Schema.safeParse(output)
   if (balanced.success) {
@@ -166,9 +183,9 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
       const rects = [region.rect, ...evidence], x = Math.min(...rects.map(rect => rect.x)), y = Math.min(...rects.map(rect => rect.y))
       return { ...region, rect: { x, y, width: Math.max(...rects.map(rect => rect.x + rect.width)) - x, height: Math.max(...rects.map(rect => rect.y + rect.height)) - y } }
     }) }
-    const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2', issues: modelIssues.map(({ kind, reason }) => ({ kind, reason })) }, edgeRepairAuthorized)
+    const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2', issues: modelIssues.map(({ kind, reason }) => ({ kind, reason })) }, edgeRepairAuthorized, settings, sourceLayout)
     const hasSubject = actualLayout.regions.some(region => region.role === 'subject')
-    const boundary = wallpaperActualBoundary(actualLayout, wallpaperPracticalAcceptance(settings) ? source.subjectIntegrity.mode : hasSubject ? 'group' : source.subjectIntegrity.mode, settings)
+    const boundary = wallpaperActualBoundary(actualLayout, wallpaperPracticalAcceptance(settings) ? source.subjectIntegrity.mode : hasSubject ? 'group' : source.subjectIntegrity.mode, settings, sourceLayout)
     const checks = { ...base.checks }, modelProtectionCheck = balanced.data.checks.protection
     if (hasSubject && source.subjectIntegrity.output.extent === 'not-applicable') checks.subject = { result: 'unknown', reason: '实际成品标有主体范围，须独立确认其完整性，不能记为不适用' }
     const issues = [...(base.issues.length > modelIssues.length ? [{ ...base.issues[0]!, check: 'subject' as const, code: 'other' as const }] : []), ...modelIssues]
@@ -190,8 +207,8 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
   if (canvas.success) {
     if (!settings) throw new CuratorError('constraint-conflict', 'wallpaper-review', 'Complete-canvas review requires frozen output geometry.')
     const { actualLayout, sourceCorrespondence, ...source } = canvas.data
-    const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2' }, edgeRepairAuthorized)
-    const geometry = wallpaperGeometry(settings, { version: 1, imageVersionId: actualLayout.imageVersionId, mode: source.subjectIntegrity.mode, subject: source.subject, evidence: sourceCorrespondence.reason, priorities: [], anchors: [], truncations: [], uncertainties: [], regions: actualLayout.regions, placement: { scale: 1, left: 0, top: 0 }, reason: 'Actual output coordinates' }, settings)
+    const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2' }, edgeRepairAuthorized, settings, sourceLayout)
+    const geometry = wallpaperGeometry(settings, { version: 1, imageVersionId: actualLayout.imageVersionId, mode: source.subjectIntegrity.mode, subject: source.subject, evidence: sourceCorrespondence.reason, priorities: [], anchors: [], truncations: [], uncertainties: [], regions: actualLayout.regions, placement: { scale: 1, left: 0, top: 0 }, reason: 'Actual output coordinates' }, settings, sourceLayout)
     const checks = { ...base.checks }, issues = [...base.issues]
     if (sourceCorrespondence.result !== 'satisfied') {
       issues.push({ kind: 'preservation', reason: sourceCorrespondence.reason })
@@ -244,8 +261,8 @@ export function wallpaperCriticalReviewHistory(input: { source: string; output: 
   return { evidenceDigest, cached: previous.findLast(review => review.criticalDetail?.evidenceDigest === evidenceDigest), mayInspect: !previous.some(review => review.criticalDetail) }
 }
 
-/** @param original Saved medium review. @param detail Independently checked high-effort local pixels. @param settings Frozen bounds. @param requestId Logged local request. @returns Review that changes only unresolved critical findings and retains earlier failures and layout. */
-export function applyWallpaperCriticalDetail(original: BalancedReview, detail: BalancedReview, settings: WallpaperSettings, requestId: string): BalancedReview {
+/** @param original Saved medium review. @param detail Independently checked high-effort local pixels. @param settings Frozen bounds. @param requestId Logged local request. @param sourceLayout Reference geometry for the original complete output. @returns Review that changes only unresolved critical findings and retains earlier failures and layout. */
+export function applyWallpaperCriticalDetail(original: BalancedReview, detail: BalancedReview, settings: WallpaperSettings, requestId: string, sourceLayout?: WallpaperSourceLayout): BalancedReview {
   const targets = wallpaperCriticalReviewTargets(original)
   const result = (review: BalancedReview, key: CriticalCheck) => key === 'sourceRepair' || key === 'sourceCorrespondence' ? review[key].result : review.checks[key].result
   const resolved = [...new Set([...targets.filter(key => result(detail, key) !== 'unknown'), ...([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence'] as const).filter(key => result(original, key) === 'satisfied' && result(detail, key) === 'violated')])]
@@ -259,6 +276,6 @@ export function applyWallpaperCriticalDetail(original: BalancedReview, detail: B
     task: original.subjectIntegrity.task.result === 'unknown' ? detail.subjectIntegrity.task : original.subjectIntegrity.task } : original.subjectIntegrity
   const issues = [...original.modelIssues.filter(issue => !resolved.includes(issue.check as CriticalCheck)), ...detail.modelIssues.filter(issue => resolved.includes(issue.check as CriticalCheck)), ...detail.layoutChecks.map(reason => ({ kind: 'layout' as const, check: 'protection' as const, code: 'other' as const, reason }))].slice(0, 32)
   const raw = wallpaperSourceReviewV4Schema.parse({ reviewVersion: original.reviewVersion, subject: original.subject, checks, issues, styleResults: original.styleResults, sourceRepair, subjectIntegrity, actualLayout: original.actualLayout, sourceCorrespondence })
-  const merged = applyWallpaperSourceReview(raw, original.sourceRepairAuthorized === true, settings)
+  const merged = applyWallpaperSourceReview(raw, original.sourceRepairAuthorized === true, settings, sourceLayout?.alignment === 'subject-fill-v1' ? sourceLayout : undefined)
   return wallpaperStoredSourceReviewV4Schema.parse({ ...merged, criticalDetail: { requestId, examinedChecks: targets, resolvedChecks: resolved } })
 }

@@ -3,12 +3,23 @@ import { z } from 'zod'
 
 /** @param descriptor Actual compatible-vision request text. @param output Independently scripted fixture findings. @returns The same findings with required current protocol metadata. */
 function fixtureResponse(descriptor: unknown, output: unknown): unknown {
-  const schema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()), $defs: z.record(z.string(), z.unknown()).optional() }) }).parse(descriptor).outputSchema
+  const schema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()), required: z.array(z.string()).optional(), $defs: z.record(z.string(), z.unknown()).optional() }) }).parse(descriptor).outputSchema
   const properties = Object.fromEntries(Object.entries(schema.properties).map(([name, value]) => {
     const reference = z.object({ $ref: z.string().startsWith('#/$defs/') }).safeParse(value)
     return [name, reference.success ? schema.$defs?.[reference.data.$ref.slice('#/$defs/'.length)] : value]
   }))
   const row = z.record(z.string(), z.unknown()).parse(output)
+  if (properties.editPrompt && properties.reason && properties.imageVersionId && !properties.objectRoles && !properties.regions) return z.object({ imageVersionId: z.string(), editPrompt: z.string(), reason: z.string() }).parse(row)
+  if (schema.required?.includes('sourceMedium')) {
+    const observed = z.object({ objectRoles: z.array(z.object({ name: z.string(), evidence: z.string() }).passthrough()) }).parse(row)
+    return { ...row, sourceMedium: row.sourceMedium ?? 'photograph', ...(schema.required.includes('actionPartIds') ? { actionPartIds: row.actionPartIds ?? [] } : {}),
+      objectRoles: observed.objectRoles.map(object => ({ ...object, sourceIntent: object.sourceIntent ?? { framing: 'whole', visibility: 'visible', preserve: [object.evidence], relationships: [] } })) }
+  }
+  if (z.object({ const: z.string().optional() }).safeParse(properties.protocol).data?.const === 'practical-v2' && row.protocol === 'practical-v1') {
+    const usage = z.object({ input: z.object({ usage: z.object({ objectPolicy: z.object({ objectRoles: z.array(z.object({ entityId: z.string(), role: z.string() })) }) }) }) }).parse(descriptor).input.usage
+    const satisfied = { result: 'satisfied', reason: 'The independently scripted fixture retains this original property.' }
+    return { ...row, protocol: 'practical-v2', sourcePreservation: usage.objectPolicy.objectRoles.filter(object => object.role !== 'supporting').map(object => ({ entityId: object.entityId, framing: satisfied, appearance: satisfied, relationships: satisfied })), sourceStyle: satisfied }
+  }
   if (z.object({ const: z.string().optional() }).safeParse(properties.version).data?.const === 'wallpaper-generation-brief-v1') {
     const input = z.object({ input: z.object({ images: z.array(z.object({ imageVersionId: z.string() })) }) }).parse(descriptor).input
     return { version: 'wallpaper-generation-brief-v1', sourceImageVersionId: input.images[0]!.imageVersionId, canvasImageVersionId: input.images[1]!.imageVersionId,

@@ -156,7 +156,7 @@ export function imageWorkflowArtifact(stage: ImageWorkflowStage, item: Wallpaper
  * @returns Ordered image slides; annotations never reuse coordinates from another candidate.
  */
 export function imageWorkflowGallery(stage: ImageWorkflowStage, item: WallpaperItem, attempt = item.attempts.at(-1), includeNative = false) {
-  const slides: { id: string; label: 'wallpaperSource' | 'wallpaperAnalysis' | 'wallpaperReviewAnalysis' | 'wallpaperClean' | 'wallpaperSimulation' | 'wallpaperClarityBaseline' | 'wallpaperClarityEnhanced' | 'directCropPreviousReview' | 'wallpaperNativeCandidate' | 'wallpaperFinalOutput' | 'wallpaperNativeAnalysis' | 'wallpaperFinalAnalysis' | 'wallpaperNativeSimulation' | 'wallpaperFinalSimulation'; attempt: typeof attempt; annotated: boolean }[] = []
+  const slides: { id: string; label: 'wallpaperFramingAnnotation' | 'wallpaperFramingOriginalAnnotation' | 'wallpaperFramingDetail' | 'wallpaperSource' | 'wallpaperAnalysis' | 'wallpaperReviewAnalysis' | 'wallpaperClean' | 'wallpaperSimulation' | 'wallpaperClarityBaseline' | 'wallpaperClarityEnhanced' | 'directCropPreviousReview' | 'wallpaperNativeCandidate' | 'wallpaperFinalOutput' | 'wallpaperNativeAnalysis' | 'wallpaperFinalAnalysis' | 'wallpaperNativeSimulation' | 'wallpaperFinalSimulation'; attempt: typeof attempt; annotated: boolean }[] = []
   const add = (id: string | undefined, label: typeof slides[number]['label'], row = attempt, annotated = false) => {
     if (id && !slides.some(slide => slide.id === id && slide.annotated === annotated)) slides.push({ id, label, attempt: label === 'wallpaperSource' ? undefined : row, annotated })
   }
@@ -184,6 +184,13 @@ export function imageWorkflowGallery(stage: ImageWorkflowStage, item: WallpaperI
     add(attempt?.clarity?.enhancedOutputId ?? attempt?.backgroundResolution?.enhancedId, 'wallpaperClarityEnhanced')
   } else add(imageWorkflowArtifact(stage, item, attempt), stage === 'original' || stage === 'planning' || stage === 'detail' ? 'wallpaperSource' : stage === 'geometry' ? 'wallpaperAnalysis' : stage === 'rendering' && !!(attempt?.nativeReviewCandidate || attempt?.preResolutionReview) ? 'wallpaperNativeCandidate' : 'wallpaperFinalOutput')
   if (stage === 'geometry' || stage === 'planning' || stage === 'detail') add(attempt?.layoutAnalysisId ?? attempt?.canvasId, 'wallpaperAnalysis')
+  if (item.framingConflict && (!attempt && stage === 'planning' || stage === 'detail')) {
+    add(item.framingConflict.inspection?.analysisId ?? item.framingConflict.analysisId, 'wallpaperFramingAnnotation')
+    if (stage === 'detail') {
+      if (item.framingConflict.inspection?.analysisId) add(item.framingConflict.analysisId, 'wallpaperFramingOriginalAnnotation')
+      for (const id of item.framingConflict.inspection?.detailIds ?? []) add(id, 'wallpaperFramingDetail')
+    }
+  }
   if (stage === 'final' && includeNative) review(attempt)
   if (stage === 'decision' || stage === 'detail') add(item.originalId, 'wallpaperSource')
   return slides
@@ -198,16 +205,18 @@ export function imageWorkflowPreviousReview(item: WallpaperItem | undefined, att
   return item.attempts.findLast(prior => { const review = wallpaperAttemptReview(prior); return prior.revision < attempt.revision && review && wallpaperVerdict(review) !== 'pass' })
 }
 
-/** A repair cycle follows the current pixels while earlier reviews remain in version history.
+/** A return path represents a new accepted generation after review.
  * @param item Selected image evidence. @param status Owning task lifecycle. @param attempt Displayed version.
  * @returns Return-path stage, lifecycle and motion, or absence when this image has not entered rework.
  */
 export function imageWorkflowRework(item: WallpaperItem | undefined, status: string, attempt = item?.attempts.at(-1)): { stage: 'rendering' | 'reviewing' | 'passed'; phase: WorkflowPhase; flowing: boolean } | undefined {
-  if (!item || !attempt) return undefined
+  if (!item || !attempt?.generation || attempt.retryTarget === 'reviewing') return undefined
+  const preceding = item.attempts.filter(prior => prior.revision < attempt.revision)
+  if (!preceding.length || preceding.some(prior => prior.generation?.id === attempt.generation?.id || !!attempt.outputId && prior.outputId === attempt.outputId)) return undefined
   const current = attempt === item.attempts.at(-1)
   const review = wallpaperAttemptReview(attempt), rejected = !!review && wallpaperVerdict(review) !== 'pass'
-  const precedingRejection = item.attempts.some(prior => { const review = wallpaperAttemptReview(prior); return prior.revision < attempt.revision && review && wallpaperVerdict(review) !== 'pass' })
-  if (!rejected && !precedingRejection && attempt.retryFrom !== 'reviewing') return undefined
+  const precedingRejection = preceding.some(prior => { const review = wallpaperAttemptReview(prior); return review && wallpaperVerdict(review) === 'reject' })
+  if (!precedingRejection && attempt.retryFrom !== 'reviewing') return undefined
   if (review && wallpaperVerdict(review) === 'pass' && (!current || item.status === 'passed')) return { stage: 'passed', phase: 'completed', flowing: false }
   if ((status === 'cancelled' || item.status === 'cancelled') && current) return { stage: attempt.outputId ? 'reviewing' : 'rendering', phase: 'cancelled', flowing: false }
   const active = current && ['created', 'running', 'pausing', 'cancelling'].includes(status)

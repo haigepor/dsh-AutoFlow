@@ -1,9 +1,9 @@
 /** The task bar and step dialog use the same current-image recovery decision. */
-import { wallpaperHasRendered, wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
-import { wallpaperPlanConcerns } from '../shared/wallpaper-detail.ts'
+import { wallpaperHasRendered, wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, wallpaperCompositionEligible, wallpaperReworkCount, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
+import { wallpaperCanReinspectPlan } from '../shared/wallpaper-detail.ts'
 
 /** Recovery never targets an older selected revision. */
-export type WallpaperRecovery = { kind: 'none' | 'history' | 'download' | 'receipt' | 'canvas' | 'reinspect' | 'edit' | 'review' | 'rework' } | { kind: 'retry'; step: 'planning' | 'rendering' | 'reviewing' }
+export type WallpaperRecovery = { kind: 'none' | 'history' | 'download' | 'receipt' | 'reinspect' | 'edit' | 'review' | 'rework' } | { kind: 'retry'; step: 'planning' | 'rendering' | 'reviewing' }
 
 /** Manual decisions target one current blocked source and never replace receipt or saved-review recovery.
  * @param item Selected image. @param attempt Displayed saved plan. @param status Owning task lifecycle for an unfinished saved decision.
@@ -29,25 +29,32 @@ export function wallpaperRecovery(value: WallpaperView, item: WallpaperItem | un
   if (attempt?.revision !== latest?.revision) return { kind: 'history' }
   if (value.status === 'cancelled' || value.status === 'cancelling') return { kind: 'none' }
   if (item.status === 'passed') return { kind: 'none' }
-  if (value.state.version === 2 && item.originalId && item.status === 'needs-review' && attempt?.generation && attempt.generationInput && !attempt.outputId && !['generated-canvas-v1', 'generated-canvas-protected-v2'].includes(attempt.compositionMode ?? '') && ['misaligned-source', 'reframed-source'].includes(attempt.generationAlignment?.result ?? '')) return { kind: 'canvas' }
+  if (item.framingConflict && item.framingConflict.resolution !== 'cleared') return item.framingConflict.inspection?.status === 'resolved' || item.framingConflict.inspection?.status === 'uncertain' || !value.settings.decision?.maxDetailRequests ? { kind: 'none' } : { kind: 'reinspect' }
+  if (!attempt && item.originalId && item.status === 'technical-failed' && item.failedStep === 'planning' && item.errorCode === 'constraint-conflict' && value.settings.sourceIntentPolicy?.version === 'source-intent-v2') return { kind: 'reinspect' }
+  if (wallpaperCanReinspectPlan(item, attempt)) return { kind: 'reinspect' }
+  if (attempt && !wallpaperCompositionEligible(attempt) && (attempt.outputId || attempt.generation || attempt.generationOperation || attempt.generatedImageId)) return { kind: 'none' }
   const recoverySettings = { ...value.settings }
   applyWallpaperRecoveryLimits(recoverySettings)
   if (wallpaperReviewReworkAvailable(item, recoverySettings)) return { kind: 'rework' }
-  if (item.status === 'cancelled') return !item.originalId ? { kind: 'download' } : attempt?.generation && !attempt.outputId ? { kind: 'receipt' } : attempt?.outputId ? { kind: 'review' } : { kind: 'retry', step: attempt ? 'rendering' : 'planning' }
+  if (item.status === 'cancelled' && !item.originalId) return { kind: 'download' }
   if (wallpaperPendingDecision(item, attempt)) return { kind: 'none' }
   const failed = wallpaperFailedStep(item)
   if ((failed === 'reviewing' || attempt?.postResolutionReview) && wallpaperHasRendered(attempt)) return { kind: 'retry', step: 'reviewing' }
   if (!item.originalId) return failed === 'downloading' || item.status === 'queued' ? { kind: 'download' } : { kind: 'none' }
-  if (item.status === 'rejected') return attempt?.outputId ? { kind: 'edit' } : attempt?.detailAnalysis?.protectedSubjectExtent === 'cut-off' ? { kind: 'reinspect' } : { kind: 'none' }
-  if (attempt?.generation && !attempt.outputId && (item.status === 'needs-review' || item.status === 'technical-failed')) return { kind: 'receipt' }
+  if (item.status === 'rejected') return { kind: attempt?.outputId ? 'edit' : 'none' }
+  if (attempt?.generation && !attempt.outputId && ['needs-review', 'technical-failed', 'cancelled', 'rendering'].includes(item.status)) {
+    const receipt = value.generationReceipts?.[attempt.generation.id]
+    if (receipt === 'failed' || receipt === 'cancelled') {
+      return item.edits < value.settings.maxEditsPerImage && wallpaperReworkCount(item) < value.settings.maxReworks ? { kind: 'retry', step: 'rendering' } : { kind: 'none' }
+    }
+    return { kind: 'receipt' }
+  }
+  if (item.status === 'cancelled') return attempt?.outputId ? { kind: 'review' } : { kind: 'retry', step: attempt ? 'rendering' : 'planning' }
   if (attempt?.generationOperation && !attempt.outputId && item.status === 'needs-review') return { kind: 'none' }
   if (item.status === 'technical-failed' && failed === 'reviewing' && attempt?.outputId && ['vision-invalid-output', 'vision-output-truncated'].includes(item.errorCode ?? '')) return { kind: 'review' }
-  if (item.status === 'technical-failed') {
-    if (failed === 'planning' && attempt && wallpaperPlanConcerns(attempt.plan).length) return { kind: 'reinspect' }
-    return { kind: 'retry', step: failed && failed !== 'downloading' ? failed : (!attempt ? 'planning' : !attempt.outputId ? 'rendering' : 'reviewing') }
-  }
+  if (item.status === 'technical-failed') return { kind: 'retry', step: failed && failed !== 'downloading' ? failed : (!attempt ? 'planning' : !attempt.outputId ? 'rendering' : 'reviewing') }
   if (item.status === 'needs-review' && attempt?.outputId) return { kind: 'review' }
-  if (item.status === 'needs-review' && attempt) return { kind: wallpaperPlanConcerns(attempt.plan).length && attempt.detailAnalysis?.outcome !== 'resolved' && attempt.detailAnalysis?.outcome !== 'ready-for-edit' ? 'reinspect' : 'edit' }
+  if (item.status === 'needs-review' && attempt) return { kind: 'edit' }
   if (!['created', 'running', 'pausing', 'cancelling'].includes(value.status) && ['queued', 'planning', 'rendering', 'reviewing'].includes(item.status)) return { kind: 'retry', step: !attempt ? 'planning' : !attempt.outputId ? 'rendering' : 'reviewing' }
   return { kind: 'none' }
 }

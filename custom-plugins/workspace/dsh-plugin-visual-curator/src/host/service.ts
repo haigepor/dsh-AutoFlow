@@ -499,7 +499,9 @@ export class CuratorService {
           } else this.engine.get(source.id, actor)
           if (operation === 'wallpaper-start') return toJson(await workflows.start(args, actor))
           const view = workflows.read(input.sourceRunId, actor, input.offset, limit, token, input.runId)
-          return toJson(view ? { ...view, ...(token ? { resourceExpiresAt: this.sessionGrants.get(token)!.expiresAt } : {}), ...(isDirectCropRun(source) ? { serverTransfers: this.serverQueueValue?.transfers(view.runId, actor) } : {}) } : null)
+          if (!view) return null
+          const generationReceipts = await workflows.generationReceipts(view.state.items, signal)
+          return toJson({ ...view, ...(Object.keys(generationReceipts).length ? { generationReceipts } : {}), ...(token ? { resourceExpiresAt: this.sessionGrants.get(token)!.expiresAt } : {}), ...(isDirectCropRun(source) ? { serverTransfers: this.serverQueueValue?.transfers(view.runId, actor) } : {}) })
         }
         throw new CuratorError('invalid-input', 'wallpaper', 'Unknown wallpaper operation.')
       }

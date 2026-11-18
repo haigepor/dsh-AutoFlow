@@ -5,9 +5,11 @@ import { wallpaperAttemptReview } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
 import { wallpaperSourceContinuationTargets, wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
 
-/** @param plan Source observations. @param settings Frozen authorization. @returns Whether observed source truncation needs a generated candidate; truncation alone never unlocks healthy subject interiors. */
+/** @param plan Frozen source facts or historical truncation observations. @param settings Frozen repair authorization. @returns Whether a confirmed whole protected object needs generated repair; historical tasks retain their text and edge detection. */
 export function wallpaperSourceRepairNeeded(plan: WallpaperPlan, settings: WallpaperSettings): boolean {
-  return wallpaperGenerativeRepair(settings) && (plan.truncations.length > 0 || wallpaperSourceExtensionEdges(plan, settings).length > 0)
+  if (!wallpaperGenerativeRepair(settings)) return false
+  if (settings.sourceIntentPolicy) return !!plan.objectRoles?.some(object => object.role !== 'supporting' && object.sourceIntent?.framing === 'whole' && object.sourceIntent.visibility === 'damaged')
+  return plan.truncations.length > 0 || wallpaperSourceExtensionEdges(plan, settings).length > 0
 }
 
 /** @param mask Existing saved full-canvas edit mask. @param plan Source placement. @param settings Frozen task policy. @param attempts Retained independent defects. @param source Original dimensions. @param clockBackgroundNeedsEdit Measured first-pass defect under an explicitly configured clock policy. @returns An alpha mask opening authorized repair targets; conservative tasks keep their mask. */
@@ -15,7 +17,7 @@ export async function wallpaperRepairMask(mask: Buffer<ArrayBuffer>, plan: Wallp
   if (!wallpaperGenerativeRepair(settings)) return mask
   const review = wallpaperAttemptReview(attempts.findLast(attempt => wallpaperAttemptReview(attempt)))
   const subjectDefect = wallpaperReviewNeedsSubjectEdit(review)
-  const edgeTargets = wallpaperSourceContinuationTargets(plan, settings, source).filter(target => target.disposition === 'interior')
+  const edgeTargets = wallpaperSourceContinuationTargets(plan, settings, source, settings.sourceIntentPolicy).filter(target => target.disposition === 'interior')
   const readabilityDefect = !!settings.processing?.clockContrast && (clockBackgroundNeedsEdit || review?.checks.readability.result !== undefined && review.checks.readability.result !== 'satisfied')
   if (!subjectDefect && !readabilityDefect && !edgeTargets.length) return mask
   const width = Math.round(source.width * plan.placement.scale), height = Math.round(source.height * plan.placement.scale)

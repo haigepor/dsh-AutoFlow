@@ -8,7 +8,7 @@ import sharp from 'sharp'
 import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
-import { wallpaperStateSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { wallpaperSettingsSchema, wallpaperStateSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 import { directCropBatchSchema } from '../src/shared/direct-crop.ts'
 import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { createCuratorTransport } from '../src/client/transport.ts'
@@ -68,7 +68,7 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), result)) }, finish_reason: 'stop' }] })) }
   }
   const input = { operationId: 'direct-local', name: 'Isolated direct-original batch', source: { kind: 'local' as const, files: [{ path, name: 'direct-original.png' }] } }
-  return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
+  return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
 }
 
 test('selected-image cancellation and replacement retain the other image and predecessor budgets', async () => {
@@ -236,11 +236,26 @@ for (const [mode, expected] of [['resolved', 'passed'], ['unresolved', 'needs-re
   } finally { await f.cleanup() }
 })
 
-test('explicit detail recovery creates one child, retains its predecessor and reuses the saved original', async () => {
+for (const legacy of [false, true]) test(`explicit detail recovery retains the original and saved ${legacy ? 'legacy' : 'current'} plan`, async () => {
   const f = await fixture('complete', 'satisfied', 'unresolved')
   try {
     f.service.config.wallpaper.decision = wallpaperDecisionSettingsSchema.parse({ enabled: false })
     const first = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', f.input)); await f.jobs.drain()
+    if (legacy) {
+      const run = f.domain.require('run', first.runId), data = dataOf(run), spec = specOf(run)
+      const state = wallpaperStateSchema.parse(data.checkpoint.wallpaper), item = state.items[0]!
+      const attempt = item.attempts[0]!
+      delete attempt.compositionMode; delete attempt.detailAnalysis
+      attempt.needsOutpaint = true
+      item.status = 'technical-failed'; item.failedStep = 'planning'; item.errorCode = 'vision-invalid-output'
+      assert.ok(item.detailInspection)
+      item.detailInspection.status = 'failed'
+      const fixed = { ...spec.fixed }; delete fixed.completeCanvasPolicy
+      const record = { ...run, data: toJson({ ...data, checkpoint: { ...data.checkpoint, wallpaper: state } }), spec: toJson({ ...spec, fixed, specDigest: contentDigest({ kind: spec.kind, config: spec.config, input: spec.input, fixed }) }) }
+      const aggregateId = 'run:' + first.runId, manifest = f.repository.manifest(aggregateId)
+      assert.ok(manifest)
+      await f.repository.commit({ aggregateId, expectedRevision: manifest.revision, operationId: 'seed-legacy-source-detail-hold', request: {}, records: [record], state: { runId: first.runId } })
+    }
     const old = f.domain.require('run', first.runId), digest = contentDigest(old), previous = wallpaperStateSchema.parse(dataOf(old).checkpoint.wallpaper)
     f.setDetailMode('resolved')
     const input = { runId: old.id, operationId: 'explicit-detail-recovery', reinspect: { imageVersionId: previous.items[0]!.imageVersionId } }
@@ -250,6 +265,9 @@ test('explicit detail recovery creates one child, retains its predecessor and re
     const current = wallpaperStateSchema.parse(dataOf(f.domain.require('run', next.runId)).checkpoint.wallpaper)
     assert.equal(current.items[0]!.originalId, previous.items[0]!.originalId); assert.equal(current.items[0]!.status, 'passed')
     assert.equal(current.items[0]!.detailInspection?.origin, 'manual'); assert.equal(current.items[0]!.detailInspection?.status, 'resolved')
+    const nextSpec = specOf(f.domain.require('run', next.runId))
+    assert.equal(nextSpec.fixed.completeCanvasPolicy, 'provider-canvas-v1')
+    assert.deepEqual(wallpaperSettingsSchema.parse(nextSpec.fixed.wallpaper).safe, wallpaperSettingsSchema.parse(specOf(old).fixed.wallpaper).safe)
     assert.deepEqual(f.observations, ['wallpaper-plan', 'wallpaper-plan', 'wallpaper-plan', 'wallpaper-review'])
   } finally { await f.cleanup() }
 })

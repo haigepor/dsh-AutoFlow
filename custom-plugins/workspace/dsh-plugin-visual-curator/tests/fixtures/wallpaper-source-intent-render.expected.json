@@ -1,0 +1,8 @@
+{
+  "protocol": "generated-canvas-v1",
+  "source": { "width": 40, "height": 60 },
+  "canvas": { "width": 1845, "height": 3280 },
+  "native": { "width": 90, "height": 160 },
+  "placement": { "scale": 1, "left": 600, "top": 1400 },
+  "alphaHole": { "x": 27, "y": 91 }
+}

@@ -8,7 +8,7 @@ import sharp from 'sharp'
 import { z } from 'zod'
 import { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import LlmRuntime, { type ImageGenerationTask, type ImageGenerationTaskId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { type ImageGenerationRequest, type ImageGenerationTask, type ImageGenerationTaskId } from '@deepseek-ai/dsh-llm'
 import LocalAttachmentStore from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { contentDigest } from '../src/domain/repository.ts'
 import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
@@ -16,24 +16,24 @@ import { MediaError } from '../src/media/errors.ts'
 import { claritySettingsSchema } from '../src/shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../src/shared/background-resolution.ts'
 import { resolveWallpaperProcessing, wallpaperRepairPolicySchema } from '../src/shared/wallpaper-policy.ts'
-import { wallpaperStateSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema } from '../src/shared/wallpaper.ts'
+import { wallpaperStateSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperViewSchema } from '../src/shared/wallpaper.ts'
 import { runSchema } from '../src/shared/model.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 
 type Outcome = 'minor' | 'major' | 'unknown' | 'pass' | 'coarse-layout' | 'missing-primary' | 'car-outside'
 const receipt = z.object({ runId: z.string() })
 const bodyRect = { x: 0.25, y: 0.4, width: 0.45, height: 0.32 }
 
-async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResolution = false, correctCompanion = false, holdSuccessfulReceipt = false, holdInitialPlan = false, referenceCase: 'bird' | 'large-jpeg' | 'automobile' = 'bird') {
+async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResolution = false, correctCompanion = false, holdSuccessfulReceipt = false, holdInitialPlan = false, referenceCase: 'bird' | 'large-jpeg' | 'automobile' | 'attachment-rejected' = 'bird') {
   const f = await serviceFixture(undefined, referenceCase === 'large-jpeg' ? { maxImportBytes: 20 * 1024 * 1024, maxReferenceBytes: 20 * 1024 * 1024, maxPixels: 80_000_000, previewMaxDimension: 512 } : {})
-  const context = new Context(), llm = new LlmRuntime(context), attachments = new LocalAttachmentStore(context, { dshHome: f.root })
-  const submittedImages: { mediaType: string; bytes: number; digest: string }[] = [], savedReferences: { originalDimensions?: { width: number; height: number } }[] = []
+  const context = new Context(), llm = new LlmRuntime(context), attachments = new LocalAttachmentStore(context, { dshHome: f.root, ...(referenceCase === 'attachment-rejected' ? { maxImageBytes: 1 } : {}) })
+  const submittedImages: { mediaType: string; bytes: number; digest: string }[] = []
+  const requests: ImageGenerationRequest[] = []
   const saveImages = attachments.saveImages.bind(attachments)
   attachments.saveImages = async inputs => {
     submittedImages.push(...inputs.map(input => ({ mediaType: input.mediaType, bytes: input.data.byteLength, digest: createHash('sha256').update(input.data).digest('hex') })))
-    const references = await saveImages(inputs)
-    savedReferences.push(...references)
-    return references
+    return saveImages(inputs)
   }
   t.after(async () => { try { await f.cleanup() } finally { await context.fiber.dispose() } })
   f.host.llm = llm; f.host.attachments = attachments
@@ -51,7 +51,8 @@ async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResoluti
     for (let index = 0; index < pixels.length; index++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; pixels[index] = seed >>> 24 }
     source = await sharp(pixels, { raw: { width: 6000, height: 3000, channels: 3 } }).withMetadata({ orientation: 6 }).jpeg({ quality: 80 }).toBuffer()
   } else source = await sharp({ create: { width: 1000, height: 1600, channels: 3, background: '#c9d4ca' } }).png().toBuffer()
-  const path = join(f.root, 'bird-original.png'); await writeFile(path, source)
+  const filename = referenceCase === 'large-jpeg' ? 'large-original.jpg' : 'bird-original.png'
+  const path = join(f.root, filename); await writeFile(path, source)
   const tasks = new Map<string, ImageGenerationTask>(), generated: Buffer[] = [], reviews: string[] = [], reviewRequests: { requestId: string; roles: string[] }[] = []
   let plans = 0
   let confirmationArrival: (() => void) | undefined
@@ -62,6 +63,7 @@ async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResoluti
     return task
   }
   llm.startImageGeneration = async request => {
+    requests.push(request)
     const subject = await sharp({ create: { width: 800, height: 1000, channels: 3, background: '#b89658' } }).png().toBuffer()
     const full = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: generated.length ? '#507260' : '#456b55' } }).composite([{ input: subject, left: 480, top: 1350 }]).png().toBuffer()
     const pixels = lowOfficialResolution ? await sharp(full).resize(936, 1664).png().toBuffer() : full
@@ -101,7 +103,7 @@ async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResoluti
     } else {
       assert.equal(input.operation, 'wallpaper-review', 'No extra analysis or decision request is needed')
       const protocol = z.union([z.object({ const: z.string() }), z.object({ $ref: z.string() })]).parse(descriptor.outputSchema.properties.protocol)
-      assert.equal('const' in protocol ? protocol.const : z.object({ const: z.string() }).parse(descriptor.outputSchema.$defs?.[protocol.$ref.slice('#/$defs/'.length)]).const, 'practical-v1')
+      assert.equal('const' in protocol ? protocol.const : z.object({ const: z.string() }).parse(descriptor.outputSchema.$defs?.[protocol.$ref.slice('#/$defs/'.length)]).const, 'practical-v2')
       assert.equal(descriptor.outputSchema.properties.checks, undefined)
       const instructions = messages.flatMap(message => typeof message.content === 'string' ? [message.content] : message.content.flatMap(part => part.text ? [part.text] : [])).join('\n')
       assert.equal(instructions.includes('checks严格只有八项'), false)
@@ -122,24 +124,27 @@ async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResoluti
         })
       }
       const outcome = outcomes.shift(); assert.ok(outcome, 'Every actual review has one explicitly scripted observation')
-      output = { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v1', sourceImageVersionId: original.imageVersionId, outputImageVersionId: actual.imageVersionId, mode: 'single', subject: 'Bird', actualLayout: { regions: [{ entityId: 'bird', name: 'Bird body', role: 'subject', scope: 'core', safetyClass: 'general', rect: outcome === 'car-outside' ? { x: 0.1, y: 0.44, width: 0.8, height: 0.2 } : outcome === 'coarse-layout' ? { ...bodyRect, x: 0.465, width: 0.49 } : bodyRect }] },
+      const run = f.repository.list('run').find(row => input.requestId.startsWith(row.id + ':')); assert.ok(run)
+      const current = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items.find(item => item.originalId === original.imageVersionId)?.attempts.at(-1); assert.ok(current)
+      const sourceGeometry = f.domain.require('imageVersion', original.imageVersionId).geometry
+      const positioned = (rect: typeof bodyRect) => ({ x: (current.plan.placement.left + rect.x * sourceGeometry.width * current.plan.placement.scale) / 1845, y: (current.plan.placement.top + rect.y * sourceGeometry.height * current.plan.placement.scale) / 3280, width: rect.width * sourceGeometry.width * current.plan.placement.scale / 1845, height: rect.height * sourceGeometry.height * current.plan.placement.scale / 3280 })
+      const bird = current.plan.objectRoles?.find(object => object.entityId === 'bird'); assert.ok(bird)
+      output = { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v1', sourceImageVersionId: original.imageVersionId, outputImageVersionId: actual.imageVersionId, mode: 'single', subject: 'Bird', actualLayout: { regions: [{ entityId: 'bird', name: 'Bird body', role: 'subject', scope: 'core', safetyClass: 'general', rect: outcome === 'car-outside' ? { x: 0.1, y: 0.44, width: 0.8, height: 0.2 } : outcome === 'coarse-layout' ? { ...bodyRect, x: 0.465, width: 0.49 } : positioned(bird.rect) }] },
         defects: outcome === 'minor' ? [{ kind: 'style-change', severity: 'minor', reason: 'Natural added leaves remain consistent with the woodland style.' }] : outcome === 'major' ? [{ kind: 'duplicate-subject', severity: 'major', reason: 'An extra independent bird duplicates the focal subject.', outputRect: { x: 0.7, y: 0.55, width: 0.2, height: 0.2 } }] : [],
         uncertainties: outcome === 'unknown' ? ['The eye detail cannot be confirmed from the available final pixels.'] : [] }
       if (correctCompanion && plans > 1) output = { ...output, mode: 'group', actualLayout: { regions: [
-        { entityId: 'bird', name: 'Bird body', role: 'subject', scope: 'core', rect: bodyRect },
-        ...(outcome === 'missing-primary' ? [] : [{ entityId: 'companion', name: 'Companion body', role: 'subject', scope: 'core', rect: { x: 0.15, y: 0.55, width: 0.25, height: 0.2 } }]),
+        { entityId: 'bird', name: 'Bird body', role: 'subject', scope: 'core', rect: positioned(bird.rect) },
+        ...(outcome === 'missing-primary' ? [] : current.plan.objectRoles?.filter(object => object.entityId === 'companion').map(object => ({ entityId: object.entityId, name: object.name, role: 'subject', scope: 'core', rect: positioned(object.rect) })) ?? []),
       ] } }
       if (holdInitialPlan) output = { ...output, mode: 'group', actualLayout: { regions: [
-        { entityId: 'bird', name: 'Main bird body', role: 'subject', scope: 'core', rect: bodyRect },
-        { entityId: 'companion', name: 'Companion body', role: 'subject', scope: 'core', rect: { x: 0.15, y: 0.55, width: 0.25, height: 0.2 } },
-        { entityId: 'jelly', name: 'Fruit jelly body', role: 'subject', scope: 'core', rect: { x: 0.57, y: 0.68, width: 0.16, height: 0.1 } },
+        ...current.plan.objectRoles?.map(object => ({ entityId: object.entityId, name: object.name, role: 'subject', scope: 'core', rect: positioned(object.rect) })) ?? [],
       ] } }
     }
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), output)) }, finish_reason: 'stop' }] })) }
   }
   await f.service.initialize()
   const start = async (waitForCompletion = true) => {
-    const { runId } = receipt.parse(await f.action('direct-crop-start', { operationId: 'isolated-practical-start', name: 'Practical woodland wallpaper', source: { kind: 'local', files: [{ path, name: 'bird-original.png' }] } }))
+    const { runId } = receipt.parse(await f.action('direct-crop-start', { operationId: 'isolated-practical-start', name: 'Practical woodland wallpaper', source: { kind: 'local', files: [{ path, name: filename }] } }))
     if (waitForCompletion) await f.jobs.drain()
     return runId
   }
@@ -150,7 +155,7 @@ async function workflow(t: TestContext, outcomes: Outcome[], lowOfficialResoluti
     confirmationArrival = arrived.resolve
     return arrived.promise
   }
-  return { f, start, state, generated, tasks, reviews, reviewRequests, outcomes, plans: () => plans, diagnostics, releaseReceipt: () => { holdSuccessfulReceipt = false }, holdNextConfirmation, source, submittedImages, savedReferences }
+  return { f, start, state, generated, tasks, requests, reviews, reviewRequests, outcomes, plans: () => plans, diagnostics, releaseReceipt: () => { holdSuccessfulReceipt = false }, holdNextConfirmation, source, submittedImages, attachmentLimit: attachments.imageLimits.maxImageBytes }
 }
 
 test('practical minor natural-background variation gets one final compact review after normal official-image resizing', async t => {
@@ -167,35 +172,72 @@ test('practical minor natural-background variation gets one final compact review
   assert.deepEqual(final.geometry, { ...final.geometry, width: 1845, height: 3280 })
   assert.equal((await sharp(w.generated[0]!).metadata()).width, 936)
   const expected = await sharp(w.generated[0]!).resize(1845, 3280, { fit: 'fill' }).toColourspace('srgb').raw().toBuffer()
-  assert.deepEqual(await sharp(bytes).raw().toBuffer(), expected)
+  assert.deepEqual(await sharp(bytes).raw().toBuffer(), expected, 'The delivered pixels come from the complete provider canvas without restored source pixels')
+  assert.equal(attempt.sourceIntentProof, undefined)
   assert.ok(attempt.review && 'practicalReview' in attempt.review && attempt.review.practicalReview?.warnings.some(reason => reason.includes('Natural added leaves')))
 })
 
-test('a JPEG whose normalized PNG exceeds the upload limit retains its verbatim reference and EXIF framing', async t => {
+test('an oversized normalized JPEG source uses its archived bytes as the appearance reference', async t => {
   const w = await workflow(t, ['pass'], false, false, false, false, 'large-jpeg'), runId = await w.start()
   const item = w.state(runId).items[0]!, attempt = item.attempts.at(-1)!
-  assert.equal(item.status, 'passed', item.reason + w.diagnostics())
   const source = w.f.domain.require('imageVersion', item.originalId!), asset = w.f.domain.require('asset', source.assetId)
   assert.ok(asset.originalBlob); assert.ok(attempt.canvasId)
-  assert.ok(source.blob.byteLength > w.f.files.limits.maxFileBytes, 'The saved lossless PNG must reproduce the real oversized intermediate')
+  assert.ok(source.blob.byteLength > w.attachmentLimit, 'The saved lossless PNG must reproduce the oversized attachment')
   assert.ok(w.source.byteLength < w.f.files.limits.maxFileBytes)
-  assert.equal(w.f.domain.require('imageVersion', attempt.canvasId).blob.digest, asset.originalBlob.digest)
+  assert.equal(item.status, 'passed', JSON.stringify({ stage: item.failedStep, code: item.errorCode, attemptedEdits: item.edits, dispatched: w.requests.length,
+    inputBytes: w.source.byteLength, attachmentLimit: w.attachmentLimit, references: w.submittedImages.map(({ mediaType, bytes }) => ({ mediaType, bytes })) }))
+  const canvas = w.f.domain.require('imageVersion', attempt.canvasId)
+  const input = attempt.generationInput
+  assert.ok(input?.version === 'wallpaper-edit-input-v6')
+  assert.deepEqual([source.geometry.width, source.geometry.height], [3000, 6000])
+  assert.deepEqual([canvas.geometry.width, canvas.geometry.height], [1845, 3280])
+  assert.deepEqual(input.references.map(reference => reference.role), ['canvas', 'original', 'layout-only'])
+  assert.equal(input.mask.width, input.references[0].width)
+  assert.equal(input.mask.height, input.references[0].height)
   assert.deepEqual(w.submittedImages.find(image => image.mediaType === 'image/jpeg'), { mediaType: 'image/jpeg', bytes: w.source.byteLength, digest: createHash('sha256').update(w.source).digest('hex') })
-  assert.deepEqual(w.savedReferences.find(reference => reference.originalDimensions)?.originalDimensions, { width: 3000, height: 6000 })
-  assert.equal(w.generated.length, 1); assert.equal(w.reviews.length, 1)
+  assert.deepEqual(w.requests[0]?.references[1]?.originalDimensions, { width: 3000, height: 6000 })
+  assert.equal(w.requests.length, 1); assert.equal(w.reviews.length, 1); assert.equal(item.edits, 1)
   await assert.rejects(w.f.files.importBytes(await w.f.files.read(source.blob)), /configured import limit/)
   assert.deepEqual(await w.f.files.read(asset.originalBlob), w.source, 'The archived original must remain unchanged')
 })
 
-test('a frozen automobile cannot use a reviewer general label to pass overflow and receives one correction', async t => {
+test('a rejected generation attachment leaves the saved plan and the full edit budget available', async t => {
+  const w = await workflow(t, [], false, false, false, false, 'attachment-rejected'), runId = await w.start()
+  const item = w.state(runId).items[0]!, attempt = item.attempts.at(-1)!
+  assert.equal(item.status, 'technical-failed')
+  assert.equal(item.failedStep, 'rendering'); assert.equal(item.errorCode, 'IMAGE_TOO_LARGE')
+  assert.ok(item.originalId && attempt.canvasId)
+  assert.equal(item.edits, 0); assert.equal(w.requests.length, 0)
+  assert.equal(attempt.generationOperation, undefined); assert.equal(attempt.generation, undefined)
+})
+
+test('a confirmed automobile overflow uses one correction with the original canvas and mask', async t => {
   const w = await workflow(t, ['car-outside', 'car-outside', 'pass'], false, false, false, false, 'automobile'), runId = await w.start()
-  const item = w.state(runId).items[0]!, failed = wallpaperStoredSourceReviewV4Schema.parse(item.attempts[0]!.review)
+  const item = w.state(runId).items[0]!, [first, second] = item.attempts
+  assert.ok(first && second)
+  const failed = wallpaperStoredSourceReviewV4Schema.parse(first.review)
   assert.equal(item.status, 'passed', item.reason + w.diagnostics())
-  assert.equal(w.generated.length, 2); assert.equal(w.reviews.length, 3); assert.equal(w.plans(), 1)
+  assert.equal(w.requests.length, 2); assert.equal(w.plans(), 1); assert.equal(item.edits, 2)
+  assert.notEqual(first.generation?.id, second.generation?.id)
+  assert.deepEqual(second.plan, first.plan)
+  const originalInput = first.generationInput, correctedInput = second.generationInput
+  assert.ok(originalInput?.version === 'wallpaper-edit-input-v6' && correctedInput?.version === 'wallpaper-edit-input-v6')
+  assert.deepEqual(correctedInput.references, originalInput.references)
+  assert.deepEqual(correctedInput.mask, originalInput.mask)
+  assert.deepEqual(w.reviews, [first.outputId, first.outputId, second.outputId])
   assert.equal(failed.actualLayout.regions[0]!.safetyClass, 'automobile')
   assert.ok(failed.layoutChecks.some(check => check.startsWith('automobile-outside:')))
   assert.equal(item.attempts.length, 2)
-  assert.equal(item.attempts[0]!.boundaryReview?.status, 'completed')
+  assert.equal(first.boundaryReview?.status, 'completed')
+})
+
+test('an automobile measurement corrected on the same pixels leaves the generation count at one', async t => {
+  const w = await workflow(t, ['car-outside', 'pass'], false, false, false, false, 'automobile'), runId = await w.start()
+  const item = w.state(runId).items[0]!, attempt = item.attempts[0]!
+  assert.equal(item.status, 'passed', item.reason + w.diagnostics())
+  assert.equal(item.attempts.length, 1); assert.equal(item.edits, 1); assert.equal(w.requests.length, 1); assert.equal(w.plans(), 1)
+  assert.equal(attempt.boundaryReview?.status, 'completed')
+  assert.deepEqual(w.reviews, [attempt.outputId, attempt.outputId])
 })
 
 test('one major duplicate is corrected inside the same job with exactly two generations and final reviews', async t => {
@@ -226,7 +268,8 @@ test('a layout contradiction receives one guided coordinate confirmation without
   assert.equal(attempt.boundaryReview.status, 'completed')
   assert.equal(attempt.boundaryReview.requestId, w.reviewRequests[1]!.requestId)
   assert.ok(attempt.review && 'actualLayout' in attempt.review)
-  assert.deepEqual(attempt.review.actualLayout.regions[0]!.rect, bodyRect)
+  assert.equal(attempt.review.checks.protection.result, 'satisfied')
+  assert.equal(wallpaperStoredSourceReviewV4Schema.parse(attempt.review).practicalReview?.version, 'practical-v2')
 })
 
 test('unconfirmed focal detail keeps the generated pixels for review without another image request', async t => {
@@ -362,6 +405,29 @@ test('practical correction limits stop persistent defects even when a historical
   assert.equal(w.generated.length, 2, 'The legacy fallback must not spend the third of five available edits')
   assert.equal(child.edits, 2); assert.equal(w.reviews.length, 2)
   assert.equal(w.outcomes.length, 0)
+})
+
+test('a receipt check observes the provider state and leaves a confirmed failure for an explicit new edit', async t => {
+  const w = await workflow(t, ['pass'], false, false, true), runId = await w.start()
+  const item = w.state(runId).items[0], saved = item?.attempts.at(-1)
+  assert.ok(item && saved?.generation)
+  const task = w.tasks.get(saved.generation.id)
+  assert.ok(task)
+  const read = async () => wallpaperViewSchema.parse(await w.f.action('wallpaper-read', { sourceRunId: runId, offset: 0, limit: 1 })).generationReceipts
+  assert.deepEqual(await read(), { [task.id]: 'unavailable' })
+  w.releaseReceipt()
+  assert.deepEqual(await read(), { [task.id]: 'succeeded' })
+  w.tasks.set(task.id, { ...task, state: 'failed', images: [] })
+  const retryImage = { imageVersionId: item.imageVersionId, revision: saved.revision, step: 'rendering' }
+  assert.deepEqual(await read(), { [task.id]: 'failed' })
+  const original = contentDigest(w.f.domain.require('run', runId))
+  await assert.rejects(w.f.action('wallpaper-continue', { runId, operationId: 'query-terminal-receipt', retryImage: { ...retryImage, receiptOnly: true } }), { code: 'constraint-conflict' })
+  assert.equal(w.generated.length, 1)
+  assert.equal(contentDigest(w.f.domain.require('run', runId)), original)
+  const next = receipt.parse(await w.f.action('wallpaper-continue', { runId, operationId: 'explicit-next-edit', retryImage }))
+  await w.f.jobs.drain()
+  assert.equal(w.state(next.runId).items[0]?.status, 'passed')
+  assert.equal(w.generated.length, 2)
 })
 
 test('pausing a layout confirmation resumes the same saved output without replanning or regenerating it', { timeout: 60_000 }, async t => {

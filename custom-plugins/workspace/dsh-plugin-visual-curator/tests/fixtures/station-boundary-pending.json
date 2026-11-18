@@ -691,8 +691,6 @@
     "activeStages": [
       "reviewing"
     ],
-    "returnStage": "reviewing",
-    "returnPhase": "running",
     "safeLeft": 258,
     "badRightTrussX": 922.5
   }

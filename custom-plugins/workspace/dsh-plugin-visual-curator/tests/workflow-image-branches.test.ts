@@ -21,7 +21,7 @@ test('failed native review and lock-screen evidence remain reachable after edits
   assert.equal(imageWorkflowGallery('reviewing', item, prior).filter(slide => slide.annotated).every(slide => slide.attempt === prior), true)
 })
 
-test('a stopped alignment retry exposes saved-canvas review at the edit limit and retains the preceding quality failure', () => {
+test('a retired composition keeps its saved review without offering an ineligible retry', () => {
   const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Hanging plant', evidence: 'Original pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 0 }, reason: 'Saved placement' })
   const review = wallpaperReviewSchema.parse({ subject: 'Hanging plant', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'readability' ? 'violated' : 'satisfied', reason: key === 'readability' ? 'White date blends into a bright highlight' : 'Observed pixels' }])), issues: [{ kind: 'readability', reason: 'White date blends into a bright highlight' }] })
   const item = wallpaperItemSchema.parse({ imageVersionId: 'source', originalId: 'source', familyId: 'family', status: 'needs-review', edits: 5, attempts: [
@@ -31,7 +31,7 @@ test('a stopped alignment retry exposes saved-canvas review at the edit limit an
   const value = wallpaperViewSchema.parse({ runId: 'stopped', sourceRunId: 'root', status: 'completed', settings: {}, state: { version: 2, sourceRunId: 'root', skillVersion: 'direct', items: [item], budgetStopped: false }, resources: {}, sourceImages: {}, total: 1, offset: 0, counts: {}, warnings: [] })
   assert.equal(imageWorkflowStagePhase('rendering', item, 'completed'), 'attention')
   assert.equal(imageWorkflowStagePhase('reviewing', item, 'completed'), 'blocked')
-  assert.deepEqual(wallpaperRecovery(value, item, item.attempts.at(-1)), { kind: 'canvas' })
+  assert.deepEqual(wallpaperRecovery(value, item, item.attempts.at(-1)), { kind: 'none' })
   assert.equal(imageWorkflowPreviousReview(item)?.review?.checks.readability.result, 'violated')
   assert.equal(item.edits, 5)
   value.status = 'cancelled'
@@ -162,12 +162,19 @@ test('a generated canvas shows native review before super-resolution and keeps t
 test('review repair follows current pixels through red remake, yellow review and green acceptance without reusing earlier conclusions',()=>{
   const plan=wallpaperPlanSchema.parse({version:1,imageVersionId:'original',mode:'single',subject:'Motorcycle',evidence:'Original pixels',priorities:[],anchors:[],truncations:[],uncertainties:[],regions:[],placement:{scale:1,left:0,top:0},reason:'Safe placement'})
   const review=(failed=false)=>wallpaperReviewSchema.parse({subject:'Motorcycle',checks:Object.fromEntries(wallpaperReviewKeys.map(key=>[key,{result:failed&&key==='background'?'violated':'satisfied',reason:failed&&key==='background'?'Visible seam':'Observed pixels'}])),issues:failed?[{kind:'background',reason:'Visible seam'}]:[]})
-  const item=wallpaperItemSchema.parse({imageVersionId:'source',originalId:'original',familyId:'family',status:'needs-review',attempts:[{revision:1,plan,checks:[],needsOutpaint:true,canvasId:'first-seed',outputId:'first-output',review:review(true)}]})
+  const firstGeneration = { id: 'first-operation', provider: 'provider', model: 'model', taskId: 'first-task' }
+  const item=wallpaperItemSchema.parse({imageVersionId:'source',originalId:'original',familyId:'family',status:'needs-review',attempts:[{revision:1,plan,checks:[],needsOutpaint:true,canvasId:'first-seed',outputId:'first-output',review:review(true),generation:firstGeneration}]})
   const prior=item.attempts[0]!
-  assert.deepEqual(imageWorkflowRework(item,'completed'),{stage:'rendering',phase:'attention',flowing:false})
+  assert.equal(imageWorkflowRework(item,'completed'),undefined)
+  const rereview = { ...prior, revision: 2, retryFrom: 'reviewing' as const, retryTarget: 'reviewing' as const, review: review() }
+  item.attempts.push(rereview); item.status = 'passed'
+  assert.equal(imageWorkflowRework(item,'completed'),undefined)
+  item.attempts.pop()
   item.attempts.push({revision:2,plan,checks:[],needsOutpaint:true,canvasId:'second-seed',retryFrom:'reviewing',retryTarget:'rendering'})
   const current=item.attempts[1]!
   item.status='rendering'
+  assert.equal(imageWorkflowRework(item,'running'),undefined)
+  current.generation = { ...firstGeneration, id: 'second-operation', taskId: 'second-task' }
   assert.deepEqual(imageWorkflowRework(item,'running'),{stage:'rendering',phase:'running',flowing:true})
   assert.deepEqual(imageWorkflowRework(item,'paused'),{stage:'rendering',phase:'paused',flowing:false})
   assert.equal(imageWorkflowStagePhase('reviewing',item,'running'),'blocked')
@@ -306,7 +313,7 @@ test('recorded station boundary review stays active before its verdict commits a
   assert.equal(imageWorkflowStagePhase('rendering', item, 'running'), 'completed')
   assert.equal(imageWorkflowArtifact('rendering', item), attempt.nativeReviewCandidate?.nativeId)
   assert.equal(imageWorkflowStagePhase('reviewing', item, 'running'), 'running')
-  assert.deepEqual(imageWorkflowRework(item, 'running'), { stage: 'reviewing', phase: 'running', flowing: true })
+  assert.equal(imageWorkflowRework(item, 'running'), undefined)
   assert.equal(imageWorkflowStagePhase('reviewing', item, 'paused'), 'paused')
   assert.equal(imageWorkflowStagePhase('clarity', item, 'running'), 'idle')
   assert.deepEqual(imageWorkflowWindow(item).filter(step => imageWorkflowStagePhase(step.stage, item, 'running') === 'running').map(step => step.stage), ['reviewing'])
@@ -314,7 +321,7 @@ test('recorded station boundary review stays active before its verdict commits a
   attempt.preResolutionReview = { ...attempt.nativeReviewCandidate! }
   attempt.outputId = attempt.nativeReviewCandidate!.nativeId
   item.status = 'needs-review'
-  assert.deepEqual(imageWorkflowRework(item, 'completed'), { stage: 'rendering', phase: 'attention', flowing: false })
+  assert.equal(imageWorkflowRework(item, 'completed'), undefined)
   assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'queued')
 })
 

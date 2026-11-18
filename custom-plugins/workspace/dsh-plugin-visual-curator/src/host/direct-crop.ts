@@ -13,7 +13,7 @@ import { claritySettingsSchema } from '../shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 import { wallpaperDecisionSettingsSchema } from '../shared/wallpaper-decision.ts'
 import { resolveWallpaperProcessing, wallpaperPracticalAcceptance, wallpaperRepairPolicySchema, wallpaperGenerativeRepair, wallpaperRepairInstructions } from '../shared/wallpaper-policy.ts'
-import { applyWallpaperEspcn, applyOfficialImageResolution, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperCompositionEligible, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { applyWallpaperEspcn, applyOfficialImageResolution, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperCompositionEligible, wallpaperDisplayState, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
 import { wallpaperPracticalInstructions, completeCanvasWallpaperPrompts, wallpaperBaseSkill } from '../shared/wallpaper-prompts.ts'
 import { assetSchema, imageVersionSchema, type DomainActor, type CuratorRecord, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -130,7 +130,15 @@ export class DirectCropTasks {
       settings.maxReworks = Math.min(settings.maxReworks, acceptance.maximumAutomaticCorrections)
     }
     const practical = !!acceptance
-    const prompts = completeCanvasWallpaperPrompts(settings)
+    if (practical) {
+      const policy = settings.sourceIntentPolicy
+      if (!policy || policy.alignment === 'subject-fill-v1') settings.sourceIntentPolicy = wallpaperSettingsSchema.shape.sourceIntentPolicy.unwrap().parse({
+        version: 'source-intent-v2', alignment: 'subject-fill-v1', ...policy,
+        fill: { ...policy?.fill, relativeLayout: policy?.fill.relativeLayout ?? {} },
+      })
+    }
+    else if (settings.sourceIntentPolicy) throw new CuratorError('invalid-input', 'direct-crop', 'Source-intent preservation requires the practical review policy.')
+    const prompts = completeCanvasWallpaperPrompts(settings, !!settings.sourceIntentPolicy)
     applyWallpaperConcurrency(settings); applyWallpaperEspcn(settings); applyOfficialImageResolution(settings)
     const normalized = { workflow: 'wallpaper-direct-v1', operationId: input.operationId, sourceRunId: runId, imageVersionIds: images, targetCount: images.length, taskBrief: practical ? wallpaperPracticalInstructions : wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : '忠于指定原图；保留现有主体、关键结构、颜色、材质和标识；允许经局部核实的画框边缘自然扩图，新增部位必须独立复审；严格遵守主体安全区与画面质量要求' }
     const fixed = { finalReviewPolicy: 'final-output-v1', reviewOrder: 'generation-before-resolution-v1', generationPrompt: toJson(wallpaperGenerationBriefPrompt), generationPromptPolicy: toJson(wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {})), directCrop: toJson({ version: 'direct-crop-v1', name: input.name, origin: input.source.kind, inputDigest }), directPolicy: toJson({ version: wallpaperGenerativeRepair(settings) ? 'subject-repair-v1' : 'source-faithful-v2', promptDigest: contentDigest(prompts) }), prompts: toJson(prompts), promptDigest: contentDigest(prompts), wallpaper: toJson(settings), skill: { id: 'direct-original-base-v1', content: practical ? wallpaperPracticalInstructions : wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : wallpaperBaseSkill } }
@@ -161,7 +169,7 @@ export class DirectCropTasks {
         const related = continuations.get(root.id)!, current = related[0]!
         this.deps.engine.authorize(current, actor)
         const stopped = ['completed', 'failed', 'cancelled'].includes(current.status) && !related.some(run => ['created', 'running', 'pausing', 'cancelling'].includes(run.status))
-        const metadata = directCropMetadataSchema.parse(specOf(root).fixed.directCrop), state = wallpaperRunState(this.deps.domain, current), counts = wallpaperProgress(state, wallpaperWorkImage(specOf(current).input), current.status), data = dataOf(current)
+        const metadata = directCropMetadataSchema.parse(specOf(root).fixed.directCrop), state = wallpaperDisplayState(wallpaperRunState(this.deps.domain, current)), counts = wallpaperProgress(state, wallpaperWorkImage(specOf(current).input), current.status), data = dataOf(current)
         return directCropBatchSchema.parse({ runId: root.id, directCrop: true, removable: stopped, name: metadata.name, origin: metadata.origin, kind: 'crop', status: current.status, createdAt: root.createdAt, taskBrief: metadata.name, matched: state.items.length, unavailable: false, images: [], wallpaper: { runId: current.id, status: current.status, total: state.items.length, planned: counts.planned, rendered: counts.rendered, reviewed: counts.reviewed, passed: counts.passed, attention: counts.attention, budgetStopped: state.budgetStopped, counts, ...(data.error ? { errorCode: data.error.code } : {}) } })
       })
       return { batches, total: roots.length, ...(offset + limit < roots.length ? { nextOffset: offset + limit } : {}) }
@@ -191,11 +199,12 @@ export class DirectCropTasks {
     const run = this.deps.engine.get(runId, actor)
     if (actor.kind !== 'human' || !isDirectCropRun(run)) throw new CuratorError('owner-denied', 'direct-crop-output', 'Choose a direct-original task owned by this profile.')
     const state = wallpaperRunState(this.deps.domain, run), item = state.items.find(item => item.imageVersionId === imageVersionId), attempt = item?.attempts.at(-1)
-    if (!item || item.status !== 'passed' || !attempt?.review || wallpaperVerdict(attempt.review) !== 'pass' || attempt.checks.length || !attempt.outputId || attempt.preResolutionReview && attempt.preResolutionReview.finalId !== attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has no matching generated-image review and completed processing evidence.')
+    if (!item || !item.originalId || item.status !== 'passed' || !attempt?.review || wallpaperVerdict(attempt.review) !== 'pass' || attempt.checks.length || !attempt.outputId || attempt.preResolutionReview && attempt.preResolutionReview.finalId !== attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has no matching generated-image review and completed processing evidence.')
     if (!wallpaperCompositionEligible(attempt)) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'Source-pasted compositions cannot qualify or export. Regenerate one complete provider canvas; historical files remain available for inspection.')
     const latest = this.deps.domain.repository.list('run').filter(row => isDirectCropRun(row) && specOf(row).input.sourceRunId === state.sourceRunId).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
     if (latest?.id !== run.id) throw new CuratorError('revision-conflict', 'direct-crop-output', 'A newer task owns this image; inspect its latest result.')
     const image = this.deps.domain.authorizedImage(attempt.outputId, actor).image, settings = wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper)
+    const source = this.deps.domain.authorizedImage(item.originalId, actor).image
     if (attempt.finalReviewRequired) {
       const final = attempt.postResolutionReview
       if (!final?.review || wallpaperVerdict(final.review) !== 'pass' || final.imageVersionId !== image.id || final.digest !== image.blob.digest) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The delivered image has not passed its own final quality review. The native candidate remains saved.')

@@ -105,16 +105,16 @@ function allowedFor(deps: WallpaperDecisionDependencies, attempt: Attempt): Wall
     const receipt = !!(attempt.generation || attempt.generationOperation)
     const planningHold = !attempt.outputId && !receipt && !item.errorCode
     if (planningHold) {
-      if (attempt.plan.mode !== 'uncertain' && !attempt.checks.includes('source-outside-canvas') && !attempt.detailAnalysis?.findings?.some(wallpaperFindingBlocksEditing) && !(attempt.detailAnalysis?.protectedSubjectExtent === 'cut-off' && !wallpaperEdgeRepairAuthorized(attempt, settings)) && (attempt.detailAnalysis?.version !== 'wallpaper-plan-detail-v5' || ['resolved', 'ready-for-edit'].includes(attempt.detailAnalysis.outcome)) && !wallpaperGeometry(deps.source.geometry, { ...attempt.plan, uncertainties: [] }, settings).checks.length) actions.push('continue_current_plan')
+      if (attempt.plan.mode !== 'uncertain' && !attempt.checks.includes('source-outside-canvas') && !attempt.detailAnalysis?.findings?.some(wallpaperFindingBlocksEditing) && !(attempt.detailAnalysis?.protectedSubjectExtent === 'cut-off' && !wallpaperEdgeRepairAuthorized(attempt, settings)) && (attempt.detailAnalysis?.version !== 'wallpaper-plan-detail-v5' || ['resolved', 'ready-for-edit'].includes(attempt.detailAnalysis.outcome)) && !wallpaperGeometry(deps.source.geometry, { ...attempt.plan, uncertainties: [] }, settings, settings.sourceIntentPolicy).checks.length) actions.push('continue_current_plan')
       const extraDetails = item.decisions?.filter(record => record.detailRect).length ?? 0
       if (deps.supportsDetail && deps.maxImages >= 2 && wallpaperPlanConcerns(attempt.plan).length && extraDetails < (settings.decision?.maxDetailRequests ?? 0)) actions.push('inspect_region')
     }
     if (!attempt.outputId && !receipt && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage) && (!item.errorCode || item.failedStep === 'planning')) actions.push('replan')
     if (!attempt.outputId && item.failedStep === 'rendering' && item.errorCode && referenceErrors.has(item.errorCode) && !attempt.generation && !attempt.generationInput) actions.push('retry_reference_preparation')
     if (!attempt.outputId && !attempt.generatedImageId && receipt && deps.llm) actions.push('query_saved_generation')
-    if (attempt.generation && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {
+    if (attempt.generation && attempt.compositionMode === 'generated-canvas-v1' && attempt.generationInput && ['wallpaper-edit-input-v4', 'wallpaper-edit-input-v5', 'wallpaper-edit-input-v6'].includes(attempt.generationInput.version) && !attempt.sourceIntentProof && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {
       if (item.errorCode !== 'image-resolution-insufficient') actions.push('recompose_saved_background')
-      if (settings.backgroundResolution?.enabled && attempt.compositionMode === 'protected-context-v2' && attempt.generationInput) actions.push('reconstruct_saved_background')
+      if (settings.backgroundResolution?.enabled) actions.push('reconstruct_saved_background')
     }
     if ((attempt.outputId && !attempt.review || attempt.generatedImageId && !attempt.preResolutionReview || attempt.postResolutionReview && (!attempt.postResolutionReview.review || attempt.boundaryReview?.status === 'failed')) && item.failedStep === 'reviewing' && item.errorCode && reviewErrors.has(item.errorCode)) actions.push('retry_saved_review')
     if (wallpaperReviewReworkAvailable(item, settings)) actions.push('replan')
@@ -157,7 +157,10 @@ function cloneFor(attempt: Attempt, item: WallpaperItem, stage: 'rendering' | 'r
   if (stage === 'reviewing' && attempt.postResolutionReview) delete next.postResolutionReview
   else { delete next.review; delete next.reviewedAt }
   delete next.boundaryReview; delete next.reviewReserved
-  if (stage === 'rendering') { delete next.outputId; delete next.analysisId; delete next.simulationId; delete next.clarity; delete next.clarityBaseReview }
+  if (stage === 'rendering') {
+    delete next.outputId; delete next.analysisId; delete next.simulationId; delete next.clarity; delete next.clarityBaseReview
+    delete next.nativeReviewCandidate; delete next.preResolutionReview; delete next.postResolutionReview
+  }
   item.attempts.push(next)
   return next
 }
@@ -211,7 +214,7 @@ export async function executeWallpaperDecision(deps: WallpaperDecisionDependenci
       record.status = 'applied'
       switch (action.kind) {
         case 'continue_current_plan': {
-          const plan = wallpaperPlanSchema.parse({ ...attempt.plan, uncertainties: [] }), geometry = wallpaperGeometry(source.geometry, plan, settings)
+          const plan = wallpaperPlanSchema.parse({ ...attempt.plan, uncertainties: [] }), geometry = wallpaperGeometry(source.geometry, plan, settings, settings.sourceIntentPolicy)
           if (geometry.checks.length) throw new CuratorError('constraint-conflict', 'wallpaper-decision', 'The protected source regions do not fit the frozen wallpaper template.')
           const next: Attempt = { revision: attempt.revision + 1, createdAt: new Date().toISOString(), plan, checks: geometry.checks, needsOutpaint: geometry.needsOutpaint, compositionMode: attempt.compositionMode, detailAnalysis: attempt.detailAnalysis, retryFrom: 'planning', retryTarget: 'rendering', ...(attempt.clarity ? { clarity: { status: 'pending', reason: '' } } : {}) }
           item.attempts.push(next); record.targetRevision = next.revision; record.targetStage = 'rendering'; item.status = 'rendering'; resetFailure(item); await deps.save(); return true

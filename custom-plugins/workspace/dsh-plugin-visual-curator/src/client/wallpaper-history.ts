@@ -12,6 +12,15 @@ export function wallpaperReviewReasons(review: WallpaperReview, settings: Wallpa
   const explain = (reason: string) => reason.split('；').map(part => {
     const [code, ...names] = part.trim().split(':')
     const name = names.join(':').replace(' · complete-object core protection', '')
+    if (code === 'subject-center-drift' && /^-?\d+,-?\d+$/.test(name)) {
+      const [x = '0', y = '0'] = name.split(',')
+      return t('wallpaperReviewCenterDrift').replace('{x}', x).replace('{y}', y)
+    }
+    if (code === 'subject-aspect-changed') return t('wallpaperReviewSubjectAspect').replace('{name}', name)
+    if (code === 'subject-relative-scale') return t('wallpaperReviewRelativeScale').replace('{name}', name)
+    if (code === 'subject-relative-position') return t('wallpaperReviewRelativePosition').replace('{name}', name)
+    if (code === 'missing-action-part') return t('wallpaperReviewMissingActionPart').replace('{name}', name)
+    if (code === 'action-part-too-small') return t('wallpaperReviewActionPartSpan').replace('{name}', name)
     const region = 'actualLayout' in review ? review.actualLayout.regions.find(region => region.name === name) : undefined
     if (region && (code === 'critical-outside' || code === 'subject-overflow' || code === 'safe-top-overlap' || code === 'clock-overlap' || code === 'top-buffer-overlap' || code === 'clipped')) {
       const limits = code === 'clipped' ? { left: 0, top: 0, right: settings.width, bottom: settings.height } : { ...(code === 'subject-overflow' ? bounds.subject : bounds.critical), top: bounds.top }

@@ -1,0 +1,17 @@
+{
+  "supportingTargets": [
+    { "entityId": "top-prop", "disposition": "interior" },
+    { "entityId": "bottom-prop", "disposition": "final-frame-crop" }
+  ],
+  "productPlacement": {
+    "currentPlacement": { "scale": 0.9983231707310551, "left": 2, "top": 238 },
+    "historicalPlacement": { "scale": 0.8428353658528067, "left": 145, "top": 493 }
+  },
+  "portrait": {
+    "placement": { "scale": 1, "left": 0, "top": 432 },
+    "outputFocus": { "x": 0.3, "y": 0.421707, "width": 0.3, "height": 0.3 },
+    "fullSourceRect": { "x": 0.185, "y": 0.247, "width": 0.65, "height": 0.563 }
+  },
+  "shrunkenCompanion": ["subject-too-small:Companion"],
+  "widePortrait": { "left": -1192, "top": 538, "width": 4050, "height": 3038 }
+}

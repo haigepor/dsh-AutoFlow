@@ -1,6 +1,7 @@
 /** Versioned wallpaper settings, inferred scene evidence and resumable per-image progress. */
 import { z } from 'zod'
-import { wallpaperPracticalReviewOutputSchema, wallpaperSafetyClassSchema, type WallpaperPracticalReview } from './wallpaper-practical.ts'
+import { wallpaperPracticalReviewOutputSchema, wallpaperSafetyClassSchema, wallpaperSourcePreservationSchema, wallpaperSourcePreservationCheckSchema, type WallpaperPracticalReview } from './wallpaper-practical.ts'
+import { wallpaperSourceFramingMaxDetails, wallpaperSourceIntentSchema, wallpaperObservedSourceIntentSchema, wallpaperPrimarySourceIntentSchema, wallpaperSourceMediumSchema } from './wallpaper-source-intent.ts'
 import { wallpaperReviewEvidenceIssues } from './wallpaper-review-evidence.ts'
 import { wallpaperGenerationBriefSchema } from './wallpaper-generation-brief.ts'
 import { serverTransferViewSchema } from './server-queue.ts'
@@ -19,6 +20,8 @@ const id = z.string().min(1).max(256)
 /** Prompt content and identifiers are frozen with each task, independently of future plugin edits. */
 export const wallpaperPromptBundleSchema = z.strictObject({
   plan: z.strictObject({ version: z.enum(['wallpaper-plan-v1', 'wallpaper-plan-v2', 'wallpaper-plan-v3', 'wallpaper-plan-v4', 'wallpaper-plan-v5', 'wallpaper-plan-v6', 'wallpaper-plan-v7', 'wallpaper-plan-v8', 'wallpaper-plan-v9', 'wallpaper-plan-v10']), text: z.string().min(1) }),
+  replan: z.strictObject({ version: z.literal('wallpaper-source-replan-v1'), text: z.string().min(1) }).optional(),
+  framing: z.strictObject({ version: z.literal('wallpaper-source-framing-v1'), text: z.string().min(1) }).optional(),
   detail: z.strictObject({ version: z.enum(['wallpaper-plan-detail-v1', 'wallpaper-plan-detail-v2', 'wallpaper-plan-detail-v3', 'wallpaper-plan-detail-v4', 'wallpaper-plan-detail-v5']), text: z.string().min(1) }).optional(),
   decision: z.strictObject({ version: z.enum(['wallpaper-decision-v1', 'wallpaper-decision-v2']), text: z.string().min(1) }).optional(),
   review: z.strictObject({ version: z.enum(['wallpaper-review-v1', 'wallpaper-review-v2', 'wallpaper-review-v3', 'wallpaper-review-v4', 'wallpaper-review-source-v1', 'wallpaper-review-source-v2', 'wallpaper-review-source-v3', 'wallpaper-review-source-v4']), text: z.string().min(1) }),
@@ -26,6 +29,21 @@ export const wallpaperPromptBundleSchema = z.strictObject({
   distill: z.strictObject({ version: z.literal('wallpaper-distill-v1'), text: z.string().min(1) }),
 })
 const rect = z.strictObject({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1), width: z.number().finite().positive().max(1), height: z.number().finite().positive().max(1) }).refine(r => r.x + r.width <= 1 && r.y + r.height <= 1)
+const minimumSubjectScaleRatio = z.number().gt(0).max(1).default(0.9)
+const sourceIntentPolicySchema = z.union([
+  z.strictObject({ version: z.enum(['source-intent-v1', 'source-intent-v2']), minimumSubjectScaleRatio, alignment: z.literal('subject-center-v1').optional() }),
+  z.strictObject({ version: z.literal('source-intent-v2'), minimumSubjectScaleRatio, alignment: z.literal('subject-fill-v1'),
+    fill: z.strictObject({
+      safeOccupancy: z.number().min(0.5).max(1).default(0.86),
+      minimumRetainedAxis: z.number().min(0.4).max(1).default(0.4),
+      maximumCenterDrift: z.number().gt(0).max(0.2).default(0.08),
+      relativeLayout: z.strictObject({
+        minimumRelativeScaleRatio: z.number().min(0.5).max(1).default(0.8),
+        minimumWholeAspectRatio: z.number().min(0.5).max(1).default(0.65),
+      }).optional(),
+    }).prefault({}),
+  }),
+])
 /** Deployment defaults are frozen when a wallpaper task is accepted. */
 export const wallpaperSettingsSchema = z.strictObject({
   version: z.literal(1).default(1), width: z.literal(1845).default(1845), height: z.literal(3280).default(3280),
@@ -42,6 +60,7 @@ export const wallpaperSettingsSchema = z.strictObject({
   backgroundResolution: backgroundResolutionSettingsSchema.optional(),
   processing: wallpaperProcessingSchema.optional(),
   repairPolicy: wallpaperRepairPolicySchema.optional(),
+  sourceIntentPolicy: sourceIntentPolicySchema.optional(),
   decision: wallpaperDecisionSettingsSchema.optional(),
   learningEnabled: z.boolean().default(true), autoPromote: z.boolean().default(true), learningInterval: z.number().int().positive().default(20), minBenchmarks: z.number().int().min(12).default(12), maxEvalVisionCalls: z.number().int().positive().max(48).default(48), maxSkillChars: z.number().int().min(1000).max(16000).default(4000),
 })
@@ -81,8 +100,14 @@ export function applyWallpaperRecoveryLimits(settings: WallpaperSettings): void 
 /** Modes describe visual organization rather than a closed list of object classes. */
 export const wallpaperModeSchema = z.enum(['single', 'group', 'scene', 'abstract', 'uncertain'])
 /** Source entities keep one identity and one task role across planning, editing and review. */
-export const wallpaperObjectRoleSchema = z.strictObject({ entityId: id, name: text, role: z.enum(['primary', 'critical-part', 'supporting']).describe('Primary includes every visual co-lead that jointly forms the source theme, not only the largest, tallest or most central object. Give independent co-primary subjects their own identities. Critical-part is an indispensable part of a primary. Mere containment, support or contact does not promote a separate prop: an ordinary serving bowl remains supporting unless the vessel itself is a requested subject.'), evidence: text, rect, sourceEdges: z.array(z.enum(['left', 'top', 'right', 'bottom'])).max(4), safetyClass: wallpaperSafetyClassSchema.optional() })
+export const wallpaperObjectRoleSchema = z.strictObject({ entityId: id, name: text, role: z.enum(['primary', 'critical-part', 'supporting']).describe('Primary includes every visual co-lead that jointly forms the source theme, not only the largest, tallest or most central object. Give independent co-primary subjects their own identities. Critical-part is an indispensable part of a primary. Mere containment, support or contact does not promote a separate prop: an ordinary serving bowl remains supporting unless the vessel itself is a requested subject.'), evidence: text, rect, sourceEdges: z.array(z.enum(['left', 'top', 'right', 'bottom'])).max(4), safetyClass: wallpaperSafetyClassSchema.optional(), sourceIntent: wallpaperSourceIntentSchema.optional() })
 export type WallpaperObjectRole = z.infer<typeof wallpaperObjectRoleSchema>
+const actionPartIdsSchema = z.array(id).max(32).describe('Identify separately boxed objects whose complete visible shape is indispensable to a primary action or structure. Include held ribbons, connected leashes and tools in use through their remote visible ends. Ordinary containers, supports, shadows, reflections and unrelated decorations do not qualify. Use [] when no such part exists.')
+
+/** @param object Frozen source entity. @returns Whether a confirmed partial primary needs a distinct layout focus before generation. */
+export function wallpaperSourceFocusRequired(object: WallpaperObjectRole): boolean {
+  return object.role === 'primary' && object.safetyClass !== 'automobile' && (object.sourceIntent?.framing === 'partial' || object.sourceIntent?.framing === 'close-up')
+}
 /** Background generation receives environment facts without foreground preservation or object recreation instructions. */
 export const wallpaperBackgroundBriefSchema = z.strictObject({ version: z.literal('background-only-v1'), setting: text, light: text, palette: text, texture: text, perspective: text })
 /** Explicit source-entity instances distinguish preserved content from extra copies elsewhere in the output. */
@@ -95,14 +120,29 @@ export const wallpaperPlanSchema = z.strictObject({
   priorities: z.array(text).max(16), anchors: z.array(text).max(16), truncations: z.array(text).max(16), uncertainties: z.array(text).max(16),
   regions: z.array(z.strictObject({ name: text, entityId: id.optional(), role: z.enum(['subject', 'critical', 'anchor']), rect, safetyClass: wallpaperSafetyClassSchema.optional() })).max(32),
   objectRoles: z.array(wallpaperObjectRoleSchema).max(32).optional(),
+  actionPartIds: actionPartIdsSchema.optional(),
   sourceAssessment: z.strictObject({ classification: z.enum(['ready', 'repair-required', 'uncertain']), reason: text }).optional(),
   backgroundBrief: wallpaperBackgroundBriefSchema.optional(),
-  placement: z.strictObject({ scale: z.number().finite().positive().max(1), left: z.number().int(), top: z.number().int() }),
+  sourceMedium: wallpaperSourceMediumSchema.optional(),
+  placement: z.strictObject({ scale: z.number().finite().positive(), left: z.number().int(), top: z.number().int() }),
   reason: text,
   editPrompt: text.describe('Scene-specific editing instructions grounded in source pixels and frozen task repairPolicy: preserve healthy content, identify concrete defects and authorized generated repairs, lighting, horizon, perspective and transitions. Never claim generated details are recovered facts.').optional(),
 })
 /** V4 delegates pixel placement to the Host while retaining every inferred protection region and uncertainty. */
 export const wallpaperObservationPlanSchema = wallpaperPlanSchema.omit({ placement: true })
+/** A source-intent framing hold always carries explicit entities and preservation facts. */
+export const wallpaperFramingObservationSchema = wallpaperObservationPlanSchema.extend({ objectRoles: z.array(wallpaperObjectRoleSchema.extend({ sourceIntent: wallpaperSourceIntentSchema })).min(1).max(32), sourceMedium: wallpaperSourceMediumSchema })
+/** Source geometry may be reread without losing the original preservation requirements. */
+export type WallpaperFramingObservation = z.infer<typeof wallpaperFramingObservationSchema>
+const framingBound = z.strictObject({ kind: z.enum(['canvas', 'safe', 'frame']), edge: z.enum(['left', 'top', 'right', 'bottom']), name: text.optional() })
+/** Recomputable placement limits; unavailable upper limits remain absent rather than infinite. */
+export const wallpaperFramingDiagnosticsSchema = z.strictObject({
+  version: z.literal('source-framing-conflict-v1'), edges: z.array(z.enum(['left', 'top', 'right', 'bottom'])).max(4),
+  minimumScale: z.number().finite().nonnegative(), maximumScale: z.number().finite().optional(),
+  limits: z.array(z.strictObject({ axis: z.enum(['horizontal', 'vertical']), kind: z.enum(['minimum', 'maximum', 'offset', 'rounding']), scale: z.number().finite().optional(), lower: framingBound, upper: framingBound })).max(3),
+})
+/** Source observations and limiting constraints remain independent of an executable placement. */
+export type WallpaperFramingDiagnostics = z.infer<typeof wallpaperFramingDiagnosticsSchema>
 /** Authorized work records background continuity as text; hard rectangles contain only subjects and critical structures. */
 export const wallpaperRepairObservationPlanSchema = wallpaperObservationPlanSchema.extend({
   anchors: wallpaperObservationPlanSchema.shape.anchors.describe('Background continuity facts only: lights, fences, walls, terrain, sky, horizon and perspective. These are not hard protected rectangles.'),
@@ -117,14 +157,14 @@ const sourceFrameEdges = ['left', 'top', 'right', 'bottom'] as const
 function wallpaperObjectFrameEdges(rect: WallpaperObjectRole['rect']): WallpaperObjectRole['sourceEdges'] {
   return sourceFrameEdges.filter(edge => edge === 'left' ? rect.x === 0 : edge === 'top' ? rect.y === 0 : edge === 'right' ? rect.x + rect.width >= 0.999 : rect.y + rect.height >= 0.999)
 }
-function validateWallpaperRoleObservation(plan: z.infer<typeof wallpaperRoleObservationBaseSchema>, ctx: z.RefinementCtx) {
+function validateWallpaperRoleObservation(plan: z.infer<typeof wallpaperRoleObservationBaseSchema>, ctx: z.RefinementCtx, sourceIntent = false) {
   if ((plan.mode === 'single' || plan.mode === 'group') && !plan.objectRoles.some(object => object.role === 'primary')) ctx.addIssue({ code: 'custom', path: ['objectRoles'], message: 'A single-subject or group plan must identify its actual primary subject.' })
   const roles = new Map<string, WallpaperObjectRole>()
   for (const [index, object] of plan.objectRoles.entries()) {
     if (roles.has(object.entityId)) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'entityId'], message: 'Source entity IDs must be unique.' })
     roles.set(object.entityId, object)
     const touches = wallpaperObjectFrameEdges(object.rect)
-    for (const edge of sourceFrameEdges) if (touches.includes(edge) !== object.sourceEdges.includes(edge)) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceEdges'], message: 'Source-frame edges must match the observed entity rectangle.' })
+    for (const edge of sourceFrameEdges) if (touches.includes(edge) !== object.sourceEdges.includes(edge) && !(sourceIntent && object.sourceIntent?.visibility === 'frame-cropped' && object.sourceEdges.includes(edge))) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceEdges'], message: 'Source-frame edges must match the observed entity rectangle or independently observed frame cut.' })
   }
   const protectedIds = new Set<string>()
   for (const [index, region] of plan.regions.entries()) {
@@ -137,16 +177,27 @@ function validateWallpaperRoleObservation(plan: z.infer<typeof wallpaperRoleObse
 }
 /** V8 requires explicit foreground roles while old saved plans remain readable. */
 export const wallpaperRoleObservationPlanSchema = wallpaperRoleObservationBaseSchema.superRefine(validateWallpaperRoleObservation)
-/** @param prior Frozen identities from a previous V8 attempt. @param practical Whether Host-owned rectangles and frame edges are derived from the source entity observations. @param requireSafetyClass Whether each primary needs its source visual classification. @returns A source observation that may update rectangles but cannot silently change frozen identities, roles or visual categories. */
-export function wallpaperRoleObservationOutputSchema(prior?: readonly WallpaperObjectRole[], practical = false, requireSafetyClass = false) {
-  const objectRole: z.ZodType<WallpaperObjectRole, z.input<typeof wallpaperObjectRoleSchema>> = requireSafetyClass ? z.discriminatedUnion('role', [
-    wallpaperObjectRoleSchema.extend({ role: z.literal('primary'), safetyClass: wallpaperSafetyClassSchema }),
-    wallpaperObjectRoleSchema.extend({ role: z.literal('critical-part') }),
-    wallpaperObjectRoleSchema.extend({ role: z.literal('supporting') }),
-  ]) : wallpaperObjectRoleSchema
-  const base = wallpaperRoleObservationBaseSchema.safeExtend({ objectRoles: z.array(objectRole).max(32) })
+/** @param prior Frozen identities from a previous V8 attempt. @param practical Whether Host-owned rectangles and frame edges are derived from source entities. @param requireSafetyClass Whether each primary needs its source visual classification. @param requireSourceIntent Require observed medium and per-entity framing, appearance and relationship facts. @param priorSourceMedium Frozen medium required on replanning when source intent is enabled. @param requireActionParts Identify action-defining parts independently of their provisional role. @returns A source observation retaining its identities, roles, visual categories and source medium. */
+export function wallpaperRoleObservationOutputSchema(prior?: readonly WallpaperObjectRole[], practical = false, requireSafetyClass = false, requireSourceIntent = false, priorSourceMedium?: z.infer<typeof wallpaperSourceMediumSchema>, requireActionParts = false) {
+  const sourceRole = requireSourceIntent ? wallpaperObjectRoleSchema.extend({ sourceIntent: wallpaperObservedSourceIntentSchema }) : wallpaperObjectRoleSchema
+  const generalRole = sourceRole.extend({ role: z.literal('primary'), safetyClass: z.literal('general') })
+  const objectRole: z.ZodType<WallpaperObjectRole, z.input<typeof wallpaperObjectRoleSchema>> = requireSafetyClass ? z.union([
+    requireSourceIntent ? generalRole.extend({ sourceIntent: wallpaperPrimarySourceIntentSchema }) : generalRole,
+    sourceRole.extend({ role: z.literal('primary'), safetyClass: z.literal('automobile') }),
+    sourceRole.extend({ role: z.literal('critical-part') }),
+    sourceRole.extend({ role: z.literal('supporting') }),
+  ]) : sourceRole
+  const base = wallpaperRoleObservationBaseSchema.safeExtend({ sourceMedium: requireSourceIntent ? priorSourceMedium === undefined ? wallpaperSourceMediumSchema : z.literal(priorSourceMedium) : wallpaperSourceMediumSchema.optional(), objectRoles: z.array(objectRole).max(32),
+    actionPartIds: requireActionParts ? actionPartIdsSchema : actionPartIdsSchema.optional() })
   const schema = practical ? base.superRefine((plan, ctx) => {
     const roles = new Map(plan.objectRoles.map(object => [object.entityId, object.role]))
+    if (requireActionParts && plan.actionPartIds) {
+      const seenParts = new Set<string>()
+      for (const [index, entityId] of plan.actionPartIds.entries()) {
+        if (!roles.has(entityId) || roles.get(entityId) === 'primary' || seenParts.has(entityId)) ctx.addIssue({ code: 'custom', path: ['actionPartIds', index], message: 'An action part must identify one distinct non-primary source entity.' })
+        seenParts.add(entityId)
+      }
+    }
     const seen = new Set<string>()
     for (const [index, region] of plan.regions.entries()) {
       const role = roles.get(region.entityId)
@@ -155,10 +206,21 @@ export function wallpaperRoleObservationOutputSchema(prior?: readonly WallpaperO
       seen.add(region.entityId)
     }
   }).overwrite(plan => {
-    const objectRoles = plan.objectRoles.map(object => ({ ...object, sourceEdges: wallpaperObjectFrameEdges(object.rect) }))
+    const attached = new Set(requireActionParts ? plan.actionPartIds : [])
+    const objectRoles = plan.objectRoles.map(object => {
+      const derived = wallpaperObjectFrameEdges(object.rect)
+      const cropped = requireSourceIntent && object.sourceIntent?.visibility === 'frame-cropped'
+      return { ...object, role: attached.has(object.entityId) ? 'critical-part' as const : object.role, sourceEdges: sourceFrameEdges.filter(edge => derived.includes(edge) || cropped && object.sourceEdges.includes(edge)) }
+    })
     return { ...plan, objectRoles, regions: objectRoles.filter(object => object.role !== 'supporting').map(object => ({ name: object.name, entityId: object.entityId, role: object.role === 'primary' ? 'subject' : 'critical', rect: object.rect, ...(object.safetyClass ? { safetyClass: object.safetyClass } : {}) })) }
-  }).superRefine(validateWallpaperRoleObservation) : requireSafetyClass ? base.superRefine(validateWallpaperRoleObservation) : wallpaperRoleObservationPlanSchema
+  }).superRefine((plan, ctx) => validateWallpaperRoleObservation(plan, ctx, requireSourceIntent)) : base.superRefine((plan, ctx) => validateWallpaperRoleObservation(plan, ctx, requireSourceIntent))
   return schema.superRefine((plan, ctx) => {
+    for (const [index, object] of plan.objectRoles.entries()) {
+      const focus = object.sourceIntent?.layoutFocus
+      if (requireSourceIntent && wallpaperSourceFocusRequired(object) && !focus) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceIntent', 'layoutFocus'], message: 'A confirmed partial or close-up primary requires a meaningful source layout focus.' })
+      if (focus && (focus.x < object.rect.x || focus.y < object.rect.y || focus.x + focus.width > object.rect.x + object.rect.width || focus.y + focus.height > object.rect.y + object.rect.height)) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceIntent', 'layoutFocus'], message: 'The layout focus must remain inside the full visible source entity.' })
+      if (object.safetyClass === 'automobile' && focus) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceIntent', 'layoutFocus'], message: 'Automobile safety requires the complete visible vehicle, not a smaller focus.' })
+    }
     if (plan.objectRoles.some(object => object.role === 'primary' && object.safetyClass === 'automobile') && (plan.mode === 'scene' || plan.mode === 'abstract')) ctx.addIssue({ code: 'custom', path: ['mode'], message: 'A primary automobile cannot use scene or abstract mode to evade complete vehicle safety bounds.' })
     if (!prior) return
     const roles = new Map(prior.map(object => [object.entityId, object]))
@@ -167,6 +229,7 @@ export function wallpaperRoleObservationOutputSchema(prior?: readonly WallpaperO
       const frozen = roles.get(object.entityId)
       if (frozen?.role !== object.role) ctx.addIssue({ code: 'custom', path: ['objectRoles', index], message: 'A retry cannot change a frozen source entity ID or role.' })
       if (frozen?.role === 'primary' && frozen.safetyClass && frozen.safetyClass !== object.safetyClass) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'safetyClass'], message: 'A retry cannot change or omit a frozen primary visual classification.' })
+      if (requireSourceIntent && frozen?.sourceIntent && JSON.stringify(frozen.sourceIntent) !== JSON.stringify(object.sourceIntent)) ctx.addIssue({ code: 'custom', path: ['objectRoles', index, 'sourceIntent'], message: 'A retry must retain the source framing, visibility, requirements and layout focus.' })
     }
   })
 }
@@ -211,11 +274,11 @@ const wallpaperIssueEvidence = z.strictObject({
 export const wallpaperSourceReviewV4Schema = wallpaperSourceReviewV3Schema.extend({
   reviewVersion: z.literal('wallpaper-review-source-v4'),
   inventory: wallpaperObjectInventorySchema.optional(), newForeground: wallpaperNewForegroundSchema.optional(),
-  actualLayout: wallpaperSourceReviewV3Schema.shape.actualLayout.extend({ regions: z.array(wallpaperPlanSchema.shape.regions.element.extend({ scope: z.enum(['core', 'peripheral']) })).max(32) }),
+  actualLayout: wallpaperSourceReviewV3Schema.shape.actualLayout.extend({ regions: z.array(wallpaperPlanSchema.shape.regions.element.extend({ scope: z.enum(['core', 'peripheral']), layoutFocus: rect.optional() })).max(32) }),
   issues: z.array(wallpaperReviewSchema.shape.issues.element.extend({ check: z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence']), code: z.enum(['minor-peripheral-overflow', 'other']), evidence: wallpaperIssueEvidence.optional(), detail: z.strictObject({ sourceRect: rect, outputRect: rect, question: text }).optional().describe('Only for an unresolved acceptance-critical pixel question that a genuinely local source/output crop can answer. Omit for known defects, background, normal occlusion and unrelated unreadable text.') })).max(32),
 })
 /** Host findings and the model's original protection opinion remain visible after bounded warnings. */
-export const wallpaperStoredSourceReviewV4Schema = wallpaperSourceReviewV4Schema.extend({ practicalReview: z.strictObject({ version: z.literal('practical-v1'), warnings: z.array(text).max(32), uncertainties: z.array(text).max(4) }).optional(), preservationRepairTarget: z.enum(['background', 'source', 'evidence']).optional(), backgroundBrief: wallpaperBackgroundBriefSchema.optional(), preservationProof: z.strictObject({ version: z.enum(['source-pixels-v1', 'source-pixels-v2']), sourceImageVersionId: id, sourceDigest: text, outputImageVersionId: id, outputDigest: text, comparedPixels: z.number().int().positive(), changedPixels: z.literal(0), sourceRect: z.strictObject({ left: z.number().int(), top: z.number().int(), width: z.number().int().positive(), height: z.number().int().positive() }).optional() }).refine(proof => proof.version !== 'source-pixels-v2' || !!proof.sourceRect).optional(), sourceRepairAuthorized: z.literal(true).optional(), clockContrast: wallpaperClockContrastSchema.optional(), modelChecks: wallpaperSourceReviewV4Schema.shape.checks.optional(), modelReadabilityCheck: check.optional(), layoutChecks: z.array(text), layoutWarnings: z.array(text), modelProtectionCheck: check, modelIssues: wallpaperSourceReviewV4Schema.shape.issues,
+export const wallpaperStoredSourceReviewV4Schema = wallpaperSourceReviewV4Schema.extend({ practicalReview: z.strictObject({ version: z.enum(['practical-v1', 'practical-v2']), warnings: z.array(text).max(32), uncertainties: z.array(text).max(4), sourcePreservation: wallpaperSourcePreservationSchema.optional(), sourceStyle: wallpaperSourcePreservationCheckSchema.optional() }).optional(), preservationRepairTarget: z.enum(['background', 'source', 'evidence']).optional(), backgroundBrief: wallpaperBackgroundBriefSchema.optional(), preservationProof: z.strictObject({ version: z.enum(['source-pixels-v1', 'source-pixels-v2']), sourceImageVersionId: id, sourceDigest: text, outputImageVersionId: id, outputDigest: text, comparedPixels: z.number().int().positive(), changedPixels: z.literal(0), sourceRect: z.strictObject({ left: z.number().int(), top: z.number().int(), width: z.number().int().positive(), height: z.number().int().positive() }).optional() }).refine(proof => proof.version !== 'source-pixels-v2' || !!proof.sourceRect).optional(), sourceRepairAuthorized: z.literal(true).optional(), clockContrast: wallpaperClockContrastSchema.optional(), modelChecks: wallpaperSourceReviewV4Schema.shape.checks.optional(), modelReadabilityCheck: check.optional(), layoutChecks: z.array(text), layoutWarnings: z.array(text), modelProtectionCheck: check, modelIssues: wallpaperSourceReviewV4Schema.shape.issues,
   criticalDetail: z.strictObject({ requestId: id, evidenceDigest: z.string().optional(), examinedChecks: z.array(z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence'])), resolvedChecks: z.array(z.enum([...wallpaperReviewKeys, 'clarity', 'sourceRepair', 'sourceCorrespondence'])) }).optional() })
 /** Only the Host attaches repair authorization after checking this attempt's saved source evidence. */
 export const wallpaperStoredSourceReviewV2Schema = wallpaperSourceReviewV2Schema.extend({ sourceRepairAuthorized: z.literal(true).optional() })
@@ -258,10 +321,12 @@ export function wallpaperSubjectCheck(integrity: z.infer<typeof wallpaperSubject
  * @param inventoryRequired Whether this new task requires an explicit complete-output object inventory.
  * @param practical Whether the task uses compact practical acceptance.
  * @param sourceMode Original composition retained by practical reviews; omission preserves historical unbound responses.
+ * @param sourceIntentPolicy Require explicit original-to-output preservation in the practical protocol.
+ * @param projectFrozenFocus Measure only the original's authorized focus rectangles in practical review.
  * @returns The frozen protocol with task-specific evidence and protection validation.
  */
-export function wallpaperReviewOutputSchema(version: string, ruleIds: readonly string[], imageIds: readonly string[], finalImageId?: string, sourceImageId?: string, protectedObjectsOnly = false, objectRoles?: readonly WallpaperObjectRole[], inventoryRequired = false, practical = false, sourceMode?: WallpaperPlan['mode']): z.ZodType<WallpaperPracticalReview | z.infer<typeof wallpaperReviewSchema> | z.infer<typeof wallpaperReviewV2Schema> | z.infer<typeof wallpaperReviewV3Schema> | z.infer<typeof wallpaperReviewV4Schema> | z.infer<typeof wallpaperSourceReviewSchema> | z.infer<typeof wallpaperSourceReviewV2Schema> | z.infer<typeof wallpaperSourceReviewV3Schema> | z.infer<typeof wallpaperSourceReviewV4Schema>> {
-  if (practical && sourceImageId && finalImageId) return wallpaperPracticalReviewOutputSchema(sourceImageId, finalImageId, objectRoles?.filter(object => object.role === 'primary').map(object => ({ entityId: object.entityId, name: object.name, ...(object.safetyClass ? { safetyClass: object.safetyClass } : {}) })), sourceMode)
+export function wallpaperReviewOutputSchema(version: string, ruleIds: readonly string[], imageIds: readonly string[], finalImageId?: string, sourceImageId?: string, protectedObjectsOnly = false, objectRoles?: readonly WallpaperObjectRole[], inventoryRequired = false, practical = false, sourceMode?: WallpaperPlan['mode'], sourceIntentPolicy = false, projectFrozenFocus = false): z.ZodType<WallpaperPracticalReview | z.infer<typeof wallpaperReviewSchema> | z.infer<typeof wallpaperReviewV2Schema> | z.infer<typeof wallpaperReviewV3Schema> | z.infer<typeof wallpaperReviewV4Schema> | z.infer<typeof wallpaperSourceReviewSchema> | z.infer<typeof wallpaperSourceReviewV2Schema> | z.infer<typeof wallpaperSourceReviewV3Schema> | z.infer<typeof wallpaperSourceReviewV4Schema>> {
+  if (practical && sourceImageId && finalImageId) return wallpaperPracticalReviewOutputSchema(sourceImageId, finalImageId, objectRoles?.filter(object => sourceIntentPolicy ? object.role !== 'supporting' : object.role === 'primary'), sourceMode, sourceIntentPolicy, projectFrozenFocus)
   if (version === 'wallpaper-review-v1') return wallpaperReviewSchema
   if (version === 'wallpaper-review-source-v1' || version === 'wallpaper-review-source-v2' || version === 'wallpaper-review-source-v3' || version === 'wallpaper-review-source-v4') {
     if (ruleIds.length || !sourceImageId || !finalImageId || sourceImageId === finalImageId || !imageIds.includes(sourceImageId) || !imageIds.includes(finalImageId)) throw new TypeError('Source-fidelity review requires distinct authorized original/output pixels and no dataset rules.')
@@ -307,12 +372,19 @@ export function wallpaperReviewOutputSchema(version: string, ruleIds: readonly s
 /** Structured visual review; the Host computes the final verdict. */
 export type WallpaperReview = z.infer<typeof wallpaperStoredReviewSchema>
 /** Composition changes are explicit; absent saved values retain the original source-edge behavior. */
-export const wallpaperCompositionModeSchema = z.enum(['source-edge-v1', 'protected-context-v1', 'protected-context-v2', 'generated-canvas-v1', 'generated-canvas-protected-v2', 'background-plate-v1', 'background-plate-v2'])
+export const wallpaperCompositionModeSchema = z.enum(['source-edge-v1', 'protected-context-v1', 'protected-context-v2', 'generated-canvas-v1', 'generated-canvas-protected-v2', 'background-plate-v1', 'background-plate-v2', 'source-intent-background-v1'])
 /** Deterministic source-preserving blend selected for one saved attempt. */
 export type WallpaperCompositionMode = z.infer<typeof wallpaperCompositionModeSchema>
 const generation = z.strictObject({ id, provider: id, model: id, taskId: id })
-/** Exact scene prompt and admitted reference identities saved before one image dispatch. */
-export const wallpaperGenerationInputSchema = z.strictObject({ version: z.enum(['wallpaper-edit-input-v1', 'wallpaper-edit-input-v2', 'wallpaper-edit-input-v3', 'wallpaper-edit-input-v4']), prompt: z.string().min(1).max(32768), references: z.array(z.strictObject({ role: z.enum(['canvas', 'original', 'subject-detail', 'critical-detail', 'layout-only']), attachmentId: id, width: z.number().int().positive(), height: z.number().int().positive(), sourceRect: rect.optional() })).min(1).max(5) })
+const generationReference = z.strictObject({ role: z.enum(['canvas', 'original', 'subject-detail', 'critical-detail', 'layout-only']), attachmentId: id, width: z.number().int().positive(), height: z.number().int().positive(), sourceRect: rect.optional() })
+const generationInput = z.strictObject({ prompt: z.string().min(1).max(32768) })
+const positionedReferences = z.tuple([generationReference.extend({ role: z.literal('canvas') }), generationReference.extend({ role: z.literal('original') }), generationReference.extend({ role: z.literal('layout-only') })]).refine(([canvas, , guide]) => canvas.width === guide.width && canvas.height === guide.height, 'The positioned master and safety guide must use the same canvas dimensions.')
+/** Exact edit request; V5 binds three references and V6 additionally binds the master-sized background edit mask. */
+export const wallpaperGenerationInputSchema = z.discriminatedUnion('version', [
+  generationInput.extend({ version: z.enum(['wallpaper-edit-input-v1', 'wallpaper-edit-input-v2', 'wallpaper-edit-input-v3', 'wallpaper-edit-input-v4']), references: z.array(generationReference).min(1).max(5) }),
+  generationInput.extend({ version: z.literal('wallpaper-edit-input-v5'), references: positionedReferences }),
+  generationInput.extend({ version: z.literal('wallpaper-edit-input-v6'), references: positionedReferences, mask: z.strictObject({ attachmentId: id, width: z.number().int().positive(), height: z.number().int().positive() }) }).refine(input => input.mask.width === input.references[0].width && input.mask.height === input.references[0].height, 'The edit mask must match the positioned master dimensions.'),
+])
 export { wallpaperEdgeRepairSchema } from './wallpaper-evidence.ts'
 /** Each round preserves its plan, artifacts and actual review; revising a plan does not erase history. */
 export const wallpaperAttemptSchema = z.strictObject({
@@ -320,6 +392,7 @@ export const wallpaperAttemptSchema = z.strictObject({
   layoutCorrection: z.strictObject({ version: z.enum(['candidate-placement-v1', 'candidate-placement-locked-v2', 'candidate-subject-locked-v3']), plan: wallpaperPlanSchema }).optional(),
   checks: z.array(z.string()), needsOutpaint: z.boolean(),
   generationFramingFailure: z.strictObject({ code: z.literal('canvas-aspect-mismatch'), width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
+  sourceIntentProof: z.strictObject({ version: z.literal('source-intent-pixels-v1'), sourceDigest: text, outputDigest: text, comparedPixels: z.number().int().positive(), changedPixels: z.literal(0), sourceRect: z.strictObject({ left: z.number().int(), top: z.number().int(), width: z.number().int().positive(), height: z.number().int().positive() }) }).optional(),
   generationCanvasCrop: z.strictObject({ originalId: id, croppedId: id, sourceDigest: z.string(), sourceWidth: z.number().int().positive(), sourceHeight: z.number().int().positive(), left: z.number().int().nonnegative(), top: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
   detailAnalysis: z.strictObject({ version: z.enum(['wallpaper-plan-detail-v1', 'wallpaper-plan-detail-v2', 'wallpaper-plan-detail-v3', 'wallpaper-plan-detail-v4', 'wallpaper-plan-detail-v5']), requestId: id, outcome: z.enum(['resolved', 'ready-for-edit', 'unresolved', 'violated', 'unavailable']), protectedSubjectExtent: subjectExtent.shape.extent.optional(), edgeRepair: wallpaperEdgeRepairEvidenceSchema.optional(),
     concerns: z.array(z.strictObject({ id, text })).max(35).optional(), findings: z.array(wallpaperFindingSchema.extend({ result: z.enum(['resolved', 'unresolved', 'violated']) })).max(35).optional(), retainedUncertainties: z.array(wallpaperRetainedUncertaintySchema).max(16).optional(),
@@ -345,6 +418,12 @@ export const wallpaperItemSchema = z.strictObject({
   download: z.strictObject({ attempts: z.number().int().nonnegative(), retrying: z.boolean(), originalBlob: blobRefSchema.optional(), byteLength: z.number().int().nonnegative().optional(), savedAt: z.iso.datetime().optional(), reused: z.boolean().optional(), lastErrorCode: z.string().optional() }).optional(),
   edits: z.number().int().nonnegative().default(0), attempts: z.array(wallpaperAttemptSchema).default([]),
   decisions: z.array(wallpaperDecisionRecordSchema).optional(),
+  framingConflict: z.strictObject({
+    version: z.literal('source-framing-review-v1'), observation: wallpaperFramingObservationSchema, diagnostics: wallpaperFramingDiagnosticsSchema,
+    analysisId: id.optional(),
+    inspection: z.strictObject({ requestId: id, status: z.enum(['queued', 'running', 'resolved', 'uncertain', 'failed']), detailIds: z.array(id).max(wallpaperSourceFramingMaxDetails), analysisId: id.optional(), reason: text.optional(), observation: wallpaperFramingObservationSchema.optional(), findings: z.array(z.strictObject({ entityId: id, reason: text, evidenceImageVersionIds: z.array(id).min(1).max(wallpaperSourceFramingMaxDetails) })).max(32).optional(), errorCode: id.optional() }).optional(),
+    resolution: z.enum(['blocked', 'cleared', 'uncertain']),
+  }).optional(),
   detailInspection: z.strictObject({
     origin: z.enum(['planning', 'decision', 'manual']), status: z.enum(['queued', 'running', 'resolved', 'ready-for-edit', 'unresolved', 'violated', 'unavailable', 'failed']),
     planRevision: z.number().int().positive(), requestId: id, decisionRoundAtStart: z.number().int().nonnegative().optional(), decisionId: id.optional(), rect: rect.optional(), reason: z.string().optional(), errorCode: id.optional(),
@@ -470,6 +549,10 @@ export function wallpaperEditingRetry(item: WallpaperItem, settings?: WallpaperS
   const prior = item.attempts.at(-1), review = wallpaperAttemptReview(prior)
   if (!prior || !review || !prior.needsOutpaint && !(settings && wallpaperGenerativeRepair(settings)) || prior.checks.length) return undefined
   if (prior.compositionMode === 'background-plate-v1' || prior.compositionMode === 'background-plate-v2') return 'preservationProof' in review && review.preservationProof && (review.preservationRepairTarget === 'background' || review.checks.subject.result === 'satisfied' && review.checks.style.result === 'satisfied' && review.checks.clarity.result === 'satisfied' && review.issues.length && review.issues.every(issue => issue.kind === 'background' || issue.kind === 'readability')) ? { ...wallpaperGenerationRetry(prior, new Date().toISOString()), retryFrom: 'reviewing' } : undefined
+  if (settings?.sourceIntentPolicy) {
+    if (review.issues.some(issue => issue.kind !== 'background' && issue.kind !== 'readability' && !(settings.sourceIntentPolicy?.version === 'source-intent-v2' && issue.kind === 'layout')) || review.checks.subject.result !== 'satisfied' || !('sourceCorrespondence' in review) || review.sourceCorrespondence.result !== 'satisfied') return undefined
+    return { ...wallpaperGenerationRetry(prior, new Date().toISOString()), retryFrom: 'reviewing' }
+  }
   const placement = settings && wallpaperCandidatePlacement({ ...prior, review }, settings)
   if ((prior.layoutCorrection || review.issues.some(issue => issue.kind === 'layout') || settings && wallpaperGenerativeRepair(settings) && review.checks.background.result === 'violated') && !placement) return undefined
   return { revision: prior.revision + 1, plan: structuredClone(prior.plan), checks: [], needsOutpaint: true, compositionMode: prior.compositionMode,
@@ -520,7 +603,8 @@ export function wallpaperCanCancel(status: RunRecord['status'], total: number, p
 }
 /** @param attempt Saved crop or generation attempt. @returns Whether its output uses an allowed composition; model approval cannot waive source restoration. */
 export function wallpaperCompositionEligible(attempt: WallpaperItem['attempts'][number] | undefined): boolean {
-  return !!attempt && (!(attempt.needsOutpaint || attempt.generation || attempt.generatedImageId) || attempt.compositionMode === 'generated-canvas-v1')
+  if (!attempt || attempt.sourceIntentProof || ['protected-context-v1', 'protected-context-v2', 'generated-canvas-protected-v2', 'background-plate-v1', 'background-plate-v2', 'source-intent-background-v1'].some(mode => mode === attempt.compositionMode)) return false
+  return !(attempt.needsOutpaint || attempt.generation || attempt.generatedImageId) || attempt.compositionMode === 'generated-canvas-v1'
 }
 
 /** Project retired pasted results as requiring replacement without changing historical reviews or task records.
@@ -588,6 +672,7 @@ export const wallpaperViewSchema = z.object({
   previewResources: z.record(z.string(), z.string()).default({}),
   workImageVersionId: id.optional(),
   downloads: z.record(z.string(), wallpaperDownloadProgressSchema).optional(),
+  generationReceipts: z.record(id, z.enum(['queued', 'sent', 'succeeded', 'failed', 'cancelled', 'outcome-unknown', 'unavailable'])).optional(),
   enhancements: z.record(z.string(), z.strictObject({ revision: z.number().int().positive(), step: z.enum(['background', 'subject']), progress: resolutionProgressSchema })).optional(),
   serverTransfers: z.record(z.string(), serverTransferViewSchema).optional(),
   itemIndex: z.array(wallpaperItemSchema.pick({ imageVersionId: true, status: true, failedStep: true }).extend({ planned: z.boolean(), previewPath: z.string().optional() })).optional(),

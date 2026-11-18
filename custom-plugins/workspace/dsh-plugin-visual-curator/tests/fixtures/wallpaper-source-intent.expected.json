@@ -1,0 +1,195 @@
+{
+  "legacyPromptHashes": [
+    {
+      "name": "practical",
+      "settings": {
+        "processing": {
+          "acceptance": {
+            "version": "practical-v2"
+          }
+        },
+        "repairPolicy": {
+          "mode": "repair-when-needed"
+        }
+      },
+      "plan": "a809416f976b07013930d8126d9d44d21e9c336a8ab48156c2a1d887033ff86d",
+      "review": "06917ae206ac80c90235210fadfd9d7768a344b8d533e313bb5a6ba9bd1d0a0d"
+    },
+    {
+      "name": "strict",
+      "settings": {
+        "processing": {
+          "acceptance": {
+            "version": "strict-v1"
+          }
+        },
+        "repairPolicy": {
+          "mode": "preserve"
+        }
+      },
+      "plan": "12c50dcb40b3e7e75b7a15f32ecdefe5f1a01e6c7d2c8e4993e1a5f7b72367da",
+      "review": "30a7978b744c5667791f0e00fdec3462a13daaa819ca990b6f0645948f4e318c"
+    }
+  ],
+  "sourceObservations": [
+    {
+      "name": "Real half portrait",
+      "medium": "photograph",
+      "intent": {
+        "framing": "partial",
+        "visibility": "occluded",
+        "preserve": [
+          "Keep the original face, smile, clothes and visible hands."
+        ],
+        "relationships": [
+          "The lectern continues to hide the lower body."
+        ],
+        "layoutFocus": {
+          "x": 0.3,
+          "y": 0.2,
+          "width": 0.4,
+          "height": 0.35
+        }
+      }
+    },
+    {
+      "name": "Full body and pet",
+      "medium": "photograph",
+      "intent": {
+        "framing": "whole",
+        "visibility": "visible",
+        "preserve": [
+          "Keep the visible head, hands and feet."
+        ],
+        "relationships": [
+          "The person holds the original pet without changing contact."
+        ]
+      }
+    },
+    {
+      "name": "Animal face closeup",
+      "medium": "photograph",
+      "intent": {
+        "framing": "close-up",
+        "visibility": "frame-cropped",
+        "preserve": [
+          "Keep visible ears, whiskers and fur markings."
+        ],
+        "relationships": [],
+        "layoutFocus": {
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.8,
+          "height": 0.8
+        }
+      }
+    },
+    {
+      "name": "Painted character",
+      "medium": "painting",
+      "intent": {
+        "framing": "partial",
+        "visibility": "frame-cropped",
+        "preserve": [
+          "Keep brush strokes and intentional stylized proportions."
+        ],
+        "relationships": []
+      }
+    },
+    {
+      "name": "Sculpture",
+      "medium": "three-dimensional",
+      "intent": {
+        "framing": "whole",
+        "visibility": "visible",
+        "preserve": [
+          "Keep the original stone material and sculpted structure."
+        ],
+        "relationships": [
+          "The figure remains attached to the same base."
+        ]
+      }
+    },
+    {
+      "name": "Product label",
+      "medium": "photograph",
+      "intent": {
+        "framing": "close-up",
+        "visibility": "visible",
+        "preserve": [
+          "Keep the readable product label and its actual lettering."
+        ],
+        "relationships": [
+          "Preserve the original overlapping bottle order."
+        ]
+      }
+    },
+    {
+      "name": "Plant boundary",
+      "medium": "photograph",
+      "intent": {
+        "framing": "partial",
+        "visibility": "frame-cropped",
+        "preserve": [
+          "Keep the visible leaf shapes and flower positions."
+        ],
+        "relationships": [
+          "The stem remains attached to its visible branch."
+        ]
+      }
+    },
+    {
+      "name": "Uncertain building detail",
+      "medium": "mixed",
+      "intent": {
+        "framing": "uncertain",
+        "visibility": "uncertain",
+        "preserve": [
+          "Keep the visible facade and unresolved source text."
+        ],
+        "relationships": []
+      }
+    },
+    {
+      "name": "Known physical damage",
+      "medium": "illustration",
+      "intent": {
+        "framing": "whole",
+        "visibility": "damaged",
+        "preserve": [
+          "Retain the visible original design; damage is not editing permission."
+        ],
+        "relationships": []
+      }
+    },
+    {
+      "name": "Graphic composition",
+      "medium": "graphic",
+      "intent": {
+        "framing": "whole",
+        "visibility": "visible",
+        "preserve": [
+          "Keep the designed color boundaries and repeated pattern."
+        ],
+        "relationships": []
+      }
+    },
+    {
+      "name": "Uncertain medium",
+      "medium": "uncertain",
+      "intent": {
+        "framing": "partial",
+        "visibility": "visible",
+        "preserve": [
+          "Keep the visible original marks without imposing a new medium."
+        ],
+        "relationships": []
+      }
+    }
+  ],
+  "replanExample": {
+    "imageVersionId": "original",
+    "editPrompt": "Move the complete subject group lower and keep the entire violin inside the frozen safe bounds. Preserve the original f-shaped sound holes, pose and cropped view.",
+    "reason": "Correct only the observed placement; frozen source observations are retained by the Host."
+  }
+}

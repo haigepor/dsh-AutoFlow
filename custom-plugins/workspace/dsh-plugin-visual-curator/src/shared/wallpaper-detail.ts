@@ -1,6 +1,6 @@
 /** Bounded source-detail evidence can resolve a planning hold without weakening protection or final review. */
 import {z} from 'zod'
-import {wallpaperEdgeRepairSchema,wallpaperObservationPlanSchema,type WallpaperPlan,type WallpaperObjectRole} from './wallpaper.ts'
+import {wallpaperEdgeRepairSchema,wallpaperObservationPlanSchema,wallpaperFailedStep,type WallpaperPlan,type WallpaperObjectRole,type WallpaperItem} from './wallpaper.ts'
 import { wallpaperEdgeRepairEvidenceSchema, wallpaperFindingSchema, wallpaperFindingBlocksEditing, wallpaperRetainedUncertaintySchema, wallpaperNativeDetailCovers, type WallpaperNativeDetail } from './wallpaper-evidence.ts'
 const text=z.string().trim().min(1).max(4096),id=z.string().min(1).max(256)
 /** A second observation reports every prior concern and cites actual saved source crops. */
@@ -32,6 +32,13 @@ export function wallpaperPlanConcerns(plan:WallpaperPlan):{id:string;text:string
  const requiresCritical = plan.objectRoles ? plan.objectRoles.some(object => object.role === 'critical-part') : plan.mode === 'single' || plan.mode === 'group'
  if (!plan.regions.length || (plan.mode === 'single' || plan.mode === 'group') && (!plan.regions.some(region => region.role === 'subject') || requiresCritical && !plan.regions.some(region => region.role === 'critical'))) concerns.push({ id: 'protected-regions', text: 'Locate the complete visible subject and its critical structures in source coordinates.' })
  return concerns
+}
+
+/** @param item Current source and its saved planning hold. @param attempt Selected plan. @returns Whether an original-only inspection can proceed before image generation. */
+export function wallpaperCanReinspectPlan(item: WallpaperItem | undefined, attempt = item?.attempts.at(-1)): boolean {
+  return !!item?.originalId && !!attempt && !attempt.outputId && !attempt.generatedImageId && !attempt.generation && !attempt.generationOperation
+    && (item.status === 'needs-review' || item.status === 'rejected' && attempt.detailAnalysis?.protectedSubjectExtent === 'cut-off' || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'planning')
+    && wallpaperPlanConcerns(attempt.plan).length > 0
 }
 /** @param plan Existing source-coordinate protection. @returns One context-bearing subject crop; no image-wide substitute for missing localization. */
 export function wallpaperPlanDetailRect(plan:WallpaperPlan):{x:number;y:number;width:number;height:number}|undefined{
@@ -109,10 +116,13 @@ export function resolveWallpaperPlanDetail(prior:WallpaperPlan,detail:WallpaperP
  const retainedUncertainties = detail.version === 'wallpaper-plan-detail-v5' ? detail.retainedUncertainties : []
  const blockingUncertainties = observation.uncertainties.filter(text => !retainedUncertainties.some(entry => entry.text === text))
  const findingsReady = detail.version === 'wallpaper-plan-detail-v5' ? detail.findings.every(finding => !wallpaperFindingBlocksEditing(finding)) : detail.findings.every(f=>f.result==='resolved')
-  const roleMismatch=!!prior.objectRoles&&detail.observation.regions.some(region=>!region.entityId||!prior.objectRoles?.some(object=>object.entityId===region.entityId&&object.role!=='supporting'&&region.role===(object.role==='critical-part'?'critical':'subject')))
+  const frozenRoles = prior.objectRoles
+  // With frozen entities, background evidence stays in anchors and backgroundTruncations.
+  const observedRegions = frozenRoles ? observation.regions.filter(region => region.role !== 'anchor') : observation.regions
+  const roleMismatch = frozenRoles && observedRegions.some(region => !frozenRoles.some(object => object.entityId === region.entityId && object.role !== 'supporting' && region.role === (object.role === 'critical-part' ? 'critical' : 'subject')))
   const resolved=!violated&&complete&&findingsReady&&detail.observation.mode!=='uncertain'&&!blockingUncertainties.length&&!roleMismatch
  const ready = resolved && detail.version === 'wallpaper-plan-detail-v5' && (edgeRepair || detail.findings.some(finding => finding.result === 'unresolved') || retainedUncertainties.length > 0)
-  const regions=retainWallpaperRegions(prior.regions,roleMismatch?[]:detail.observation.regions)
+  const regions=retainWallpaperRegions(prior.regions,roleMismatch?[]:observedRegions)
   return {outcome:violated?'violated' as const:ready?'ready-for-edit' as const:resolved?'resolved' as const:'unresolved' as const,observation:wallpaperObservationPlanSchema.parse({...observation,objectRoles:prior.objectRoles??observation.objectRoles,uncertainties:blockingUncertainties,regions}),retainedUncertainties,reason:extent.reason+'；'+detail.findings.map(f=>f.reason).join('；')+(roleMismatch?'；局部复核未沿用已冻结的实体ID和角色':'')}
 }
 

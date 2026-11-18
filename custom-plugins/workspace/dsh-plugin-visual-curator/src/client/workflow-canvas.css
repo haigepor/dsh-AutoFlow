@@ -739,6 +739,7 @@
 .vc-server-settings-wide { grid-column: 1 / -1; }
 .vc-server-stage-status { padding: 12px 16px; margin: 0; border-top: 1px solid var(--dsw-alias-border-l3); }
 .vc-server-table-scroll { flex: 1; min-height: 200px; overflow: auto; border: 1px solid var(--dsw-alias-border-l3); border-radius: 8px; }
+.vc-server-pagination { display: flex; justify-content: center; padding: 8px; }
 .vc-server-table { width: 100%; min-width: 860px; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
 .vc-server-col-check { width: 52px; }
 .vc-server-col-processing { width: 136px; }

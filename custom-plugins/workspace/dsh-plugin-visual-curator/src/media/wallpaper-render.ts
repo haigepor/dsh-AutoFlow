@@ -1,12 +1,33 @@
 /** Deterministic layout protects source subjects and keeps diagnostic and lock-screen layers separate. */
 import sharp from 'sharp'
 import { wallpaperClockSvg } from './wallpaper-clock.ts'
-import type { WallpaperPlan, WallpaperSettings, WallpaperCompositionMode } from '../shared/wallpaper.ts'
+import type { WallpaperFramingObservation, WallpaperPlan, WallpaperSettings, WallpaperCompositionMode } from '../shared/wallpaper.ts'
 import { wallpaperProcessingSchema } from '../shared/wallpaper-policy.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
+import { wallpaperGeometry, type WallpaperSourceLayout } from '../shared/wallpaper-geometry.ts'
 
 export { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
+
+/** Mark source-only boxes and real frame contacts without suggesting a feasible target placement.
+ * @param bytes Original source pixels; never a generated candidate.
+ * @param size Oriented source dimensions.
+ * @param observation Saved source coordinates, including a partial subject's meaningful focus.
+ * @returns Separate annotated PNG; the original remains unchanged.
+ */
+export async function wallpaperFramingAnnotation(bytes: Uint8Array, size: { width: number; height: number }, observation: WallpaperFramingObservation) {
+  const { width, height } = size
+  const marks = observation.objectRoles.filter(object => object.role !== 'supporting').map((object, index) => {
+    const box = object.rect, focus = object.sourceIntent.layoutFocus
+    const rectangle = (rect: typeof box, color: string, dashed = false) => {
+      const geometry = `x="${rect.x * width}" y="${rect.y * height}" width="${rect.width * width}" height="${rect.height * height}" fill="none"${dashed ? ' stroke-dasharray="14 10"' : ''}`
+      return `<rect ${geometry} stroke="#000" stroke-opacity=".65" stroke-width="10"/><rect ${geometry} stroke="${color}" stroke-width="6"/>`
+    }
+    const edges = object.sourceEdges.map(edge => edge === 'left' || edge === 'right' ? `M${edge === 'left' ? 3 : width - 3} ${box.y * height}V${(box.y + box.height) * height}` : `M${box.x * width} ${edge === 'top' ? 3 : height - 3}H${(box.x + box.width) * width}`).join('')
+    return rectangle(box, '#92d5ff') + (focus ? rectangle(focus, '#ffb84d', true) : '') + `<path d="${edges}" fill="none" stroke="#000" stroke-opacity=".65" stroke-width="13"/><path d="${edges}" fill="none" stroke="#f44848" stroke-width="9"/><text x="${box.x * width + 8}" y="${box.y * height + 30}" font-size="30" fill="white" stroke="#000" stroke-width="3" paint-order="stroke">${index + 1}</text>`
+  }).join('')
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${marks}</svg>`)
+  return sharp(bytes).composite([{ input: svg }]).png().toBuffer()
+}
 
 /** Convert one complete provider canvas to the target PNG; no source or candidate pixels are accepted by this renderer.
  * @param bytes Complete generated image, optionally reconstructed before this call.
@@ -24,16 +45,16 @@ export async function renderCompleteWallpaper(bytes: Uint8Array, settings: Pick<
  * @param plan Inferred layout.
  * @param settings Frozen template.
  * @param background Optional complete generated canvas; omission leaves transparent uncovered pixels.
- * @param compositionMode Historical modes can prepare diagnostic placements; only generated-canvas-v1 permits generated output.
+ * @param compositionMode Historical modes can prepare diagnostic placements except retired source-intent restoration; only generated-canvas-v1 permits generated output.
  * @returns Actual image, alpha mask and measured transform.
  */
-export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, background?: Uint8Array, compositionMode: WallpaperCompositionMode = 'generated-canvas-v1') {
-  if (background && compositionMode !== 'generated-canvas-v1') throw new CuratorError('constraint-conflict', 'wallpaper-render', 'Source and candidate pixel overlays are disabled. Use one complete provider canvas; saved historical files remain readable.')
+export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, settings: WallpaperSettings, background?: Uint8Array, compositionMode: WallpaperCompositionMode = 'generated-canvas-v1', sourceLayout?: WallpaperSourceLayout) {
+  if (compositionMode === 'source-intent-background-v1' || background && compositionMode !== 'generated-canvas-v1') throw new CuratorError('constraint-conflict', 'wallpaper-render', 'Source and candidate pixel overlays are disabled. Use one complete provider canvas; saved historical files remain readable.')
   const metadata = await sharp(bytes).metadata()
   if (!metadata.width || !metadata.height) throw new CuratorError('invalid-input', 'wallpaper-render', 'Source dimensions are unavailable.')
-  const geometry = wallpaperGeometry({ width: metadata.width, height: metadata.height }, plan, settings)
+  const geometry = wallpaperGeometry({ width: metadata.width, height: metadata.height }, plan, settings, sourceLayout)
   // Native-size crops retain decoded pixels; scaled placements resample once from the original.
-  const placed = geometry.width === metadata.width && geometry.height === metadata.height ? sharp(bytes) : sharp(bytes).resize(geometry.width, geometry.height, { fit: 'fill', kernel: sharp.kernel.lanczos3, withoutEnlargement: true })
+  const placed = geometry.width === metadata.width && geometry.height === metadata.height ? sharp(bytes) : sharp(bytes).resize(geometry.width, geometry.height, { fit: 'fill', kernel: sharp.kernel.lanczos3, withoutEnlargement: sourceLayout?.version !== 'source-intent-v2' })
   const patch = await placed.extract({ left: geometry.target.left - geometry.left, top: geometry.target.top - geometry.top, width: geometry.target.width, height: geometry.target.height }).png().toBuffer()
   const canvas = { width: settings.width, height: settings.height, channels: 4 as const, background: { r: 0, g: 0, b: 0, alpha: 0 } }
   const seed = await sharp({ create: canvas }).composite([{ input: patch, left: geometry.target.left, top: geometry.target.top }]).png().toBuffer()
@@ -79,7 +100,7 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
       for (let i = 0; i < protection.length; i++) protection[i] = protectedPixels[i] || blend[i] === 255 ? mask.data[i]! : 0
     }
   }
-  const editMask = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: { r: 255, g: 255, b: 255 } } }).joinChannel(protection, { raw }).png().toBuffer()
+  const editMask = await sharp({ create: { width: settings.width, height: settings.height, channels: 3, background: { r: 255, g: 255, b: 255 } } }).joinChannel(sourceLayout?.version === 'source-intent-v2' && compositionMode === 'generated-canvas-v1' ? mask.data : protection, { raw }).png().toBuffer()
   let image: Buffer<ArrayBufferLike> = seed
   let generatedSize: { width: number; height: number } | undefined
   if (background) {

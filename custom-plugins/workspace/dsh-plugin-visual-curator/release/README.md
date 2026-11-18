@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Prepared release 0.2.25, pending publication: Image storage migration can continue when historical files are already missing, while preserving their records and verifying every transferred file before switching directories. The storage dialog prioritizes status, progress and recovery actions, with compact usage figures and expandable quota settings. Restart after active tasks finish to load the matching Host and Client.
+Visual Curator 0.2.26 shows paused crop work and remote image receipts separately. Resuming uses the original receipt, retry actions name their target version, and older planning holds can continue from original-image inspection. The canvas reserves its rework line for a new generation. Image storage migration preserves historical records when some files are missing. Restart after active tasks finish to load the matching Host and Client.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

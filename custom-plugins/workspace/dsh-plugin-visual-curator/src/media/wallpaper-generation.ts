@@ -5,31 +5,64 @@ import type { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-g
 import type { WallpaperPlan, WallpaperItem, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperAttemptReview, wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair } from '../shared/wallpaper-policy.ts'
-import { wallpaperSafetyInstructions } from '../shared/wallpaper-prompts.ts'
 import { wallpaperLayoutCoordinates, wallpaperPositionedLayout, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
 
 type Region = WallpaperPlan['regions'][number]['rect']
-type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
+type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp' | 'image/jpeg'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
 
-/** Author one continuous scene from an unmodified full-scene reference; output contains no composited source rectangle.
- * @param plan Observed source or prior complete candidate and the desired group placement.
- * @param source Reference dimensions; the placement has not been rasterized into this image.
+/** Expand the positioned master canvas with separate source-detail and safety-guide references.
+ * @param plan Frozen source observations and the current scene-specific edit brief.
  * @param settings Frozen output and safety limits.
- * @param attempts Prior independent findings.
- * @returns Exact complete-canvas generation instructions, with no background-plate or pixel-restoration permission.
+ * @param corrections Current localized defects from the previous independent review, without its coordinates or transcript.
+ * @returns Compact visual instructions with one output-coordinate safe area and no pixel-restoration permission.
  */
-export function wallpaperCompleteCanvasPrompt(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings, attempts: WallpaperItem['attempts']): string {
-  const layout = wallpaperPositionedLayout(plan, source, settings)
-  const previous = wallpaperAttemptReview(attempts.findLast(attempt => wallpaperAttemptReview(attempt)))
-  const safety = wallpaperSafetyInstructions(settings)
-  const framing = layout.positionedRegions.filter(region => region.role === 'subject').map(({ name, rect }) => `${name}：完整轮廓占画面宽度约${(rect.width * 100).toFixed(1)}%，左缘${(rect.x * 100).toFixed(1)}%、右缘${((rect.x + rect.width) * 100).toFixed(1)}%，顶缘${(rect.y * 100).toFixed(1)}%、底缘${((rect.y + rect.height) * 100).toFixed(1)}%`).join('；')
-  const subjectPlacement = safety ? `${safety}非汽车主角的零星细线或末梢可自然外伸，不能把完整物体降为末梢；背景可按原有光照、透视、材质与风格自由延展。` : '主体主要体量放在安全区内，大小自然、清楚可辨，充分利用可用构图区域；细线、末梢、装饰允许少量自然外伸，背景可按原有光照、透视、材质与风格自由延展。'
-  return `将参考图适配为一张自然连续的竖幅成品，保留原图题材、主要主体身份、风格及清楚的关键结构。适用于人物、产品、动物、植物、建筑、车辆、风景与抽象图；按实际画面确定视觉核心，不固定题材或主角数量。${subjectPlacement}不要为了塞入陪衬或细枝末节把主角缩得很小，不要求补出原图有意未入镜的身体或背面。\n唯一参考是未经拼贴的完整原图或已保存完整候选；下述desiredRegions和desiredSourceTransform是期望位置，尚未对参考图实施。根据需要实际完成整组等比缩放和平移，交付完整场景。${safety ? '汽车必须按这些目标框实际适配完整可见车身，不能照原图满幅铺开或放大；目标坐标不是参考图已经移动的证明。' : ''}严禁将原图或局部照片作为矩形贴片嵌入背景，禁止画中画、重复主角、明显拼接边、拉伸、灰色占位或新增界面文字。Host直接采用返回的完整画面，不回贴任何原图像素。\n输出${settings.imageSize}，目标${settings.width}×${settings.height}。主题：${plan.subject}。${framing ? `\n镜头与占幅目标（百分比均相对完整成品）：${framing}。参考主体比目标大时，必须拉远镜头、等比缩小整组主体并延展四周背景；保留身份、形状和组内关系，不能保持原来的满幅大小，也不能通过裁切主体达到目标。` : ''}\n期望布局：${JSON.stringify({ coordinateSystem: layout.coordinateSystem, safe: layout.protectedNormalized, referenceTransformAlreadyApplied: false, desiredSourceTransform: layout.appliedSourceTransform, desiredRegions: layout.positionedRegions, objectRoles: layout.objectRoles })}\n仅修复本轮尚未解决的明确缺陷：${JSON.stringify(previous?.issues ?? [])}`
+export function wallpaperCompleteCanvasPrompt(plan: WallpaperPlan, settings: WallpaperSettings, corrections: readonly string[] = []): string {
+  const actionParts = plan.objectRoles?.filter(object => plan.actionPartIds?.includes(object.entityId)).map(object => object.name) ?? []
+  if (settings.sourceIntentPolicy?.version === 'source-intent-v2') return [
+    `只编辑图1的灰色空白背景，输出${settings.width}×${settings.height}完整竖幅图片。`,
+    '图1是已确定位置和大小的主画布，编辑蒙版透明区为待扩背景，不透明区为保留画面；图2是完整原图，仅核对外观、动作、细节和画风；图3是同坐标安全区规划图，仅作标注参考。',
+    '保持图1已有画面的位置、大小和相对比例，人物、手部、手持物与相互遮挡整体保留，不单独移动或重画。保留原有半身、特写和画框截断，不补造画外身体，不裁掉、遮盖或渐隐已有内容。',
+    settings.sourceIntentPolicy.alignment === 'subject-fill-v1' ? '构图以图1为准，图2中已取舍的外围背景无需恢复。' : '',
+    actionParts.length ? `完整保留图1中的${actionParts.join('、')}，从原有连接处到最远可见末端保持连续、姿态和尺寸。` : '',
+    '只沿原图光线、透视、颜色和笔触自然延展背景，接缝连续；不要复制标注线、编号、罩色或灰色占位，不添加重复主体、矩形贴片、日期和界面。',
+    corrections.length ? `上一轮需纠正：${[...new Set(corrections)].join('；')}。位置与大小统一恢复到图1，不重新设计构图。` : '',
+    settings.processing?.clockContrast ? `安全区上方背景须适合白色锁屏文字，对比度至少${settings.processing.clockContrast.minimumRatio}:1；图内不生成文字。` : '',
+  ].filter(Boolean).join('\n')
+  const safe = wallpaperLayoutCoordinates(settings).protectedNormalized
+  const objects = plan.objectRoles?.filter(object => object.role !== 'supporting') ?? []
+  const focused = settings.sourceIntentPolicy ? objects.filter(object => object.role === 'primary' && object.safetyClass !== 'automobile' && object.sourceIntent?.layoutFocus) : []
+  const complete = objects.filter(object => !focused.includes(object))
+  const medium = plan.sourceMedium && { photograph: '摄影', illustration: '插画', painting: '绘画', 'three-dimensional': '三维材质', graphic: '平面设计', mixed: '混合媒介', uncertain: '原有媒介' }[plan.sourceMedium]
+  return [
+    `以图1的完整目标画布为主图扩图，输出${settings.width}×${settings.height}自然连续的竖幅壁纸。主题：${plan.subject}${medium ? ` 保持原有${medium}风格。` : ''}`,
+    '图1是已按规划摆放原图的主编辑画布，灰色空白为待扩背景；图2是完整原图，只核对人物、细节和画风；图3是安全区规划图，只参考安全边界和主体标注，不复制标注线、编号或罩色。',
+    plan.editPrompt ? `本轮编辑：${plan.editPrompt}` : `保留：${[...plan.priorities, ...plan.anchors].join('；')}`,
+    corrections.length ? `本轮修正：${[...new Set(corrections)].join('；')}` : '',
+    `构图：保持图1已摆放好的主体位置、大小和相互比例，不再次缩放或移动；${plan.mode === 'scene' || plan.mode === 'abstract' ? '保留原有整体构图与视觉重心，不新增主角。' : '保持主体醒目，不拉远成小主体。'}安全区为完整成品横向${(safe.left * 100).toFixed(1)}%–${(safe.right * 100).toFixed(1)}%、纵向${(safe.top * 100).toFixed(1)}%–${(safe.bottom * 100).toFixed(1)}%。${focused.length ? `${focused.map(object => object.name).join('、')}的视觉核心放入该区域，原有半身取景、特写和遮挡保持不变。` : ''}${complete.length ? `${complete.map(object => object.name).join('、')}的完整可见范围放入该区域。` : focused.length || plan.mode === 'scene' || plan.mode === 'abstract' ? '' : '各主角与重要结构放入该区域。'}`,
+    '保持图2中的身份、表情、姿态、材质、重要文字与持握关系；完整保留已有可见内容，不补画原图未见的身体或未知结构，不新增遮挡，也不以背景、涂抹或渐隐遮盖已有主体。',
+    `背景沿用原有光线、透视、色彩与纹理自然延展。${plan.backgroundBrief ? plan.backgroundBrief.light : ''}`,
+    settings.processing?.clockContrast ? `安全区上方背景须适合白色锁屏文字，对比度至少${settings.processing.clockContrast.minimumRatio}:1；图内不生成文字。` : '',
+    '不生成矩形贴片、拼接边界、重复主体、标注线、日期或界面。',
+  ].filter(Boolean).join('\n')
+}
+
+/** Bind a positioned edit to a master canvas and independent appearance and layout references.
+ * @param original Encoded appearance reference selected within the attachment byte limit.
+ * @param canvas Unmarked target canvas in output coordinates.
+ * @param layout Safety guide in the same coordinates as the master.
+ * @returns Master, original appearance and layout guide in provider request order.
+ */
+export function wallpaperPositionedGenerationReferences(original: Pick<Reference, 'data' | 'mediaType'>, canvas: Uint8Array, layout: Uint8Array): Reference[] {
+  return [
+    { data: canvas, mediaType: 'image/png', name: 'wallpaper-positioned-master.png', role: 'canvas' },
+    { ...original, name: `wallpaper-original.${original.mediaType.slice(6)}`, role: 'original' },
+    { data: layout, mediaType: 'image/png', name: 'wallpaper-safety-guide.png', role: 'layout-only' },
+  ]
 }
 
 /** Prepare the edit canvas, original, native detail crops and a separately labelled layout guide.
  * @param original Verified, oriented source pixels. @param canvas Unmarked target canvas. @param layout Diagnostic safe-area overlay. @param plan Current inferred protection regions.
- * @param singleCanvas True retains the transparent canvas protocol; opaque supplies a full-frame gray placeholder with editability owned by the separate mask.
+ * @param singleCanvas True retains the transparent canvas protocol; opaque supplies a gray placeholder.
  * @param includeOriginalReference Preserve the same production original as a separate style/detail reference, never another composition.
  * @returns Ordered lossless image inputs. The edit mask belongs only to the first image. Attachment admission may further normalize these references.
  */

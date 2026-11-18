@@ -26,6 +26,22 @@ async function environment(work){
  try{await work({paint:async element=>act(async()=>{rootNode.render(element);await Promise.resolve()}),doc:document})}finally{await act(async()=>rootNode.unmount());dom.window.close();for(const[k,v]of Object.entries(previous))if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k]}
 }
 
+test('image navigation projects the local pause without replacing saved stages or approved results',()=>environment(async({paint,doc})=>{
+ const {ImageNavigator}=capsule.exports.createWallpaperCanvas(React,ui)
+ const first={imageVersionId:'working',status:'rendering'}, passed={imageVersionId:'approved',status:'passed'}, other={imageVersionId:'waiting',status:'reviewing'}
+ const value={status:'paused',workImageVersionId:first.imageVersionId}
+ const control={value,itemIndex:[first,passed,other],downloads:{working:{phase:'saved',receivedBytes:100}},sourceId:'paused-source',offset:0,total:3,busy:false,page(){}}
+ const labels=()=>[...doc.querySelectorAll('.vc-image-thumbnail small')].map(label=>label.textContent)
+ await paint(h(ImageNavigator,{control,t,onSelect(){}}))
+ assert.deepEqual(labels(),[zh.workflowPhasePaused,zh.wallpaperImagePassed,zh.wallpaperImageOutsideWork])
+ assert.equal(doc.querySelector('.vc-image-thumbnail[aria-current=true]').dataset.status,'paused')
+ assert.match(doc.querySelector('[aria-label="'+zh.wallpaperJumpImage+'"]').textContent,new RegExp(zh.workflowPhasePaused))
+ const running={...control,value:{...value,status:'running'}}
+ await paint(h(ImageNavigator,{control:running,t,onSelect(){}}))
+ assert.deepEqual(labels(),[zh.wallpaperImageRendering,zh.wallpaperImagePassed,zh.wallpaperImageOutsideWork])
+ assert.equal(first.status,'rendering')
+}))
+
 test('task details group the core metrics and hide the previous task while another read is pending',()=>environment(async({paint,doc})=>{
  const Dialog=createCanvasTaskDialog(React,ui),first={runId:'first',kind:'search',status:'completed',stage:'reviewing',taskBrief:'First task',createdAt:'2026-11-09T00:00:00Z',counts:{candidates:50,deepReviewed:10,qualified:5,distinct:50,technicalFailed:0},requests:75,warnings:[]}
  let finish

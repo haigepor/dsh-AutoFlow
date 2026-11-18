@@ -1,22 +1,114 @@
 /** Source transforms and protected-region checks run without image decoding. */
-import type { WallpaperItem, WallpaperPlan, WallpaperSettings } from './wallpaper.ts'
+import type { WallpaperFramingDiagnostics, WallpaperItem, WallpaperPlan, WallpaperSettings } from './wallpaper.ts'
 import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit, wallpaperPracticalAcceptance } from './wallpaper-policy.ts'
 import { CuratorError } from './errors.ts'
+
+/** Explicit new-task layout requirements; omission preserves frozen historical geometry rules. */
+export type WallpaperSourceLayout = NonNullable<WallpaperSettings['sourceIntentPolicy']> & {
+  /** Planned output bounds for position and optional matched focus for size measurement. */
+  expectedSubjects?: readonly { entityId: string; rect: Rect; focus?: Rect; wholeRect?: Rect }[]
+  /** Source-projected bounds of action parts independently checked in the final canvas. */
+  expectedActionParts?: readonly { entityId: string; name: string; rect: Rect }[]
+  /** The positioned reference cropped background, with complete visible objects protected. */
+  reviewWholeSubjects?: true
+}
+
+type Rect = WallpaperPlan['regions'][number]['rect']
+type SourceObservation = Pick<WallpaperPlan, 'mode' | 'regions' | 'objectRoles'>
+
+/** @param rects Boxes within one coordinate space. @returns Their smallest enclosing box, if any. */
+export function wallpaperEnclosingRect(rects: readonly Rect[]): Rect | undefined {
+  if (!rects.length) return undefined
+  const x = Math.min(...rects.map(rect => rect.x)), y = Math.min(...rects.map(rect => rect.y))
+  return { x, y, width: Math.max(...rects.map(rect => rect.x + rect.width)) - x, height: Math.max(...rects.map(rect => rect.y + rect.height)) - y }
+}
+
+function subjectFillLimits(source: { width: number; height: number }, plan: SourceObservation, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout) {
+  if (sourceLayout?.alignment !== 'subject-fill-v1' || plan.mode !== 'single' && plan.mode !== 'group') return undefined
+  const objects = plan.objectRoles?.filter(object => object.role !== 'supporting') ?? []
+  // A clipped or unverified foreground cannot authorize removing any of the original surround.
+  if (!objects.some(object => object.role === 'primary') || objects.some(({ sourceIntent, sourceEdges, rect }) =>
+    sourceEdges.length > 0 || sourceIntent?.framing === 'uncertain' || sourceIntent?.visibility !== 'visible' && sourceIntent?.visibility !== 'occluded' ||
+    rect.x === 0 || rect.y === 0 || rect.x + rect.width >= 1 || rect.y + rect.height >= 1)) return undefined
+  const rect = wallpaperEnclosingRect([...objects.map(object => object.rect), ...plan.regions.map(region => region.rect)])
+  if (!rect) return undefined
+  const bounds = wallpaperProtectedBounds(settings), inset = settings.processing?.layoutInsetPixels ?? 0
+  const safeScale = Math.min((settings.safe.width - 2 * inset) / (source.width * rect.width),
+    (bounds.critical.bottom - bounds.top - 2 * inset) / (source.height * rect.height))
+  const retain = sourceLayout.fill.minimumRetainedAxis
+  const contextScale = sourceLayout.fill.relativeLayout
+    ? Math.min(Math.floor(settings.width / retain) / source.width, Math.floor(settings.height / retain) / source.height)
+    : Math.min(settings.width / (source.width * retain), settings.height / (source.height * retain))
+  return { rect, retain, maximum: Math.min(safeScale, contextScale), preferred: Math.min(safeScale * sourceLayout.fill.safeOccupancy, contextScale) }
+}
+
+/** Use the same protected content and retained-background limits as automatic placement.
+ * @param source Oriented source dimensions. @param plan Current original observation and draft.
+ * @param settings Frozen output and cropping policy.
+ * @returns The scale ceiling and protected group center for proportional adjustment.
+ */
+export function wallpaperPlacementScaleOptions(source: { width: number; height: number }, plan: SourceObservation, settings: WallpaperSettings) {
+  const fit = settings.sourceIntentPolicy?.version === 'source-intent-v2' ? Math.min(settings.width / source.width, settings.height / source.height) : 1
+  const fill = subjectFillLimits(source, plan, settings, settings.sourceIntentPolicy)
+  const policy = settings.sourceIntentPolicy
+  return fill && (fill.maximum > fit || policy?.alignment === 'subject-fill-v1' && policy.fill.relativeLayout) ? {
+    maximum: fill.maximum,
+    center: { x: fill.rect.x + fill.rect.width / 2, y: fill.rect.y + fill.rect.height / 2 },
+  } : { maximum: fit }
+}
+
+/** Derive layout focus without changing complete source entities used for preservation review.
+ * @param plan Original protected rectangles and frozen source entities.
+ * @param sourceLayout Explicit source-intent policy; omission returns original rectangles unchanged.
+ * @param wholeSubjects Protect the complete visible subject on a background-cropped reference.
+ * @returns Layout rectangles, retaining complete automobile and indispensable-part protection.
+ */
+export function wallpaperLayoutRegions(plan: Pick<WallpaperPlan, 'regions' | 'objectRoles'>, sourceLayout?: WallpaperSourceLayout, wholeSubjects = false): WallpaperPlan['regions'] {
+  if (!sourceLayout) return plan.regions
+  return plan.regions.map(region => {
+    const object = plan.objectRoles?.find(object => object.entityId === region.entityId)
+    const focus = wholeSubjects ? object?.rect : object?.sourceIntent?.layoutFocus
+    return region.role === 'subject' && region.safetyClass !== 'automobile' && focus ? { ...region, rect: focus } : region
+  })
+}
+
+function sourceContinuationObjects(observed: Pick<WallpaperPlan, 'truncations' | 'regions' | 'objectRoles'>, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout) {
+  if (!wallpaperGenerativeRepair(settings) || !settings.sourceFrameRepair?.enabled) return []
+  if (observed.objectRoles?.length) return observed.objectRoles.filter(object => !sourceLayout || object.sourceIntent?.framing === 'whole' && object.sourceIntent.visibility === 'damaged').map(object => ({ entityId: object.entityId, name: object.name, role: object.role, rect: object.rect, edges: object.sourceEdges }))
+  if (sourceLayout || !observed.truncations.length) return []
+  const regions = observed.regions.filter(region => region.role !== 'anchor')
+  const edges = (['left', 'top', 'right', 'bottom'] as const).filter(edge => regions.some(({ rect }) => edge === 'left' ? rect.x === 0 : edge === 'top' ? rect.y === 0 : edge === 'right' ? rect.x + rect.width >= 1 : rect.y + rect.height >= 1))
+  return edges.map(edge => ({ entityId: `source-${edge}`, name: `Source ${edge} edge`, role: 'primary' as const, rect: undefined, edges: [edge] }))
+}
 
 /** Locate source-frame contacts that need bounded continuation after placing a cropped object inside the canvas.
  * @param observed Source truncations and protected rectangles; background crops alone grant no subject edits.
  * @param settings Frozen generated-repair and frame-continuation authorization.
- * @returns Source edges requiring extension room, or none when continuation is disabled or no protected object touches the frame.
+ * @param sourceLayout New tasks reserve room only for confirmed damaged main objects; omission retains historical edge handling.
+ * @returns Source edges requiring layout room, or none when continuation is disabled or no authorized main object touches the frame.
  */
-export function wallpaperSourceExtensionEdges(observed: Pick<WallpaperPlan, 'truncations' | 'regions' | 'objectRoles'>, settings: WallpaperSettings): ('left' | 'top' | 'right' | 'bottom')[] {
-  if (!wallpaperGenerativeRepair(settings) || !settings.sourceFrameRepair?.enabled) return []
-  if (observed.objectRoles?.length) return (['left', 'top', 'right', 'bottom'] as const).filter(edge => observed.objectRoles!.some(object => object.sourceEdges.includes(edge)))
-  if (!observed.truncations.length) return []
-  const regions = observed.regions.filter(region => region.role !== 'anchor')
-  return (['left', 'top', 'right', 'bottom'] as const).filter(edge => regions.some(({ rect }) => edge === 'left' ? rect.x === 0 : edge === 'top' ? rect.y === 0 : edge === 'right' ? rect.x + rect.width >= 1 : rect.y + rect.height >= 1))
+export function wallpaperSourceExtensionEdges(observed: Pick<WallpaperPlan, 'truncations' | 'regions' | 'objectRoles'>, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout): ('left' | 'top' | 'right' | 'bottom')[] {
+  const objects = sourceContinuationObjects(observed, settings, sourceLayout)
+  return (['left', 'top', 'right', 'bottom'] as const).filter(edge => objects.some(object => (!sourceLayout || object.role !== 'supporting') && object.edges.includes(edge)))
 }
 
 type SourceEdge = 'left' | 'top' | 'right' | 'bottom'
+
+/** A source-only planning hold preserves the limiting constraints before any image production. */
+export class WallpaperFramingConflictError extends CuratorError {
+  /** @param diagnostics Exact source and safety constraints that have no common placement. */
+  constructor(readonly diagnostics: WallpaperFramingDiagnostics) {
+    super('source-framing-conflict', 'wallpaper-layout', 'The original framing and safe area have no common placement. Inspect the source boundaries before generating an image.')
+  }
+}
+
+type PlacementBound = { offset: number; fraction: number; kind: 'canvas' | 'safe' | 'frame'; edge: SourceEdge; name?: string }
+
+function sourceFrameContacts(plan: Pick<WallpaperPlan, 'objectRoles' | 'actionPartIds'>, sourceLayout?: WallpaperSourceLayout): SourceEdge[] {
+  if (sourceLayout?.version !== 'source-intent-v2') return []
+  return [...new Set(plan.objectRoles?.filter(object => object.role !== 'supporting' && object.sourceIntent?.visibility === 'frame-cropped' &&
+    (object.sourceIntent.framing === 'partial' || object.sourceIntent.framing === 'close-up' || plan.actionPartIds?.includes(object.entityId))).flatMap(object => object.sourceEdges))]
+}
 
 /** One source-frame contact after placement; only contacts inside the delivered frame need a new visible ending. */
 export interface WallpaperSourceContinuationTarget {
@@ -29,11 +121,12 @@ export interface WallpaperSourceContinuationTarget {
 
 /** Classify each observed source-frame contact against the actual output frame.
  * @param plan Frozen source observation and placement. @param settings Output frame and repair policy. @param source Oriented source pixels used by the placement.
+ * @param sourceLayout Explicit new-task edit permission; omission retains historical continuation targets.
  * @returns Per-object contacts, including final-frame crops that must not be reconstructed inside the source.
  */
-export function wallpaperSourceContinuationTargets(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }): WallpaperSourceContinuationTarget[] {
-  const edges = wallpaperSourceExtensionEdges(plan, settings)
-  if (!edges.length) return []
+export function wallpaperSourceContinuationTargets(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }, sourceLayout?: WallpaperSourceLayout): WallpaperSourceContinuationTarget[] {
+  const objects = sourceContinuationObjects(plan, settings, sourceLayout)
+  if (!objects.length) return []
   const width = Math.max(1, Math.round(source.width * plan.placement.scale)), height = Math.max(1, Math.round(source.height * plan.placement.scale))
   const positions = { left: plan.placement.left, top: plan.placement.top, right: plan.placement.left + width, bottom: plan.placement.top + height }
   const inside = (edge: SourceEdge, rect?: WallpaperPlan['regions'][number]['rect']) => {
@@ -45,28 +138,26 @@ export function wallpaperSourceContinuationTargets(plan: WallpaperPlan, settings
       ? plan.placement.top + (rect.y + rect.height) * height > 0 && plan.placement.top + rect.y * height < settings.height
       : plan.placement.left + (rect.x + rect.width) * width > 0 && plan.placement.left + rect.x * width < settings.width
   }
-  const objects = plan.objectRoles?.length
-    ? plan.objectRoles.map(object => ({ entityId: object.entityId, name: object.name, rect: object.rect, edges: object.sourceEdges }))
-    : edges.map(edge => ({ entityId: `source-${edge}`, name: `Source ${edge} edge`, rect: undefined, edges: [edge] }))
-  return objects.flatMap(object => object.edges.filter(edge => edges.includes(edge)).map(edge => ({
+  return objects.flatMap(object => object.edges.map(edge => ({
     entityId: object.entityId, name: object.name, edge, disposition: inside(edge, object.rect) ? 'interior' as const : 'final-frame-crop' as const,
     ...(object.rect ? { rect: object.rect } : {}),
   })))
 }
 
-/** @param plan Frozen placement. @param settings Output policy. @param source Reference dimensions. @returns Model-visible per-object edit permission without treating final-frame crops as interior defects. */
-export function wallpaperSourceContinuationContext(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }) {
-  return { targets: wallpaperSourceContinuationTargets(plan, settings, source), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }
+/** @param plan Frozen placement. @param settings Output policy. @param source Reference dimensions. @param sourceLayout New-task edit permission; omission keeps historical targets. @returns Model-visible per-object edit permission without treating final-frame crops as interior defects. */
+export function wallpaperSourceContinuationContext(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }, sourceLayout?: WallpaperSourceLayout) {
+  return { targets: wallpaperSourceContinuationTargets(plan, settings, source, sourceLayout), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }
 }
 
 /** Map each internal source cut to a full-output crop for the independent native review.
  * @param plan Frozen placement and source object rectangles. @param settings Output frame. @param source Oriented source dimensions.
+ * @param sourceLayout New-task edit permission; omission retains historical review regions.
  * @returns Local views including generated pixels beyond the old cut and the adjacent source object.
  */
-export function wallpaperSourceContinuationReviewRegions(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }) {
+export function wallpaperSourceContinuationReviewRegions(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }, sourceLayout?: WallpaperSourceLayout) {
   const width = Math.round(source.width * plan.placement.scale), height = Math.round(source.height * plan.placement.scale)
   const clamp = (value: number) => Math.max(0, Math.min(1, value))
-  return wallpaperSourceContinuationTargets(plan, settings, source).filter(target => target.disposition === 'interior' && target.rect).map(target => {
+  return wallpaperSourceContinuationTargets(plan, settings, source, sourceLayout).filter(target => target.disposition === 'interior' && target.rect).map(target => {
     const object = target.rect!
     const left = (plan.placement.left + object.x * width) / settings.width
     const top = (plan.placement.top + object.y * height) / settings.height
@@ -104,9 +195,10 @@ export function wallpaperModelPlan(plan: WallpaperPlan): WallpaperPlan {
 /** Fit an independently complete saved scene before extending newly exposed canvas.
  * @param prior Saved candidate and its actual output review.
  * @param settings Frozen repair authorization and safety bounds.
+ * @param sourceLayout New-task focus and size policy; omission retains historical candidate geometry.
  * @returns Uniform candidate placement for layout or clock-background defects, or absence when subject, structure or image quality still needs repair.
  */
-export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'][number], 'plan' | 'review' | 'outputId' | 'compositionMode'>, settings: WallpaperSettings): WallpaperPlan | undefined {
+export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'][number], 'plan' | 'review' | 'outputId' | 'compositionMode'>, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout): WallpaperPlan | undefined {
   const review = prior.review
   if (!wallpaperGenerativeRepair(settings) || prior.compositionMode !== 'generated-canvas-v1' || !prior.outputId || !review || !('reviewVersion' in review) || review.reviewVersion !== 'wallpaper-review-source-v4') return undefined
   if (Object.values(review.checks).some(check => check.result === 'unknown') || review.sourceRepair.result === 'unknown' || review.subjectIntegrity.task.result === 'unknown') return undefined
@@ -126,13 +218,16 @@ export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'
     if (!defects.length || defects.some(issue => !issue.evidence || issue.evidence.kind !== 'background-artifact' || issue.evidence.imageVersionId !== review.actualLayout.imageVersionId)) return undefined
   }
   const regions = [...wallpaperObjectProtectionRegions({ mode: 'group', regions: core }, settings), ...(wallpaperPracticalAcceptance(settings) ? [] : review.actualLayout.regions.filter(region => region.scope === 'peripheral').map(region))]
-  const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, objectRoles: prior.plan.objectRoles?.map(object => ({ ...object, sourceEdges: [] })), truncations: [], uncertainties: [],
+  const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, objectRoles: prior.plan.objectRoles?.map(object => {
+    const actual = sourceLayout && object.role !== 'supporting' ? review.actualLayout.regions.find(region => region.entityId === object.entityId && region.scope === 'core' && region.role === (object.role === 'primary' ? 'subject' : 'critical')) : undefined
+    return { ...object, ...(actual ? { rect: actual.rect, ...(object.sourceIntent ? { sourceIntent: { ...object.sourceIntent, layoutFocus: actual.layoutFocus } } : {}) } : {}), sourceEdges: [] }
+  }), truncations: [], uncertainties: [],
     editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。按本轮参考画布提供的等比缩放定位要求，${review.checks.background.result === 'violated' ? '保护已验收主体和必要结构，仅修复已定位的背景缺陷并补全新露出的背景' : '只补新露出的外围背景'}${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
     reason: 'Uniform placement derived from independently reviewed candidate regions; subject and image quality remain subject to final review.' }
-  const placement = layoutDefect ? fitWallpaperPlacement(settings, observed, settings, 'subject-first-v2') : { scale: 1, left: 0, top: 0 }
+  const placement = layoutDefect ? fitWallpaperPlacement(settings, observed, settings, 'subject-first-v2', [], sourceLayout) : { scale: 1, left: 0, top: 0 }
   if (layoutDefect && placement.scale === 1 && placement.left === 0 && placement.top === 0) return undefined
   const plan = { ...observed, placement }
-  return wallpaperGeometry(settings, plan, settings).checks.length ? undefined : plan
+  return wallpaperGeometry(settings, plan, settings, sourceLayout).checks.length ? undefined : plan
 }
 
 /** @param settings Frozen output and allowed noncritical overflow. @returns Exact protected limits used by geometry checks and model input. */
@@ -181,11 +276,13 @@ export function wallpaperPracticalRegionBoundary(region: Pick<WallpaperPlan['reg
 
 /** Describe only positioned output regions; frozen object identities do not carry source rectangles into output coordinates.
  * @param plan Effective original or complete-candidate placement. @param source Effective reference dimensions. @param settings Frozen output geometry.
+ * @param sourceLayout New-task focus policy; omission positions complete historical rectangles.
  * @returns Output-normalized protection regions and semantic object roles, with the applied source transform explicitly identified.
  */
-export function wallpaperPositionedLayout(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings) {
-  const geometry = wallpaperGeometry(source, wallpaperModelPlan(plan), settings)
+export function wallpaperPositionedLayout(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout) {
+  const geometry = wallpaperGeometry(source, wallpaperModelPlan(plan), settings, sourceLayout)
   return { ...wallpaperLayoutCoordinates(settings), sourceImageVersionId: plan.imageVersionId, referenceTransformAlreadyApplied: true,
+    ...(geometry.backgroundCrop ? { backgroundCrop: true as const } : {}),
     appliedSourceTransform: plan.placement,
     positionedRegions: geometry.regions.map(region => ({ name: region.name, entityId: region.entityId, role: region.role, ...(region.safetyClass ? { safetyClass: region.safetyClass } : {}),
       rect: { x: region.left / settings.width, y: region.top / settings.height, width: region.width / settings.width, height: region.height / settings.height } })),
@@ -195,65 +292,178 @@ export function wallpaperPositionedLayout(plan: WallpaperPlan, source: { width: 
 /** Fit all inferred protected regions with the same rounded source geometry used by rendering.
  * @param source Oriented original dimensions. @param observed Model observations without pixel placement. @param settings Frozen safe area and output size. @param policy V2 centers protected objects; V3 minimizes new pixels for a full-size healthy source.
  * @param extensionEdges Confirmed source edges requiring new pixels; omission reserves no additional space.
- * @returns Source placement that prefers a direct crop and never enlarges the original; semantic uncertainty remains in the plan.
+ * @param sourceLayout New-task focus and edge authorization; omission preserves historical fitting.
+ * @returns V2 references retain intentional frame contacts and prefer the configured subject center before scale; historical layouts never enlarge the original.
  */
-export function fitWallpaperPlacement(source: { width: number; height: number }, observed: Omit<WallpaperPlan, 'placement'>, settings: WallpaperSettings, policy: 'crop-first-v1' | 'subject-first-v2' | 'source-preserving-v3' = 'crop-first-v1', extensionEdges: readonly ('left' | 'top' | 'right' | 'bottom')[] = []): WallpaperPlan['placement'] {
+export function fitWallpaperPlacement(source: { width: number; height: number }, observed: Omit<WallpaperPlan, 'placement'>, settings: WallpaperSettings, policy: 'crop-first-v1' | 'subject-first-v2' | 'source-preserving-v3' = 'crop-first-v1', extensionEdges: readonly ('left' | 'top' | 'right' | 'bottom')[] = [], sourceLayout?: WallpaperSourceLayout): WallpaperPlan['placement'] {
   const bounds = wallpaperProtectedBounds(settings)
   const margin = settings.sourceFrameRepair?.marginPixels ?? 0
   const inset = settings.processing?.layoutInsetPixels ?? 0
-  const edges = extensionEdges.length ? extensionEdges : wallpaperSourceExtensionEdges(observed, settings)
+  const allowedEdges = wallpaperSourceExtensionEdges(observed, settings, sourceLayout)
+  const edges = extensionEdges.length ? sourceLayout ? extensionEdges.filter(edge => allowedEdges.includes(edge)) : extensionEdges : allowedEdges
+  const fillLimits = subjectFillLimits(source, observed, settings, sourceLayout)
+  const fill = fillLimits && fillLimits.preferred > Math.min(settings.width / source.width, settings.height / source.height) ? fillLimits : undefined
+  const layoutRegions = wallpaperLayoutRegions(observed, sourceLayout, !!fill)
+  const visibleObjects = sourceLayout ? observed.objectRoles?.filter(object => object.role !== 'supporting') ?? [] : []
+  const frameContacts = sourceFrameContacts(observed, sourceLayout)
+  const centered = sourceLayout?.alignment !== undefined && (observed.mode === 'single' || observed.mode === 'group')
+  const relativeLayout = sourceLayout?.alignment === 'subject-fill-v1' && sourceLayout.fill.relativeLayout
+  const joined = fill?.rect ?? (centered && relativeLayout && !frameContacts.length && visibleObjects.length && visibleObjects.every(object =>
+    object.sourceIntent?.visibility === 'visible' || object.sourceIntent?.visibility === 'occluded')
+    ? wallpaperEnclosingRect([...visibleObjects.map(object => object.rect), ...observed.regions.map(region => region.rect)]) : undefined)
+  const primaries = visibleObjects.filter(object => object.role === 'primary')
+  const partials = primaries.filter(object => object.sourceIntent?.layoutFocus)
+  const leads = partials.length ? partials : primaries
+  const sourceCenterX = joined ? joined.x + joined.width / 2 : centered ? (Math.min(...leads.map(object => object.rect.x)) + Math.max(...leads.map(object => object.rect.x + object.rect.width))) / 2 : 0.5
+  const focus = joined ? [joined] : centered ? leads.map(object => object.sourceIntent?.visibility === 'frame-cropped' ? object.sourceIntent.layoutFocus ?? object.rect : object.rect) : layoutRegions.filter(region => region.role === 'subject').map(region => region.rect)
+  const sourceCenterY = focus.length ? (Math.min(...focus.map(rect => rect.y)) + Math.max(...focus.map(rect => rect.y + rect.height))) / 2 : 0.5
+  const centerX = settings.safe.left + settings.safe.width / 2, centerY = (bounds.top + bounds.critical.bottom) / 2
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)))
+  const horizontal: { lower: PlacementBound[]; upper: PlacementBound[] } = { lower: [{ offset: 1, fraction: -1, kind: 'canvas', edge: 'right' }], upper: [{ offset: settings.width - 1, fraction: 0, kind: 'canvas', edge: 'left' }] }
+  const vertical: { lower: PlacementBound[]; upper: PlacementBound[] } = { lower: [{ offset: 1, fraction: -1, kind: 'canvas', edge: 'bottom' }], upper: [{ offset: settings.height - 1, fraction: 0, kind: 'canvas', edge: 'top' }] }
+  const protectedRegions = joined ? [{ name: 'Protected content', role: 'critical' as const, rect: joined }] : layoutRegions
+  for (const region of protectedRegions) {
+    const base = wallpaperPracticalAcceptance(settings) || region.role !== 'subject' ? bounds.critical : bounds.subject
+    horizontal.lower.push({ offset: Math.max(0, base.left + inset + (edges.includes('left') ? margin : 0)), fraction: -region.rect.x, kind: 'safe', edge: 'left', name: region.name })
+    horizontal.upper.push({ offset: Math.min(settings.width, base.right - inset - (edges.includes('right') ? margin : 0)), fraction: -(region.rect.x + region.rect.width), kind: 'safe', edge: 'right', name: region.name })
+    vertical.lower.push({ offset: bounds.top + inset + (edges.includes('top') ? margin : 0), fraction: -region.rect.y, kind: 'safe', edge: 'top', name: region.name })
+    vertical.upper.push({ offset: Math.min(settings.height, base.bottom - inset - (edges.includes('bottom') ? margin : 0)), fraction: -(region.rect.y + region.rect.height), kind: 'safe', edge: 'bottom', name: region.name })
+  }
+  for (const object of visibleObjects) {
+    horizontal.lower.push({ offset: 0, fraction: -object.rect.x, kind: 'canvas', edge: 'left', name: object.name })
+    horizontal.upper.push({ offset: settings.width, fraction: -(object.rect.x + object.rect.width), kind: 'canvas', edge: 'right', name: object.name })
+    vertical.lower.push({ offset: 0, fraction: -object.rect.y, kind: 'canvas', edge: 'top', name: object.name })
+    vertical.upper.push({ offset: settings.height, fraction: -(object.rect.y + object.rect.height), kind: 'canvas', edge: 'bottom', name: object.name })
+  }
+  if (fill) {
+    horizontal.lower.push({ offset: 0, fraction: fill.retain - 1, kind: 'canvas', edge: 'left' }); horizontal.upper.push({ offset: settings.width, fraction: -fill.retain, kind: 'canvas', edge: 'right' })
+    vertical.lower.push({ offset: 0, fraction: fill.retain - 1, kind: 'canvas', edge: 'top' }); vertical.upper.push({ offset: settings.height, fraction: -fill.retain, kind: 'canvas', edge: 'bottom' })
+  } else if (sourceLayout?.version === 'source-intent-v2') {
+    horizontal.lower.push({ offset: 0, fraction: 0, kind: 'canvas', edge: 'left' }); horizontal.upper.push({ offset: settings.width, fraction: -1, kind: 'canvas', edge: 'right' })
+    vertical.lower.push({ offset: 0, fraction: 0, kind: 'canvas', edge: 'top' }); vertical.upper.push({ offset: settings.height, fraction: -1, kind: 'canvas', edge: 'bottom' })
+  }
+  for (const edge of frameContacts) {
+    const axis = edge === 'left' || edge === 'right' ? horizontal : vertical
+    const constraint: PlacementBound = edge === 'left' || edge === 'top' ? { offset: 0, fraction: 0, kind: 'frame', edge } : { offset: edge === 'right' ? settings.width : settings.height, fraction: -1, kind: 'frame', edge }
+    axis.lower.push(constraint); axis.upper.push(constraint)
+  }
   const intervals = (scale: number) => {
     const width = Math.max(1, Math.round(source.width * scale)), height = Math.max(1, Math.round(source.height * scale))
-    let left = -width + 1, right = settings.width - 1, top = -height + 1, bottom = settings.height - 1
-    for (const region of observed.regions) {
-      // Practical planning reserves the exact safe band; final review owns small overflow allowances.
-      const base = wallpaperPracticalAcceptance(settings) || region.role !== 'subject' ? bounds.critical : bounds.subject
-      const allowed = { left: base.left + inset + (edges.includes('left') ? margin : 0), right: base.right - inset - (edges.includes('right') ? margin : 0), bottom: base.bottom - inset - (edges.includes('bottom') ? margin : 0) }
-      left = Math.max(left, Math.ceil(Math.max(0, allowed.left) - region.rect.x * width))
-      right = Math.min(right, Math.floor(Math.min(settings.width, allowed.right) - (region.rect.x + region.rect.width) * width))
-      top = Math.max(top, Math.ceil(bounds.top + inset + (edges.includes('top') ? margin : 0) - region.rect.y * height))
-      bottom = Math.min(bottom, Math.floor(Math.min(settings.height, allowed.bottom) - (region.rect.y + region.rect.height) * height))
-    }
-    return { width, height, left, right, top, bottom, feasible: left <= right && top <= bottom }
+    const retainedWidth = fill && relativeLayout ? retainedPixels(width, fill.retain) : 0
+    const retainedHeight = fill && relativeLayout ? retainedPixels(height, fill.retain) : 0
+    const left = Math.max(retainedWidth - width, ...horizontal.lower.map(bound => Math.ceil(bound.offset + bound.fraction * width)))
+    const right = Math.min(settings.width - retainedWidth, ...horizontal.upper.map(bound => Math.floor(bound.offset + bound.fraction * width)))
+    const top = Math.max(retainedHeight - height, ...vertical.lower.map(bound => Math.ceil(bound.offset + bound.fraction * height)))
+    const bottom = Math.min(settings.height - retainedHeight, ...vertical.upper.map(bound => Math.floor(bound.offset + bound.fraction * height)))
+    return { width, height, left, right, top, bottom, feasible: left <= right && top <= bottom && retainedWidth <= settings.width && retainedHeight <= settings.height }
   }
   const cropScale = Math.min(1, Math.max(settings.width / source.width, settings.height / source.height))
   const crop = intervals(cropScale)
   const canCrop = crop.feasible && crop.width >= settings.width && crop.height >= settings.height && Math.max(crop.left, settings.width - crop.width) <= Math.min(crop.right, 0) && Math.max(crop.top, settings.height - crop.height) <= Math.min(crop.bottom, 0)
   let scale = policy !== 'crop-first-v1' && (observed.mode === 'single' || observed.mode === 'group') && !canCrop ? 1 : cropScale, limits = intervals(scale)
-  if (!limits.feasible) {
+  if (sourceLayout?.version === 'source-intent-v2' && (observed.mode === 'single' || observed.mode === 'group')) {
+    let minimum = 0, maximum = Infinity
+    let minimumLimit: WallpaperFramingDiagnostics['limits'][number] | undefined, maximumLimit: WallpaperFramingDiagnostics['limits'][number] | undefined
+    const describe = ({ kind, edge, name }: PlacementBound) => ({ kind, edge, ...(name ? { name } : {}) })
+    const conflict = (limit?: WallpaperFramingDiagnostics['limits'][number]): never => { throw new WallpaperFramingConflictError({ version: 'source-framing-conflict-v1', edges: frameContacts, minimumScale: minimum, ...(Number.isFinite(maximum) ? { maximumScale: maximum } : {}), limits: [minimumLimit, maximumLimit, limit].filter((row): row is NonNullable<typeof row> => row !== undefined) }) }
+    for (const [axis, length] of [[horizontal, source.width], [vertical, source.height]] as const) for (const lower of axis.lower) for (const upper of axis.upper) {
+      const slope = (lower.fraction - upper.fraction) * length, offset = upper.offset - lower.offset
+      const pair = { axis: axis === horizontal ? 'horizontal' as const : 'vertical' as const, lower: describe(lower), upper: describe(upper) }
+      if (slope > 0 && offset / slope < maximum) { maximum = offset / slope; maximumLimit = { ...pair, kind: 'maximum', scale: maximum } }
+      else if (slope < 0 && offset / slope > minimum) { minimum = offset / slope; minimumLimit = { ...pair, kind: 'minimum', scale: minimum } }
+      else if (slope === 0 && offset < 0) conflict({ ...pair, kind: 'offset' })
+    }
+    if (maximum <= 0 || maximum < minimum) conflict()
+    scale = Math.min(maximum, fill?.preferred ?? maximum); limits = intervals(scale)
+    // Descending raster transitions resolve integer rounding without assuming anchored layouts fit at zero scale.
+    while (!limits.feasible && scale >= minimum) {
+      const next = Math.max((limits.width - 0.5) / source.width, (limits.height - 0.5) / source.height)
+      scale = next - Number.EPSILON * Math.max(1, next); limits = intervals(scale)
+    }
+    if (scale < minimum) conflict()
+    if (centered) {
+      const distance = (candidate: number) => {
+        const box = intervals(candidate)
+        if (!box.feasible) return Infinity
+        const x = clamp(centerX - sourceCenterX * box.width, box.left, box.right) + sourceCenterX * box.width
+        const y = clamp(centerY - sourceCenterY * box.height, box.top, box.bottom) + sourceCenterY * box.height
+        // Half-pixel center differences are raster rounding; equal centers retain the larger subject.
+        return (Math.max(0, Math.abs(x - centerX) - 0.5) / settings.safe.width) ** 2 + (Math.max(0, Math.abs(y - centerY) - 0.5) / settings.safe.height) ** 2
+      }
+      let lower = minimum, upper = scale
+      for (let i = 0; i < 40; i++) {
+        const first = lower + (upper - lower) / 3, second = upper - (upper - lower) / 3
+        if (distance(first) < distance(second)) upper = second
+        else lower = first
+      }
+      scale = [lower, upper, (lower + upper) / 2].reduce((best, candidate) => distance(candidate) < distance(best) || distance(candidate) === distance(best) && candidate > best ? candidate : best, scale)
+      limits = intervals(scale)
+    }
+  } else if (!limits.feasible) {
     let lower = 0, upper = scale
     // Rounded dimensions make feasibility monotonic; the final interval is checked again by wallpaperGeometry.
     for (let i = 0; i < 40; i++) { const middle = (lower + upper) / 2; if (intervals(middle).feasible) lower = middle; else upper = middle }
     scale = lower; limits = intervals(scale)
   }
   if (!scale || !limits.feasible) throw new CuratorError('constraint-conflict', 'wallpaper-layout', 'The protected regions cannot fit the frozen safe area.')
-  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)))
   const cropLeft = Math.max(limits.left, settings.width - limits.width), cropRight = Math.min(limits.right, 0)
   const cropTop = Math.max(limits.top, settings.height - limits.height), cropBottom = Math.min(limits.bottom, 0)
-  if (limits.width >= settings.width && limits.height >= settings.height && cropLeft <= cropRight && cropTop <= cropBottom) return { scale, left: clamp((settings.width - limits.width) / 2, cropLeft, cropRight), top: clamp((settings.height - limits.height) / 2, cropTop, cropBottom) }
+  if (!centered && limits.width >= settings.width && limits.height >= settings.height && cropLeft <= cropRight && cropTop <= cropBottom) return { scale, left: clamp((settings.width - limits.width) / 2, cropLeft, cropRight), top: clamp((settings.height - limits.height) / 2, cropTop, cropBottom) }
   if (policy === 'source-preserving-v3' && source.width === settings.width && source.height === settings.height && scale === 1) return { scale, left: clamp(0, limits.left, limits.right), top: clamp(0, limits.top, limits.bottom) }
-  const subjects = observed.regions.filter(region => region.role === 'subject'), focus = subjects.length ? subjects : observed.regions
-  const centerY = focus.length ? (Math.min(...focus.map(region => region.rect.y)) + Math.max(...focus.map(region => region.rect.y + region.rect.height))) / 2 : 0.5
-  return { scale, left: clamp((settings.width - limits.width) / 2, limits.left, limits.right), top: clamp((bounds.top + bounds.critical.bottom) / 2 - centerY * limits.height, limits.top, limits.bottom) }
+  const verticalFocus = focus.length ? sourceCenterY : layoutRegions.length ? (Math.min(...layoutRegions.map(region => region.rect.y)) + Math.max(...layoutRegions.map(region => region.rect.y + region.rect.height))) / 2 : 0.5
+  return { scale, left: clamp(centered ? centerX - sourceCenterX * limits.width : (settings.width - limits.width) / 2, limits.left, limits.right), top: clamp(centerY - verticalFocus * limits.height, limits.top, limits.bottom) }
 }
+
+function retainedPixels(extent: number, ratio: number): number { return Math.ceil(extent * ratio) }
 
 /** Measure the source transform and check the model's inferred regions.
  * @param source Oriented source dimensions.
  * @param plan Saved inferred layout.
  * @param settings Frozen output template.
+ * @param sourceLayout New-task focus and per-subject output targets; omission retains the historical aggregate-size gate.
+ * @param subjectMeasurements Comparable focus rectangles in the source coordinate space when containment uses complete visible rectangles.
  * @returns Measured canvas intersection, transformed regions and constraint failures.
  */
-export function wallpaperGeometry(source: { width: number; height: number }, plan: WallpaperPlan, settings: WallpaperSettings) {
+export function wallpaperGeometry(source: { width: number; height: number }, plan: WallpaperPlan, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout, subjectMeasurements?: WallpaperPlan['regions']) {
   const width = Math.max(1, Math.round(source.width * plan.placement.scale)), height = Math.max(1, Math.round(source.height * plan.placement.scale))
   const { left, top } = plan.placement, bounds = wallpaperProtectedBounds(settings)
   const target = { left: Math.max(0, left), top: Math.max(0, top), width: Math.min(settings.width, left + width) - Math.max(0, left), height: Math.min(settings.height, top + height) - Math.max(0, top) }
   if (target.width <= 0 || target.height <= 0) throw new CuratorError('invalid-input', 'wallpaper-layout', 'The source does not intersect the output canvas.')
-  const regions = plan.regions.map(region => ({ ...region, left: left + region.rect.x * width, top: top + region.rect.y * height, width: region.rect.width * width, height: region.rect.height * height }))
+  const cropped = sourceLayout?.alignment === 'subject-fill-v1' && (plan.mode === 'single' || plan.mode === 'group') && (target.width < width || target.height < height)
+  const fill = cropped ? subjectFillLimits(source, plan, settings, sourceLayout) : undefined
+  const layoutRegions = wallpaperLayoutRegions(plan, sourceLayout, !!fill)
+  const regions = layoutRegions.map(region => ({ ...region, left: left + region.rect.x * width, top: top + region.rect.y * height, width: region.rect.width * width, height: region.rect.height * height }))
   const checks: string[] = [], warnings: string[] = []
+  if (cropped && !fill) checks.push('source-background-crop-unavailable')
+  if (fill) {
+    if (target.width < retainedPixels(width, fill.retain) || target.height < retainedPixels(height, fill.retain)) checks.push('source-background-context')
+    const { rect } = fill
+    if (left + rect.x * width < bounds.critical.left || left + (rect.x + rect.width) * width > bounds.critical.right ||
+        top + rect.y * height < bounds.top || top + (rect.y + rect.height) * height > bounds.critical.bottom) checks.push('source-crop-protected-outside')
+  }
+  if (plan.placement.scale > 1 && sourceLayout?.version !== 'source-intent-v2') checks.push('source-upscale-not-enabled')
+  const contacts = { left, top, right: left + width - settings.width, bottom: top + height - settings.height }
+  for (const edge of sourceFrameContacts(plan, sourceLayout)) if (contacts[edge] !== 0) checks.push(`source-framing:${edge}`)
+  if (sourceLayout) for (const object of plan.objectRoles?.filter(object => object.role !== 'supporting') ?? []) {
+    if (left + object.rect.x * width < 0 || top + object.rect.y * height < 0 || left + (object.rect.x + object.rect.width) * width > settings.width || top + (object.rect.y + object.rect.height) * height > settings.height) checks.push(`source-clipped:${object.name}`)
+  }
   if (plan.mode === 'uncertain' || plan.uncertainties.length && !wallpaperGenerativeRepair(settings) || !regions.length && (plan.mode === 'single' || plan.mode === 'group')) checks.push('uncertain-subject')
   const acceptance = wallpaperPracticalAcceptance(settings)
   if ((plan.mode === 'single' || plan.mode === 'group') && (!regions.some(region => region.role === 'subject') || !acceptance && !regions.some(region => region.role === 'critical'))) checks.push('missing-protected-regions')
-  if (acceptance && (plan.mode === 'single' || plan.mode === 'group')) {
+  if (sourceLayout?.expectedSubjects && (plan.mode === 'single' || plan.mode === 'group')) {
+    for (const expected of sourceLayout.expectedSubjects) {
+      const actual = (subjectMeasurements ?? layoutRegions).find(region => region.role === 'subject' && region.entityId === expected.entityId)
+      if (!actual) checks.push(`missing-subject-layout:${expected.entityId}`)
+      else {
+        const target = expected.focus ?? expected.rect
+        const actualWidth = actual.rect.width * width, actualHeight = actual.rect.height * height
+        const retainedScale = sourceLayout.version === 'source-intent-v2'
+          ? Math.max(actualWidth, actualHeight) / Math.max(target.width * settings.width, target.height * settings.height)
+          : Math.min(actualWidth / (target.width * settings.width), actualHeight / (target.height * settings.height))
+        if (retainedScale < sourceLayout.minimumSubjectScaleRatio) checks.push(`subject-too-small:${actual.name}`)
+      }
+    }
+  } else if (!sourceLayout && acceptance && (plan.mode === 'single' || plan.mode === 'group')) {
     const subjects = regions.filter(region => region.role === 'subject')
     const safeArea = settings.safe.width * (bounds.critical.bottom - bounds.top)
     const subjectArea = subjects.reduce((area, region) => area + region.width * region.height, 0)
@@ -270,5 +480,5 @@ export function wallpaperGeometry(source: { width: number; height: number }, pla
     if (critical && (region.left < bounds.critical.left || right > bounds.critical.right || bottom > bounds.critical.bottom)) checks.push(`critical-outside:${region.name}`)
     if (!critical && (region.left < bounds.subject.left || right > bounds.subject.right || bottom > bounds.subject.bottom)) checks.push(`subject-overflow:${region.name}`)
   }
-  return { width, height, left, top, target, regions, checks: [...new Set(checks)], warnings: [...new Set(warnings)], needsOutpaint: target.width * target.height < settings.width * settings.height }
+  return { width, height, left, top, target, regions, backgroundCrop: !!fill, checks: [...new Set(checks)], warnings: [...new Set(warnings)], needsOutpaint: target.width * target.height < settings.width * settings.height }
 }

@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import sharp from 'sharp'
 import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore, { prepareImageFile } from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { CompatibleVisionProvider, MediaError } from '../src/media/index.ts'
 import type { VisionConfig, VisionInput } from '../src/media/index.ts'
-import { wallpaperCompleteCanvasPrompt, wallpaperGenerationPrompt, wallpaperGenerationReferences } from '../src/media/wallpaper-generation.ts'
+import { wallpaperCompleteCanvasPrompt, wallpaperGenerationPrompt, wallpaperGenerationReferences, wallpaperPositionedGenerationReferences } from '../src/media/wallpaper-generation.ts'
 import { wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
 import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams } from '../src/media/wallpaper-render.ts'
 import { fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
-import { wallpaperAttemptSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewSchema } from '../src/shared/wallpaper.ts'
+import { wallpaperAttemptSchema, wallpaperGenerationInputSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperPromptBundle } from '../src/shared/wallpaper-prompts.ts'
 
 const settings = wallpaperSettingsSchema.parse({ backgroundTransitionPixels: 0 })
@@ -262,12 +263,56 @@ test('legacy plans remain decodable while plan v6 requires the model scene edit 
   await assert.rejects(provider({ ...complete, placement: plan.placement }).wallpaper({ ...input, wallpaperPrompt }, 'wallpaper-plan', bounds), (error: unknown) => error instanceof MediaError && error.code === 'vision-invalid-output')
 })
 
-test('complete references describe desired placement as unapplied and cannot claim that the source was already moved', () => {
-  const prompt = wallpaperCompleteCanvasPrompt(plan, { width: 320, height: 480 }, settings, [])
-  assert.match(prompt, /"referenceTransformAlreadyApplied":false/)
-  assert.doesNotMatch(prompt, /"referenceTransformAlreadyApplied":true/)
-  assert.match(prompt, /"desiredSourceTransform"/)
-  assert.match(prompt, /first vehicle：完整轮廓占画面宽度约8\.7%，左缘29\.3%、右缘37\.9%/)
-  assert.match(prompt, /second vehicle：完整轮廓占画面宽度约4\.3%/)
-  assert.match(prompt, /必须拉远镜头、等比缩小整组主体/)
+test('the complete-image request exposes one output safe area and a concise edit description', async () => {
+  const prompt = wallpaperCompleteCanvasPrompt(plan, settings)
+  const expected = await readFile(new URL('./fixtures/wallpaper-complete-canvas.expected.txt', import.meta.url), 'utf8')
+  assert.equal(prompt + '\n', expected)
+  assert.match(prompt, /Keep both complete vehicles/)
+  assert.match(prompt, /Keep the sea horizon continuous/)
+  assert.equal(prompt.match(/安全区为/g)?.length, 1)
+})
+
+test('three-reference instructions name the master instead of dumping raster coordinates', () => {
+  const prompt = wallpaperCompleteCanvasPrompt(plan, settings)
+  assert.doesNotMatch(prompt, /desiredSourceTransform|desiredRegions|referenceTransformAlreadyApplied|必须拉远镜头|等比缩小整组主体/)
+  assert.equal(prompt, wallpaperCompleteCanvasPrompt({ ...plan, placement: { scale: 0.1, left: 700, top: 2000 } }, settings))
+  assert.ok(prompt.length < 1500)
+})
+
+test('planned-canvas references keep the master, original and marked guide separate and ordered', async () => {
+  const original = await sharp({ create: { width: 4, height: 6, channels: 3, background: '#c87842' } }).png().toBuffer()
+  const canvas = await sharp({ create: { width: 8, height: 12, channels: 3, background: '#808080' } }).composite([{ input: original, left: 2, top: 5 }]).png().toBuffer()
+  const guide = await sharp(canvas).composite([{ input: await sharp({ create: { width: 1, height: 12, channels: 3, background: '#32d8e8' } }).png().toBuffer(), left: 1, top: 0 }]).png().toBuffer()
+  const references = wallpaperPositionedGenerationReferences({ data: original, mediaType: 'image/png' }, canvas, guide)
+  assert.deepEqual(references.map(reference => reference.role), ['canvas', 'original', 'layout-only'])
+  assert.equal(references[0]?.data, canvas); assert.equal(references[2]?.data, guide)
+  const source = references[1]; assert.ok(source)
+  assert.deepEqual(await sharp(source.data).raw().toBuffer(), await sharp(original).raw().toBuffer())
+  const input = { version: 'wallpaper-edit-input-v5', prompt: 'Expand image 1; preserve image 2 details and use image 3 only for placement.', references: [{ role: 'canvas', attachmentId: 'master', width: 8, height: 12 }, { role: 'original', attachmentId: 'source', width: 4, height: 6 }, { role: 'layout-only', attachmentId: 'guide', width: 8, height: 12 }] }
+  assert.equal(wallpaperGenerationInputSchema.safeParse(input).success, true)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, references: input.references.slice(0, 2) }).success, false)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, references: [...input.references].reverse() }).success, false)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, references: input.references.map(reference => reference.role === 'layout-only' ? { ...reference, height: 10 } : reference) }).success, false)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, version: 'wallpaper-edit-input-v4', references: input.references.slice(0, 1) }).success, true)
+  const masked = { ...input, version: 'wallpaper-edit-input-v6', mask: { attachmentId: 'mask', width: 8, height: 12 } }
+  assert.equal(wallpaperGenerationInputSchema.safeParse(masked).success, true)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, version: 'wallpaper-edit-input-v6' }).success, false)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...masked, mask: { ...masked.mask, width: 9 } }).success, false)
+})
+
+test('masked positioned editing has one spatial authority and ignores free-form replan movement', async () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: { version: 'source-intent-v2' } })
+  const prompt = wallpaperCompleteCanvasPrompt({ ...plan, editPrompt: 'Move only the violin and rotate its arm.' }, current)
+  assert.equal(prompt + '\n', await readFile(new URL('./fixtures/wallpaper-positioned-edit.expected.txt', import.meta.url), 'utf8'))
+  assert.doesNotMatch(prompt, /Move only the violin|rotate its arm|desiredSourceTransform|本轮编辑/)
+  assert.ok(prompt.length < 450)
+  assert.match(wallpaperCompleteCanvasPrompt(plan, current, ['right overflow']), /right overflow.*恢复到图1/)
+})
+
+test('scene and abstract edits retain their composition without inventing a separate main subject', () => {
+  for (const mode of ['scene', 'abstract'] as const) {
+    const prompt = wallpaperCompleteCanvasPrompt({ ...plan, mode, regions: [], objectRoles: [] }, settings)
+    assert.match(prompt, /保留原有整体构图与视觉重心，不新增主角/)
+    assert.doesNotMatch(prompt, /各主角与重要结构放入/)
+  }
 })

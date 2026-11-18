@@ -17,6 +17,8 @@ export const wallpaperPlanEditorEn = {
   wallpaperEditorNoRegion: 'Select an annotation to edit its source coordinates.', wallpaperEditorNewRegion: 'Protected region {number}',
   wallpaperEditorEvidence: 'Saved scene evidence', wallpaperEditorUncertainties: 'This plan contains unresolved scene evidence. Editing placement does not resolve it.',
   wallpaperEditorNoUpscale: 'Scale stays at or below 1. Source regions use normalized coordinates from 0 to 1; rendering retains the full-size source.',
+  wallpaperEditorReferenceScale: 'The reference may scale uniformly within the canvas. Preserve the original framing and protected content; the final image still needs review.',
+  wallpaperEditorSubjectFillScale: 'Scale around the protected content. The canvas may trim surrounding background. Keep the subject and key objects inside the safe area.',
 }
 /** Chinese controls use the same keys as English. */
 export const wallpaperPlanEditorZh: typeof wallpaperPlanEditorEn = {
@@ -37,4 +39,6 @@ export const wallpaperPlanEditorZh: typeof wallpaperPlanEditorEn = {
   wallpaperEditorNoRegion: '选中标注后可编辑其原图坐标', wallpaperEditorNewRegion: '保护区域 {number}',
   wallpaperEditorEvidence: '已保存的场景依据', wallpaperEditorUncertainties: '规划仍有未确认的场景依据，调整位置不会自动消除这些不确定项',
   wallpaperEditorNoUpscale: '缩放比例不超过 1。标注使用 0 到 1 的原图归一化坐标，实际输出保留完整尺寸的原图。',
+  wallpaperEditorReferenceScale: '参考布局可在画布内等比放大；保留原有取景和保护内容，最终图片仍须复审。',
+  wallpaperEditorSubjectFillScale: '以保护内容为中心等比缩放，可裁去四周背景。主体和关键物件须留在安全区内。',
 }

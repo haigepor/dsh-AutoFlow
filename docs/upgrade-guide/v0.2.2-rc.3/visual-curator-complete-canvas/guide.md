@@ -1,24 +1,31 @@
 ---
 kind: upgrade-guide
-description: Visual Curator no longer recomposes or exports source-restoring generated wallpapers as approved outputs.
+description: Visual Curator reviews complete provider canvases for source fidelity and blocks approval, recomposition and export of every source or candidate overlay mode.
 ---
 
-# Complete generated wallpapers
+# Source framing and generated wallpapers
 
 English | [中文](guide.zh.md)
 
 ## Change
 
-Generated wallpapers use the complete provider canvas. The Host no longer pastes source or candidate pixels over a generated background. Saved tasks using `source-edge-v1`, `protected-context-v1`, `protected-context-v2`, `generated-canvas-protected-v2` or `background-plate-v1/v2` remain readable, but their generated outputs cannot be recomposed or exported as approved wallpapers. Pure crops remain supported. `wallpaper.processing.sourcePreservation` no longer enables source restoration.
+New practical direct batches use `source-intent-v2`: source medium, framing, visible entities and preservation requirements are frozen. Partial or close-up non-automobile primaries require `layoutFocus`; full visible rectangles remain the preservation reference. Minimum size retention defaults to 0.9 and compares the longer bounding-box dimension in V2. Uncertain evidence stays pending. Partial views and occlusion never authorize unseen anatomy; reconstruction still requires a whole damaged primary or critical entity and frozen `repair-when-needed` authorization.
 
-New direct batches use `practical-v2` acceptance and one compact final-output review. Cars, including peripheral parts, and critical structures must be fully inside the safe area; other main subjects require at least 97% containment. Fine natural extremities are assessed separately. Each frozen co-primary ID needs its own `subject/core` region or an explicit absent-subject report; missing boxes require same-image review recovery, not generation. `subject/peripheral` cannot represent another object or excuse a car part outside the safe area. Natural background variation remains allowed; source-pasted output remains prohibited. Saved `practical-v1` tasks retain their frozen rules until explicit current-policy adoption. `version: strict-v1` retains strict admission. Key routes disable neural super-resolution; subscription routes may reconstruct small outputs.
+New `wallpaper-edit-input-v6` binds the positioned canvas, original, safety guide and alpha mask. V2 centers the primary subject within feasible original framing; only vacant background is editable. Saved requests remain unchanged. Update the plugin before reading V6 or `source-framing-review-v1` records.
 
-High-resolution sources already accepted within the 20 MiB upload limit reuse archived originals or validated blobs during reference preparation. Larger normalized PNGs do not trigger another upload-limit rejection; source quality is preserved.
+New `subject-fill-v1` tasks save action prop IDs and check relative layout. Reading them requires this update.
+
+`source-framing-review-v1` saves source observations, incompatible limits, annotations and bounded native-crop evidence before generation. Source-only `reinspect` may correct geometry without changing identities, roles or preservation requirements. Uncertain or incompatible framing remains unapproved without anatomy changes or safety relaxation. Explicit recovery of historical pre-placement failures creates a continuation, preserving its parent, accepted images and spent budgets.
+
+Generated wallpapers use `generated-canvas-v1`: the complete provider result, with no source or candidate overlay. `source-intent-background-v1`, `source-edge-v1`, `protected-context-v1/v2`, `generated-canvas-protected-v2` and `background-plate-v1/v2` remain viewable history but cannot be recomposed, approved or exported as generated wallpapers. `wallpaper.processing.sourcePreservation` cannot enable them. Independent review compares actual output against the source for framing, appearance, relationships, medium, seams and perspective.
+
+`practical-v2` requires full safe-area containment for cars and critical structures, 97% for other main subjects, and separate fine-extremity assessment. Each co-primary needs a separate core or explicit absence report; missing boxes recover same-image review, not generation. Pure crops remain supported. Historical policies remain frozen, and recorded passes cannot approve overlays. Strict admission remains unchanged; accepted high-resolution originals reuse validated archives. Key routes disable neural reconstruction; subscriptions may reconstruct small outputs.
+
+Source-intent replanning returns only `imageVersionId`, `editPrompt` and `reason`; Host retains frozen source facts. Explicit continuations adopt this protocol. Historical partial-view plans without a focus stop before generation; start a new batch to observe it.
 
 ## Migration
 
-1. Preserve existing task records and source files. Do not clear storage or discard generation receipts.
-2. Start a new direct batch, or use the owner-authorized `wallpaper-continue` action with `completeCanvas: "current"` and a new `operationId`. The continuation retains history and edit counts, replaces pasted attempts and rechecks existing complete generated outputs.
-3. To adopt practical-v2 for saved outputs, call `wallpaper-continue` with `practical: "current"` and a new `operationId`. The child reclassifies subjects once from the original, then reviews each earliest usable complete output. Parent records, earlier roles, versions, receipts and spent edits remain intact; previous acceptance does not establish the new containment requirements.
-4. Set `wallpaper.processing.reviewStages` to `native-and-final-v1` only when both native and final reviews are required; otherwise use the `final-only-v1` default.
-5. Confirm the latest generated attempt uses `generated-canvas-v1`, inspect the actual output for collage boundaries and duplicate objects, and export only after final review passes. Unknown remote outcomes must be queried using their saved receipt before another dispatch.
+1. Preserve task records, source files and generation receipts. Start a new practical direct batch for source-intent observation and review; existing tasks are not migrated or marked passed. Configure `wallpaper.sourceIntentPolicy.minimumSubjectScaleRatio` before creation when a value other than 0.9 is required.
+2. Existing owner-authorized `wallpaper-continue` actions with `completeCanvas: "current"` or `practical: "current"` and a new `operationId` retain their existing scope, parent history and spent edits; they do not add source-intent policy.
+3. Keep default `wallpaper.processing.reviewStages: final-only-v1`, or select `native-and-final-v1` when both reviews are required.
+4. Confirm the new task's frozen policy, `generated-canvas-v1` composition mode and independent final review before export. Inspect the actual complete generated image; do not reuse a source-overlay artifact. Query unknown remote outcomes using their saved receipt before another dispatch.
