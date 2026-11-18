@@ -1,27 +1,27 @@
-version: 0.2.2-rc.3.20261118.1
+version: 0.2.2-rc.3.20261118.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.1-unsigned/deepseek-harness-0.2.2-rc.3.20261118.1-win-x64-unsigned.exe
-    sha512: tCNHWQvGSKpOjf5ZsKVFYgoHHWJXuFOIVnibJ0ICrxl6iqcz1Zs2VyvoqJJjjuyI7xwSjRI8VL8yx1BY2yTR0w==
-    size: 452484050
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.1-unsigned/deepseek-harness-0.2.2-rc.3.20261118.1-win-x64-unsigned.exe
-sha512: tCNHWQvGSKpOjf5ZsKVFYgoHHWJXuFOIVnibJ0ICrxl6iqcz1Zs2VyvoqJJjjuyI7xwSjRI8VL8yx1BY2yTR0w==
-releaseDate: '2026-11-18T07:43:49.364Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.2-unsigned/deepseek-harness-0.2.2-rc.3.20261118.2-win-x64-unsigned.exe
+    sha512: xFKu9YayVCut7WGBXfEoEuk8mqGm+yRg74deNO2ZWr64qNIpGH/RodRrFyH36CQ3u2yW3110DQolMGHe+WQk9A==
+    size: 452484540
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.2-unsigned/deepseek-harness-0.2.2-rc.3.20261118.2-win-x64-unsigned.exe
+sha512: xFKu9YayVCut7WGBXfEoEuk8mqGm+yRg74deNO2ZWr64qNIpGH/RodRrFyH36CQ3u2yW3110DQolMGHe+WQk9A==
+releaseDate: '2026-11-18T08:30:08.289Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.3.20261118.1
+  version: 0.2.2-rc.3.20261118.2
   items:
-    - id: visual-curator-canvas-pause-recovery
+    - id: visual-curator-style-image-recheck
       category: fixes
       text:
-        en: Visual Curator shows pause status and remote image receipts separately. Retries name their target version, same-image reviews stay in the review step, and older planning holds can resume from original-image inspection.
-        zh-CN: 视觉策展分别显示暂停状态和远端生图回执。重试标明目标版本，同图复审保留在复审节点，旧规划可从原图复核接着处理。
+        en: Visual Curator now applies the saved style rules when rechecking a complete generated image in a style task.
+        zh-CN: 风格任务复审已生成的完整图片时，视觉策展会按该任务保存的风格规则检查。
 releaseNotes: |-
   ## 问题修复
 
-  - 视觉策展分别显示暂停状态和远端生图回执。重试标明目标版本，同图复审保留在复审节点，旧规划可从原图复核接着处理。
+  - 风格任务复审已生成的完整图片时，视觉策展会按该任务保存的风格规则检查。
 
   ---
 
   ## Bug fixes
 
-  - Visual Curator shows pause status and remote image receipts separately. Retries name their target version, same-image reviews stay in the review step, and older planning holds can resume from original-image inspection.
+  - Visual Curator now applies the saved style rules when rechecking a complete generated image in a style task.
