@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.3.20261118.2",
+  "items": [
+    {
+      "id": "visual-curator-style-image-recheck",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator now applies the saved style rules when rechecking a complete generated image in a style task.",
+        "zh-CN": "风格任务复审已生成的完整图片时，视觉策展会按该任务保存的风格规则检查。"
+      }
+    }
+  ]
+}

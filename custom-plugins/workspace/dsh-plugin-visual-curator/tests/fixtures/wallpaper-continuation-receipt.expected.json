@@ -4,7 +4,7 @@
     "reconstructedSize": "1845x3280",
     "cumulativeImageEdits": 2,
     "newGenerations": 0,
-    "protectedPixelChanges": 0,
+    "providerCanvasPixelsMatch": true,
     "rejectedQualifiedOutputs": 0
   },
   "recompose": {
