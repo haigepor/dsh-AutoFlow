@@ -1,7 +1,9 @@
-/** Behavioral checks for packaged Office skill probe results. */
+/** Behavioral checks for the packaged Office smoke probes. */
 
+import { once } from 'node:events'
+import { createServer } from 'node:http'
 import { describe, expect, it } from 'vitest'
-import { assertOfficeSkillsLoadable } from '../scripts/smoke-runtime.ts'
+import { assertOfficeSkillsLoadable, smokeOfficeOperations } from '../scripts/smoke-runtime.ts'
 
 const loadedSkills = [
   { name: 'office', bytes: 772 },
@@ -32,4 +34,62 @@ describe('assertOfficeSkillsLoadable', () => {
   it('ignores empty results for skills outside the bundled Office set', () => {
     expect(() => { assertOfficeSkillsLoadable([...loadedSkills, { name: 'other', bytes: 0 }]) }).not.toThrow()
   })
+})
+
+it.each([
+  { name: 'valid Office outputs', broken: false },
+  { name: 'XLSX render and ODS output failures', broken: true },
+])('checks every Office operation with $name', async ({ broken }) => {
+  const paths: string[] = []
+  const server = createServer((request, response) => {
+    const path = request.url ?? ''
+    paths.push(path)
+    if (broken && path === '/desktop-smoke-office/xlsx/render-images') {
+      response.statusCode = 500
+      response.end('LibreOffice image rendering timed out')
+    } else if (broken && path === '/desktop-smoke-office/xlsx/to-ods') {
+      response.end('invalid ODS output')
+    } else if (path.endsWith('/to-pdf')) {
+      response.end('%PDF-1.7\n%%EOF\n')
+    } else if (path.endsWith('/render-images')) {
+      response.end('["89504e470d0a1a0a"]')
+    } else {
+      response.end(Buffer.from('504b0304', 'hex'))
+    }
+  })
+  try {
+    const listening = once(server, 'listening')
+    server.listen(0, '127.0.0.1')
+    await listening
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('Office fixture requires a TCP listener')
+    const smoke = smokeOfficeOperations(`http://127.0.0.1:${address.port}`, '', 5_000)
+    if (broken) {
+      await expect(smoke).rejects.toMatchObject({
+        name: 'AggregateError',
+        errors: [
+          { message: expect.stringContaining('Office xlsx/render-images failed'), cause: { message: expect.stringContaining('LibreOffice image rendering timed out') } },
+          { message: expect.stringContaining('Office xlsx/to-ods failed'), cause: { message: 'invalid Office ZIP signature' } },
+        ],
+      })
+    } else {
+      await expect(smoke).resolves.toBeUndefined()
+    }
+    expect(paths).toEqual([
+      '/desktop-smoke-office/docx/to-pdf',
+      '/desktop-smoke-office/xlsx/to-pdf',
+      '/desktop-smoke-office/pptx/to-pdf',
+      '/desktop-smoke-office/docx/render-images',
+      '/desktop-smoke-office/docx/to-odt',
+      '/desktop-smoke-office/xlsx/render-images',
+      '/desktop-smoke-office/xlsx/to-ods',
+      '/desktop-smoke-office/xlsx/recalculate',
+      '/desktop-smoke-office/pptx/render-images',
+      '/desktop-smoke-office/pptx/to-odp',
+    ])
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => { if (error) reject(error); else resolve() })
+    })
+  }
 })

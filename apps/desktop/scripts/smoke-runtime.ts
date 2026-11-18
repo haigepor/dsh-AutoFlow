@@ -13,6 +13,11 @@ import { createPluginProfile } from '../src/project-manager.ts'
 import type { DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 
 const OFFICE_SKILLS = ['office', 'office-docx', 'office-pptx', 'office-xlsx']
+const OFFICE_INPUTS = [
+  { extension: 'docx', format: 'odt' },
+  { extension: 'xlsx', format: 'ods' },
+  { extension: 'pptx', format: 'odp' },
+]
 
 /**
  * Require each bundled Office skill to be listed and loaded with a nonempty body.
@@ -23,6 +28,59 @@ export function assertOfficeSkillsLoadable(results: ReadonlyArray<{ readonly nam
   if (!OFFICE_SKILLS.every(name => results.some(skill => skill.name === name && skill.bytes > 0))) {
     throw new Error(`desktop runtime: packaged Office skills are not loadable: ${JSON.stringify(results)}`)
   }
+}
+
+/**
+ * Validate each independent Office output and report all failed operations before rejecting the build.
+ * @param baseUrl The smoke Host's loopback URL.
+ * @param cookie The smoke Host's local session cookie.
+ * @param timeoutMs The request deadline for a single operation.
+ * @returns Resolves after all required PDF, PNG and archive signatures pass.
+ */
+export async function smokeOfficeOperations(baseUrl: string | URL, cookie: string, timeoutMs: number): Promise<void> {
+  const failures: Error[] = []
+  const checkOffice = async (extension: string, operation: string, verify: (response: Response) => Promise<void>) => {
+    const label = `desktop runtime: Office ${extension}/${operation}`
+    const started = performance.now()
+    console.log(`${label} started`)
+    try {
+      const result = await fetch(new URL(`/desktop-smoke-office/${extension}/${operation}`, baseUrl), {
+        headers: { cookie }, signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (!result.ok) throw new Error(`HTTP ${result.status} ${await result.text()}`)
+      await verify(result)
+      console.log(`${label} passed in ${Math.round(performance.now() - started)} ms`)
+    } catch (cause) {
+      const message = `${label} failed after ${Math.round(performance.now() - started)} ms`
+      console.error(message, cause)
+      failures.push(new Error(message, { cause }))
+    }
+  }
+  for (const { extension } of OFFICE_INPUTS) {
+    await checkOffice(extension, 'to-pdf', async (result) => {
+      const pdf = Buffer.from(await result.arrayBuffer())
+      if (!/^%PDF-\d\.\d/u.test(pdf.subarray(0, 8).toString())
+        || !pdf.subarray(-1024).toString().trimEnd().endsWith('%%EOF')) {
+        throw new Error('invalid PDF output')
+      }
+    })
+  }
+  const checkZip = async (result: Response) => {
+    if (Buffer.from(await result.arrayBuffer()).toString('hex') !== '504b0304') {
+      throw new Error('invalid Office ZIP signature')
+    }
+  }
+  for (const { extension, format } of OFFICE_INPUTS) {
+    await checkOffice(extension, 'render-images', async (result) => {
+      const signatures: unknown = await result.json()
+      if (!Array.isArray(signatures) || signatures.length === 0 || signatures.some(signature => signature !== '89504e470d0a1a0a')) {
+        throw new Error('invalid Office PNG image output')
+      }
+    })
+    await checkOffice(extension, `to-${format}`, checkZip)
+    if (extension === 'xlsx') await checkOffice(extension, 'recalculate', checkZip)
+  }
+  if (failures.length > 0) throw new AggregateError(failures, 'desktop runtime: packaged Office operations failed')
 }
 
 /**
@@ -40,6 +98,10 @@ export async function smokeDesktopRuntime(
 ): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-smoke-'))
   const profile = join(home, 'profiles', 'desktop')
+  // Hosted Intel macOS builds have missed the default Office deadline at both smoke stages.
+  const intelMacCI = environment.GITHUB_ACTIONS === 'true' && runtime.platform === 'darwin' && runtime.arch === 'x64'
+  const ciOfficeTimeoutMs = 120_000
+  const officeRequestTimeoutMs = intelMacCI ? ciOfficeTimeoutMs + 30_000 : 120_000
   const hostEnvironment = {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !/^(?:npm|pnpm|corepack)_/iu.test(name))),
     DSH_HOME: home, HOME: home, USERPROFILE: home,
@@ -89,8 +151,8 @@ export function apply(ctx) {
     await promisify(execFile)(dependencies.python, ['-I', '-B',
       fileURLToPath(new URL('../tests/fixtures/office-conversion-inputs.py', import.meta.url)), home],
     { env: environment, timeout: 120_000, windowsHide: true })
-    const inputs = ['docx', 'xlsx', 'pptx'].map(extension => ({ extension,
-      bytes: readFileSync(join(home, `input.${extension}`)).toString('base64') }))
+    const inputs = OFFICE_INPUTS.map(input => ({ ...input,
+      bytes: readFileSync(join(home, `input.${input.extension}`)).toString('base64') }))
     const cordis = runtime.sharedPackages.find(entry => entry.name === '@deepseek-ai/cordis')
     if (cordis === undefined) throw new Error('desktop runtime: missing shared Cordis package')
     writeFileSync(join(plugin, 'package.json'), JSON.stringify({
@@ -130,44 +192,43 @@ export function apply(ctx) {
       }
     } }))
   for (const input of ${JSON.stringify(inputs)}) {
-    ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office/' + input.extension,
-      async handler(_request, response) {
-        try {
-          const bytes = Buffer.from(input.bytes, 'base64')
-          const result = await ctx.officeKit.convert({ extension: input.extension, priority: 'foreground',
-            source: { key: 'desktop-smoke-' + input.extension, version: 'fixture', bytes: bytes.length,
-              async read() { return { bytes, version: 'fixture' } } } })
-          response.end(Buffer.from(result.pdf))
-        } catch (error) {
-          response.statusCode = 500
-          response.end(inspect(error, { depth: 5 }))
-        }
-      } }))
-    ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office-operations/' + input.extension,
-      async handler(_request, response) {
-        try {
-          const bytes = Buffer.from(input.bytes, 'base64')
-          const source = (operation) => ({ key: 'desktop-smoke-' + operation + '-' + input.extension, version: 'fixture', bytes: bytes.length,
-            async read() { return { bytes, version: 'fixture' } } })
-          const rendered = await ctx.officeKit.renderImages({ extension: input.extension, source: source('images'),
-            maxImages: 4, maxPixels: 16777216, maxDimension: 8192, maxBytes: 64 * 1024 * 1024 })
-          const format = { docx: 'odt', xlsx: 'ods', pptx: 'odp' }[input.extension]
-          const converted = await ctx.officeKit.convertTo({ extension: input.extension, format,
-            source: source('convert'), output: { owner: 'desktop-smoke', name: 'converted.' + format } })
-          const recalculated = input.extension === 'xlsx'
-            ? await ctx.officeKit.recalculate({ extension: 'xlsx', format: 'xlsx', source: source('recalculate'),
-              output: { owner: 'desktop-smoke', name: 'recalculated.xlsx' } })
-            : undefined
-          response.end(JSON.stringify({
-            images: rendered.images.map(image => Buffer.from(image.png.subarray(0, 8)).toString('hex')),
-            converted: (await readFile(converted.path)).subarray(0, 4).toString('hex'),
-            recalculated: recalculated === undefined ? null : (await readFile(recalculated.path)).subarray(0, 4).toString('hex'),
-          }))
-        } catch (error) {
-          response.statusCode = 500
-          response.end(inspect(error, { depth: 5 }))
-        }
-      } }))
+    const bytes = Buffer.from(input.bytes, 'base64')
+    const source = (operation) => ({ key: 'desktop-smoke-' + operation + '-' + input.extension,
+      version: 'fixture', bytes: bytes.length, async read() { return { bytes, version: 'fixture' } } })
+    const probes = {
+      'to-pdf': async () => {
+        const result = await ctx.officeKit.convert({ extension: input.extension, priority: 'foreground', source: source('pdf') })
+        return Buffer.from(result.pdf)
+      },
+      'render-images': async () => {
+        const result = await ctx.officeKit.renderImages({ extension: input.extension, source: source('images'),
+          maxImages: 4, maxPixels: 16777216, maxDimension: 8192, maxBytes: 64 * 1024 * 1024 })
+        return JSON.stringify(result.images.map(image => Buffer.from(image.png.subarray(0, 8)).toString('hex')))
+      },
+      ['to-' + input.format]: async () => {
+        const result = await ctx.officeKit.convertTo({ extension: input.extension, format: input.format,
+          source: source('convert'), output: { owner: 'desktop-smoke', name: 'converted.' + input.format } })
+        return (await readFile(result.path)).subarray(0, 4)
+      },
+    }
+    if (input.extension === 'xlsx') {
+      probes.recalculate = async () => {
+        const result = await ctx.officeKit.recalculate({ extension: 'xlsx', format: 'xlsx', source: source('recalculate'),
+          output: { owner: 'desktop-smoke', name: 'recalculated.xlsx' } })
+        return (await readFile(result.path)).subarray(0, 4)
+      }
+    }
+    for (const [operation, probe] of Object.entries(probes)) {
+      ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office/' + input.extension + '/' + operation,
+        async handler(_request, response) {
+          try {
+            response.end(await probe())
+          } catch (error) {
+            response.statusCode = 500
+            response.end(inspect(error, { depth: 5 }))
+          }
+        } }))
+    }
   }
 }
 `)
@@ -180,7 +241,8 @@ export function apply(ctx) {
     manifest.dependencies = { ...manifest.dependencies, [pluginName]: `file:${plugin}` }
     manifest.dsh.profile.bundles.push(pluginName)
     writeFileSync(join(profile, 'package.json'), JSON.stringify(manifest))
-    writeFileSync(join(profile, 'cordis.patch.yml'), '- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n')
+    const officeTimeoutPatch = intelMacCI ? `- id: office-kit\n  config:\n    timeoutMs: ${ciOfficeTimeoutMs}\n` : ''
+    writeFileSync(join(profile, 'cordis.patch.yml'), `- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n${officeTimeoutPatch}`)
     const ready = await Promise.race([host.start(), new Promise<never>((_, reject) => {
       timer = setTimeout(() => { reject(new Error('desktop runtime: Host readiness exceeded 120 seconds')) }, 120_000)
     })])
@@ -206,29 +268,8 @@ export function apply(ctx) {
     const loadedSkills = await skills.json() as { name: string; bytes: number }[]
     assertOfficeSkillsLoadable(loadedSkills)
     console.log('desktop runtime: packaged Office skills listed and loaded')
-    for (const { extension } of inputs) {
-      const converted = await fetch(new URL(`/desktop-smoke-office/${extension}`, ready.url), {
-        headers: { cookie }, signal: AbortSignal.timeout(120_000),
-      })
-      if (!converted.ok) throw new Error(`desktop runtime: ${extension} conversion failed: ${await converted.text()}`)
-      const pdf = Buffer.from(await converted.arrayBuffer())
-      if (!/^%PDF-\d\.\d/u.test(pdf.subarray(0, 8).toString())
-        || !pdf.subarray(-1024).toString().trimEnd().endsWith('%%EOF')) {
-        throw new Error(`desktop runtime: invalid ${extension} PDF output`)
-      }
-    }
-    for (const { extension } of inputs) {
-      const operations = await fetch(new URL(`/desktop-smoke-office-operations/${extension}`, ready.url), {
-        headers: { cookie }, signal: AbortSignal.timeout(240_000),
-      })
-      if (!operations.ok) throw new Error(`desktop runtime: ${extension} Office operations failed: ${await operations.text()}`)
-      const result = await operations.json() as { images: string[]; converted: string; recalculated: string | null }
-      // PNG images, then ZIP containers for OpenDocument and XLSX outputs.
-      if (result.images.length === 0 || result.images.some(signature => signature !== '89504e470d0a1a0a')
-        || result.converted !== '504b0304' || (extension === 'xlsx' ? result.recalculated !== '504b0304' : result.recalculated !== null)) {
-        throw new Error(`desktop runtime: invalid ${extension} Office operation output: ${JSON.stringify(result)}`)
-      }
-    }
+    if (intelMacCI) console.log(`desktop runtime: Intel macOS CI Office deadline ${ciOfficeTimeoutMs} ms per operation`)
+    await smokeOfficeOperations(ready.url, cookie, officeRequestTimeoutMs)
     console.log('desktop runtime: DOCX, XLSX, PPTX to PDF, image rendering, conversion, and recalculation passed')
   } finally {
     clearTimeout(timer)
