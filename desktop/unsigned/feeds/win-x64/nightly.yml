@@ -1,54 +1,34 @@
-version: 0.2.2-rc.3.20261118.4
+version: 0.2.2-rc.3.20261119.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.4-unsigned/deepseek-harness-0.2.2-rc.3.20261118.4-win-x64-unsigned.exe
-    sha512: JjAXT4NWBPbUvc196exVCGDT396t6otX0k1JeQjvoFGXXqvT25InLdUl8ZDGBM3A8NNeGIdG4bAN/APAZMKP/Q==
-    size: 452498897
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.4-unsigned/deepseek-harness-0.2.2-rc.3.20261118.4-win-x64-unsigned.exe
-sha512: JjAXT4NWBPbUvc196exVCGDT396t6otX0k1JeQjvoFGXXqvT25InLdUl8ZDGBM3A8NNeGIdG4bAN/APAZMKP/Q==
-releaseDate: '2026-11-18T15:04:32.837Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.1-unsigned/deepseek-harness-0.2.2-rc.3.20261119.1-win-x64-unsigned.exe
+    sha512: mxYZvFJjA1o3dltBSeMStaALcggcLJ+TVQ6fMbl7XE4x0gKMObBY6Q9kkzQdFq7C7TW8PJ3oBMiWccfoNTMj0w==
+    size: 452501057
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261119.1-unsigned/deepseek-harness-0.2.2-rc.3.20261119.1-win-x64-unsigned.exe
+sha512: mxYZvFJjA1o3dltBSeMStaALcggcLJ+TVQ6fMbl7XE4x0gKMObBY6Q9kkzQdFq7C7TW8PJ3oBMiWccfoNTMj0w==
+releaseDate: '2026-11-18T17:11:36.945Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.3.20261118.4
+  version: 0.2.2-rc.3.20261119.1
   items:
-    - id: codex-image-process-disclosure
-      category: improvements
-      text:
-        en: Generated image previews and call details appear together in a collapsible row at the original request in the conversation process.
-        zh-CN: 对话中的生图预览和调用详情集中在原请求位置的折叠行内，展开后即可查看图片。
-    - id: compact-question-composer
-      category: improvements
-      text:
-        en: Question panels use a compact two-column layout with a custom answer tile, clear selection states and visible navigation; narrow panels stack choices in one column.
-        zh-CN: 提问面板采用紧凑双列布局，提供补充回答卡片和清晰的选中状态，保持翻页操作可见；窄面板自动改为单列。
-    - id: default-git-entry
-      category: improvements
-      text:
-        en: Git controls are enabled by default in Git projects. One branch entry beside the workspace and mode controls opens Git actions and New worktree options before the first message; after the conversation starts, it appears below the input. Existing Desktop profiles enable it automatically on their first launch after this update. Git inspection failures keep an entry for viewing the error and refreshing. Clean checkouts use a compact dialog, with full-width branch search and wrapping branch names.
-        zh-CN: Git 项目默认启用 Git 操作。第一条消息之前，项目与模式旁只显示一个分支入口，Git 操作和新建工作树选项整合在同一弹窗；开始对话后入口显示在输入框下方。已有桌面配置在本次更新后首次启动时自动启用，无需手动开启插件。Git 检测失败时保留入口，可查看原因并刷新。干净仓库采用紧凑弹窗，分支菜单支持全宽搜索与长名称换行。
-    - id: visual-curator-server-queue-pagination
+    - id: visual-curator-image-retry-queue
       category: fixes
       text:
-        en: Visual Curator loads the next page as you scroll through server images. Select all loads the remaining pages before selecting incomplete images in the current filter.
-        zh-CN: 视觉策展的服务器图片列表支持触底自动加载。点击全选会先加载剩余分页，再选择当前筛选下尚未完成的图片。
+        en: Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.
+        zh-CN: 视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。
+    - id: visual-curator-server-all-filter-pagination
+      category: fixes
+      text:
+        en: Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.
+        zh-CN: 视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。
 releaseNotes: |-
-  ## 体验优化
-
-  - 对话中的生图预览和调用详情集中在原请求位置的折叠行内，展开后即可查看图片。
-  - 提问面板采用紧凑双列布局，提供补充回答卡片和清晰的选中状态，保持翻页操作可见；窄面板自动改为单列。
-  - Git 项目默认启用 Git 操作。第一条消息之前，项目与模式旁只显示一个分支入口，Git 操作和新建工作树选项整合在同一弹窗；开始对话后入口显示在输入框下方。已有桌面配置在本次更新后首次启动时自动启用，无需手动开启插件。Git 检测失败时保留入口，可查看原因并刷新。干净仓库采用紧凑弹窗，分支菜单支持全宽搜索与长名称换行。
-
   ## 问题修复
 
-  - 视觉策展的服务器图片列表支持触底自动加载。点击全选会先加载剩余分页，再选择当前筛选下尚未完成的图片。
+  - 视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。
+  - 视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。
 
   ---
 
-  ## Improvements
-
-  - Generated image previews and call details appear together in a collapsible row at the original request in the conversation process.
-  - Question panels use a compact two-column layout with a custom answer tile, clear selection states and visible navigation; narrow panels stack choices in one column.
-  - Git controls are enabled by default in Git projects. One branch entry beside the workspace and mode controls opens Git actions and New worktree options before the first message; after the conversation starts, it appears below the input. Existing Desktop profiles enable it automatically on their first launch after this update. Git inspection failures keep an entry for viewing the error and refreshing. Clean checkouts use a compact dialog, with full-width branch search and wrapping branch names.
-
   ## Bug fixes
 
-  - Visual Curator loads the next page as you scroll through server images. Select all loads the remaining pages before selecting incomplete images in the current filter.
+  - Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.
+  - Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.
