@@ -267,8 +267,9 @@ export class RunEngine {
       if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) await this.update(run.id, old => {
         const data = dataOf(old)
         const records = this.repository.list('request').filter(request => request.runId === old.id && request.state === 'reserved').map(request => ({ ...request, state: 'outcome-unknown' as const, data: toJson({ bundle: request.data, error: { code: 'cancelled', outcome: 'unknown' } }) }))
-        const paused = old.status === 'pausing' && specOf(old).kind === 'analyze'
-        return { run: { ...old, status: old.status === 'cancelling' ? 'cancelled' : paused ? 'paused' : 'interrupted', data: toJson({ ...data, ...(paused ? { autoResume: false, process: updateAnalysisProcess(data.process, { phase: 'paused' }, specOf(old).config.limits, new Date().toISOString()) } : {}), warnings: [...data.warnings, 'Interrupted requests may have incurred charges; reserved quota is retained.'] }) }, records }
+        const paused = old.status === 'pausing'
+        const spec = specOf(old)
+        return { run: { ...old, status: old.status === 'cancelling' ? 'cancelled' : paused ? 'paused' : 'interrupted', data: toJson({ ...data, ...(paused ? { autoResume: false } : {}), ...(paused && spec.kind === 'analyze' ? { process: updateAnalysisProcess(data.process, { phase: 'paused' }, spec.config.limits, new Date().toISOString()) } : {}), warnings: [...data.warnings, 'Interrupted requests may have incurred charges; reserved quota is retained.'] }) }, records }
       })
     }
   }
@@ -677,7 +678,11 @@ export class RunEngine {
     for (const id of this.queued.keys()) await this.update(id, old => ({ run: { ...old, status: 'interrupted', data: toJson({ ...dataOf(old), process: this.process(old) }) } }))
     this.queued.clear()
     const live = [...this.live.entries()]
-    for (const [id, task] of live) { if (task.command !== 'cancel' && task.command !== 'pause') task.command = ['analyze', 'search'].includes(specOf(this.repository.get('run', id)!).kind) ? 'interrupt' : 'cancel'; task.controller.abort() }
+    for (const [id, task] of live) {
+      const spec = specOf(this.repository.get('run', id)!)
+      if (task.command !== 'cancel' && task.command !== 'pause') task.command = ['analyze', 'search'].includes(spec.kind) || spec.input.workflow === 'wallpaper-v1' || spec.input.workflow === 'wallpaper-direct-v1' ? 'interrupt' : 'cancel'
+      task.controller.abort()
+    }
     const settled = await Promise.allSettled(live.map(([, task]) => task.completion))
     const rejected = settled.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
     if (rejected.length) throw new AggregateError(rejected.map(item => item.reason), 'Task shutdown could not persist every terminal state.')

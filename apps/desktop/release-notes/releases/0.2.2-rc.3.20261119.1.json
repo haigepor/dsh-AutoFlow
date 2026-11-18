@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.3.20261119.1",
+  "items": [
+    {
+      "id": "visual-curator-image-retry-queue",
+      "category": "fixes",
+      "text": {
+        "en": "Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.",
+        "zh-CN": "视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。"
+      }
+    },
+    {
+      "id": "visual-curator-server-all-filter-pagination",
+      "category": "fixes",
+      "text": {
+        "en": "Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.",
+        "zh-CN": "视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。"
+      }
+    }
+  ]
+}

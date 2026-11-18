@@ -759,6 +759,7 @@
 .vc-direct-page .vc-direct-import-issue { max-width:100%; }
 .vc-server-filters { display:flex; flex-wrap:wrap; gap:6px; margin-block:4px 12px; }
 .vc-server-filters small { font-variant-numeric:tabular-nums; color:var(--dsw-alias-label-secondary); }
+.vc-server-load-progress { align-self: center; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
 .vc-direct-import-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .vc-direct-import-issue { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 640px; }
 .vc-direct-import-metrics { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary); }

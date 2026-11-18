@@ -33,12 +33,15 @@ test('image navigation projects the local pause without replacing saved stages o
  const control={value,itemIndex:[first,passed,other],downloads:{working:{phase:'saved',receivedBytes:100}},sourceId:'paused-source',offset:0,total:3,busy:false,page(){}}
  const labels=()=>[...doc.querySelectorAll('.vc-image-thumbnail small')].map(label=>label.textContent)
  await paint(h(ImageNavigator,{control,t,onSelect(){}}))
- assert.deepEqual(labels(),[zh.workflowPhasePaused,zh.wallpaperImagePassed,zh.wallpaperImageOutsideWork])
+ assert.deepEqual(labels(),[zh.workflowPhasePaused,zh.wallpaperImagePassed,zh.workflowPhasePaused])
  assert.equal(doc.querySelector('.vc-image-thumbnail[aria-current=true]').dataset.status,'paused')
  assert.match(doc.querySelector('[aria-label="'+zh.wallpaperJumpImage+'"]').textContent,new RegExp(zh.workflowPhasePaused))
  const running={...control,value:{...value,status:'running'}}
  await paint(h(ImageNavigator,{control:running,t,onSelect(){}}))
- assert.deepEqual(labels(),[zh.wallpaperImageRendering,zh.wallpaperImagePassed,zh.wallpaperImageOutsideWork])
+ assert.deepEqual(labels(),[zh.wallpaperImageRendering,zh.wallpaperImagePassed,zh.workflowPhasePaused])
+ const queued={...running,value:{...running.value,imageRetries:{[other.imageVersionId]:{status:'queued'}}}}
+ await paint(h(ImageNavigator,{control:queued,t,onSelect(){}}))
+ assert.deepEqual(labels(),[zh.wallpaperImageRendering,zh.wallpaperImagePassed,zh.wallpaperRetryQueued])
  assert.equal(first.status,'rendering')
 }))
 

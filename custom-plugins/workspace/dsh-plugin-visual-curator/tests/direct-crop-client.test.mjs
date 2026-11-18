@@ -471,6 +471,71 @@ test('server scrolling appends once and select all finishes pagination before se
   }
 })
 
+test('All loads 376 server rows without selecting them and can continue an active scroll request', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT']
+  const old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle, IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root'))
+  const Queue = createServerQueue(React, ui)
+  const requests = []
+  const records = Array.from({ length: 376 }, (_, index) => ({
+    id: String(index + 1), name: 'image-' + (index + 1), imported: false, serverPending: true,
+    ...(index === 375 ? { phase: 'approved', transfer: { status: 'uploaded', current: true } } : { phase: 'waiting' }),
+  }))
+  const page = loaded => ({
+    settings: { baseUrl: 'https://api.example', auth: { kind: 'credential', ref: 'EXISTING' }, allowedMediaOrigins: ['https://images.example'] },
+    snapshotId: 'same-list', pendingKnown: true, total: 376, pagination: { loaded, hasMore: loaded < 376 }, items: records.slice(0, loaded),
+  })
+  const view = page(80)
+  const invoke = async (operation, args) => {
+    if (operation === 'server-queue-read') return view
+    assert.equal(operation, 'server-queue-pull')
+    assert.deepEqual(args, { next: true })
+    return new Promise((resolve, reject) => requests.push({ resolve, reject }))
+  }
+  const rows = () => [...document.querySelectorAll('.vc-server-table tbody tr')]
+  const allTab = () => [...document.querySelectorAll('.vc-server-filters button')].find(button => button.textContent.startsWith(zh.serverFilterAll))
+  const checked = () => document.querySelectorAll('.vc-server-table tbody input:checked').length
+  try {
+    await act(async () => rendered.render(React.createElement(Queue, {
+      ready: true, invoke, t: key => zh[key], pollMs: 60000, limit: 400,
+      onClose() {}, onStarted() { assert.fail('Must not start image work') }, onSelected() { assert.fail('Must not import images') },
+    })))
+    assert.equal(rows().length, 80)
+    await act(async () => allTab().click())
+    assert.equal(requests.length, 1, 'Clicking All starts loading the remaining pages immediately')
+    await act(async () => requests.shift().resolve(page(100)))
+    assert(document.body.textContent.includes(zh.serverSelectingAll.replace('{loaded}', '100').replace('{total}', '376')))
+    await act(async () => requests.shift().reject({ code: 'remote-timeout' }))
+    assert.equal(rows().length, 100, 'An interrupted full load keeps the pages it received')
+    assert(document.querySelector('[role="alert"]'))
+
+    const scroller = document.querySelector('.vc-server-table-scroll')
+    for (const [key, value] of Object.entries({ clientHeight: 500, scrollHeight: 1500, scrollTop: 1200 })) Object.defineProperty(scroller, key, { value, configurable: true })
+    await act(async () => scroller.dispatchEvent(new dom.window.Event('scroll')))
+    assert.equal(requests.length, 1)
+    assert.equal(allTab().disabled, false)
+    await act(async () => allTab().click())
+    assert.equal(requests.length, 1, 'Clicking All continues the active page instead of issuing a duplicate')
+    for (let loaded = 120; loaded <= 380; loaded += 20) {
+      assert.equal(requests.length, 1)
+      await act(async () => requests.shift().resolve(page(Math.min(loaded, 376))))
+    }
+    assert.equal(requests.length, 0)
+    assert.equal(rows().length, 376)
+    assert.equal(checked(), 0)
+    await act(async () => document.querySelector('.vc-server-table thead input').click())
+    assert.equal(checked(), 375)
+    assert.equal(rows().at(-1).querySelector('input').disabled, true)
+    assert.equal(requests.length, 0)
+  } finally {
+    await act(async () => rendered.unmount())
+    dom.window.close()
+    for (const [key, descriptor] of old) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
+
 test('manual server token uses credential storage, never enters connection data, and preserves the local Postman option', async () => {
   const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })

@@ -18,26 +18,26 @@ async function fixture(work){const keys=['window','document','HTMLElement','HTML
 function controller(){const plan=wallpaperPlanSchema.parse({version:1,imageVersionId:'source',mode:'scene',subject:'林间道路上的轿车',evidence:'暗部车轮轮廓仍不清晰',priorities:[],anchors:[],truncations:[],uncertainties:[expected.reason],regions:[{name:'轿车',role:'subject',rect:{x:0.39,y:0.44,width:0.24,height:0.17}}],placement:{scale:0.656,left:-170,top:0},reason:'保留主体'}),attempt={revision:1,plan,checks:['uncertain-subject'],needsOutpaint:false},item={imageVersionId:'source',originalId:'source',familyId:'family',status:'needs-review',edits:0,attempts:[attempt],reason:expected.reason},events=[];return {events,attempt,item,downloads:{},busy:false,value:{runId:'run',sourceRunId:'source-run',status:'completed',settings:wallpaperSettingsSchema.parse({}),total:1,offset:0,state:{version:2,sourceRunId:'source-run',skillVersion:'fixture',items:[item],budgetStopped:false},counts:{passed:0,'needs-review':1},resources:{},previewResources:{},sourceImages:{},warnings:[]},setDetails:step=>events.push({details:step}),editPlan:()=>events.push({edit:true}),reinspect:()=>events.push({detail:true}),control:command=>events.push({command}),continue:()=>events.push({continue:true})}}
 test('the planning card shows the unresolved evidence instead of only a generic pending label',async()=>fixture(async rendered=>{const control=controller(),components=createWallpaperCanvas(React,ui);await act(async()=>rendered.render(React.createElement(components.ImageStepCard,{kind:'planning',stage:'planning',control,t:key=>zh[key]})));assert(document.querySelector('[role="alert"]')?.textContent.includes(expected.reason),'The card must expose the reason that stopped this image');assert.equal(control.events.length,0)}))
 
-test('a failed rendering card keeps retry visible while another image is running and never dispatches before pause',async()=>fixture(async rendered=>{
+test('a failed rendering card queues its own retry while another image is running',async()=>fixture(async rendered=>{
  const control=controller(),components=createWallpaperCanvas(React,ui)
- control.item.status='technical-failed';control.item.failedStep='rendering';control.item.errorCode='capability-unavailable'
+ control.item.status='technical-failed';control.item.failedStep='rendering';control.item.errorCode='remote-timeout'
  control.attempt.checks=[];control.attempt.plan.uncertainties=[];control.attempt.plan.truncations=['正常自遮挡，不是主体截断']
  control.attempt.detailAnalysis={version:'wallpaper-plan-detail-v2',requestId:'saved-detail',outcome:'resolved'}
  control.recover=revision=>control.events.push({recover:revision});control.value.status='running'
  const paint=()=>act(async()=>rendered.render(React.createElement(components.ImageStepCard,{kind:'rendering',stage:'rendering',control,t:key=>zh[key]})))
  await paint()
  const buttons=()=>[...document.querySelectorAll('.vc-flow-node-actions button')]
- let retry=buttons().find(button=>button.textContent===expected.recovery.retry)
- assert.ok(retry);assert.equal(retry.disabled,true)
- assert(document.querySelector('.vc-recovery-pause-hint')?.textContent.includes(zh.wallpaperRecoveryPauseFirst))
+ const retry=buttons().find(button=>button.textContent===expected.recovery.retry)
+ assert.ok(retry);assert.equal(retry.disabled,false)
+ assert.match(document.querySelector('[role="alert"]').textContent,new RegExp(zh.wallpaperProcessTimeout))
+ assert.equal(buttons().some(button=>button.textContent===zh.wallpaperPause),false)
  assert.deepEqual(control.events,[])
- await act(async()=>buttons().find(button=>button.textContent===zh.wallpaperPause).click())
- assert.deepEqual(control.events,[{command:'pause'}])
- control.value.status='paused';await paint()
- retry=buttons().find(button=>button.textContent===expected.recovery.retry)
- assert.equal(retry.disabled,false)
  await act(async()=>retry.click())
- assert.deepEqual(control.events,[{command:'pause'},{recover:1}])
+ assert.deepEqual(control.events,[{recover:1}])
+ control.value.imageRetries={ [control.item.imageVersionId]:{status:'queued'} };await paint()
+ const queued=buttons().find(button=>button.textContent===zh.wallpaperRetryQueued)
+ assert.ok(queued?.disabled)
+ assert.equal(buttons().some(button=>button.textContent===expected.recovery.retry),false)
 }))
 
 test('a pending planning card exposes detail inspection and plan editing as explicit separate actions',async()=>fixture(async rendered=>{
@@ -146,6 +146,7 @@ test('the current-image bar exposes replacement, single-image cancel and retry s
  await act(async()=>batchCancel.click())
  assert.deepEqual(control.events.at(-1),{command:'cancel'})
  control.value.status='running';await paint()
- assert(buttons().filter(button=>expected.imageActions.includes(button.textContent)).every(button=>button.disabled))
+ assert(buttons().filter(button=>expected.imageActions.slice(0,2).includes(button.textContent)).every(button=>button.disabled))
+ assert.equal(buttons().find(button=>button.textContent===expected.imageActions[2]).disabled,false)
 }))
 test('a settled run with unresolved evidence stays attention and offers diagnostics without automatic work',async()=>fixture(async rendered=>{const control=controller(),components=createWallpaperCanvas(React,ui);await act(async()=>rendered.render(React.createElement(components.TaskStatus,{control,t:key=>zh[key]})));const summary=document.querySelector('.vc-direct-task-status');assert.equal(summary.dataset.phase,expected.phase);assert(summary.textContent.includes(expected.approved));assert(summary.textContent.includes(expected.hint));assert(!summary.textContent.includes(zh.workflowPhaseCompleted));assert.equal(control.events.length,0);await act(async()=>[...summary.querySelectorAll('button')].find(button=>button.textContent===zh.directCropInspect).click());assert.deepEqual(control.events,[{details:'planning'}]);control.events.length=0;control.value.status='running';await act(async()=>rendered.render(React.createElement(components.TaskStatus,{control,t:key=>zh[key]})));assert.equal(document.querySelector('.vc-direct-task-status').dataset.phase,'running');await act(async()=>[...document.querySelectorAll('button')].find(button=>button.textContent===zh.wallpaperPause).click());assert.deepEqual(control.events,[{command:'pause'}]);control.value.status='completed';control.value.counts={passed:1};control.item.status='passed';await act(async()=>rendered.render(React.createElement(components.TaskStatus,{control,t:key=>zh[key]})));assert.equal(document.querySelector('.vc-direct-task-status').dataset.phase,'completed');assert.equal(document.querySelectorAll('.vc-direct-task-status button').length,4);assert([...document.querySelectorAll('.vc-direct-task-status button')].some(button=>button.textContent===zh.wallpaperBatchActions))}))

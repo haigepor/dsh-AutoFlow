@@ -3,17 +3,21 @@ import assert from 'node:assert/strict'
 import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import { test } from 'node:test'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { CuratorService } from '../src/host/service.ts'
 import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
-import { wallpaperSettingsSchema, wallpaperStateSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { wallpaperSettingsSchema, wallpaperStateSchema, wallpaperViewSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 import { directCropBatchSchema } from '../src/shared/direct-crop.ts'
 import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { createCuratorTransport } from '../src/client/transport.ts'
 import { CuratorError } from '../src/shared/errors.ts'
-import { contentDigest } from '../src/domain/repository.ts'
+import { MediaError } from '../src/media/index.ts'
+import { contentDigest, DomainRepository } from '../src/domain/repository.ts'
+import { CuratorDomain } from '../src/domain/curator.ts'
 import { wallpaperDecisionSettingsSchema } from '../src/shared/wallpaper-decision.ts'
 import { wallpaperProcessingSchema } from '../src/shared/wallpaper-policy.ts'
 
@@ -27,6 +31,7 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
   const path = join(f.root, 'direct-original.png'), bytes = await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#536f53' } }).png().toBuffer()
   await writeFile(path, bytes)
   const observations: string[] = [], detailRequests: object[] = [], reviewRequests: { effort: string | undefined; roles: string[] }[] = [], send = f.http.request.bind(f.http)
+  let beforeVision: ((input: { operation: string; requestId: string; images: { imageVersionId: string; role: string }[] }, signal?: AbortSignal) => Promise<void>) | undefined
   f.http.request = async (url, request) => {
     if (!url.startsWith('https://vision.example.test')) return send(url, request)
     const envelope = z.object({ reasoning_effort: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8')))
@@ -34,6 +39,7 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
     assert.ok(Array.isArray(content))
     const input = z.object({ input: z.object({ operation: z.string(), rules: z.array(z.unknown()), requestId: z.string(), usage: z.record(z.string(), z.unknown()).optional(), images: z.array(z.object({ imageVersionId: z.string(), role: z.string() })) }) }).parse(JSON.parse(content[0]!.text!)).input
     observations.push(input.operation); assert.deepEqual(input.rules, [])
+    await beforeVision?.(input, request.signal)
     let result: object
     if (input.operation === 'wallpaper-plan') result = { version: 1, imageVersionId: input.images[0]!.imageVersionId, mode: 'single', subject: 'Isolated fixture subject', evidence: 'Scripted annotations, not a real visual judgment.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [{ name: 'Whole subject', role: 'subject', rect: { x: 0.35, y: 0.5, width: 0.3, height: 0.2 } }, { name: 'Identity', role: 'critical', rect: { x: 0.45, y: 0.56, width: 0.05, height: 0.04 } }], reason: 'The scripted subject fits without background generation.', editPrompt: 'Continue the uniform muted green background from the supplied original; preserve the protected subject and identity pixels, match the existing lighting and texture, and keep transitions continuous without inventing new objects or detail.' }
     else {
@@ -68,8 +74,117 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), result)) }, finish_reason: 'stop' }] })) }
   }
   const input = { operationId: 'direct-local', name: 'Isolated direct-original batch', source: { kind: 'local' as const, files: [{ path, name: 'direct-original.png' }] } }
-  return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
+  return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, interceptVision(hook: typeof beforeVision) { beforeVision = hook }, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
 }
+
+const retryScenarios = [
+  ['settle', 'retrying a failed image while its sibling is running keeps both images and their own outputs'],
+  ['pause', 'a batch pause retains queued retries until explicit resume'],
+  ['restart', 'reopening the profile resumes a running batch and its queued image retry'],
+  ['cancel', 'cancelling the batch stops its queued image retry'],
+] as const
+
+for (const [scenario, name] of retryScenarios) test(name, { timeout: 25_000 }, async () => {
+  const f = await fixture()
+  const admitted = Promise.withResolvers<{ runId: string; first: string; second: string } | null>()
+  const releaseSibling = Promise.withResolvers<void>()
+  const planSources: string[] = []
+  let reopened: CuratorService | undefined
+  let action = f.action
+  try {
+    const secondPath = join(f.root, 'second.png')
+    await writeFile(secondPath, await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#334455' } }).png().toBuffer())
+    f.interceptVision(async (request, signal) => {
+      if (request.operation !== 'wallpaper-plan') return
+      const batch = await admitted.promise
+      if (!batch) return
+      const source = request.images[0]!.imageVersionId
+      planSources.push(source)
+      if (!request.requestId.startsWith(batch.runId + ':')) return
+      if (source === batch.first) throw new MediaError('remote-timeout', 'vision', true, 'Scripted technical failure for the first original.', 'Retry the failed image.')
+      if (!signal) throw new Error('Expected a cancellable vision call')
+      await new Promise<void>((resolve, reject) => {
+        signal.throwIfAborted()
+        const abort = () => reject(signal.reason)
+        signal.addEventListener('abort', abort, { once: true })
+        void releaseSibling.promise.then(() => { signal.removeEventListener('abort', abort); resolve() })
+      })
+    })
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', { ...f.input, source: { kind: 'local', files: [...f.input.source.files, { path: secondPath, name: 'second.png' }] } }))
+    const read = async () => wallpaperViewSchema.parse(await action('wallpaper-read', { sourceRunId: runId, limit: 2 }))
+    const initial = await read(), [first, second] = initial.state.items
+    assert.ok(first && second)
+    admitted.resolve({ runId, first: first.imageVersionId, second: second.imageVersionId })
+    let failed = await read()
+    for (let poll = 0; poll < 250 && !(failed.state.items[0]?.status === 'technical-failed' && planSources.includes(second.imageVersionId)); poll++) {
+      await delay(20)
+      failed = await read()
+    }
+    assert.deepEqual(failed.state.items.map(item => item.status), ['technical-failed', 'planning'])
+    const request = { runId, operationId: 'retry-first', retryImage: { imageVersionId: first.imageVersionId, step: 'planning' } }
+    await assert.rejects(f.action('wallpaper-continue', { ...request, operationId: 'retry-stale', retryImage: { ...request.retryImage, revision: 5 } }), /latest failed step/)
+    const [accepted, replay] = await Promise.all([f.action('wallpaper-continue', request), f.action('wallpaper-continue', request)])
+    assert.deepEqual(accepted, { runId, queued: true })
+    assert.deepEqual(replay, accepted)
+    assert.deepEqual(await f.action('wallpaper-continue', { ...request, operationId: 'retry-first-duplicate' }), accepted)
+    const queued = await read()
+    assert.deepEqual(queued.imageRetries, { [first.imageVersionId]: { status: 'queued' } })
+    assert.equal(queued.status, 'running')
+    assert.deepEqual(queued.state.items, failed.state.items)
+    if (scenario === 'cancel') {
+      await f.action('wallpaper-control', { runId, command: 'cancel' })
+      const final = await read()
+      assert.equal(final.runId, runId)
+      assert.equal(final.status, 'cancelled')
+      assert.deepEqual(final.imageRetries, {})
+      assert.deepEqual(final.state.items, failed.state.items)
+      assert.equal(f.jobs.hooks.length, 1)
+      return
+    }
+    if (scenario === 'pause') {
+      await f.action('wallpaper-control', { runId, command: 'pause' })
+      await f.jobs.drain()
+      const paused = await read()
+      assert.equal(paused.status, 'paused')
+      assert.deepEqual(paused.imageRetries, queued.imageRetries)
+      assert.equal(f.jobs.hooks.length, 1)
+      await f.action('wallpaper-control', { runId, command: 'resume' })
+    }
+    if (scenario === 'restart') {
+      await f.service.dispose()
+      assert.equal(f.domain.require('run', runId).status, 'interrupted')
+      const repository = new DomainRepository(f.profileId, f.adapter)
+      const restored = new CuratorService(f.host, f.service.config, { openDomain: async files => new CuratorDomain(f.profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }), providers: f.providers })
+      reopened = restored
+      await restored.initialize()
+      action = (operation, args = {}) => restored.action({ operation, args }, f.actor, new AbortController().signal)
+    }
+    releaseSibling.resolve()
+    await f.jobs.drain()
+    await f.jobs.drain()
+    const completed = await read()
+    assert.notEqual(completed.runId, runId)
+    assert.deepEqual(completed.imageRetries, {})
+    assert.deepEqual(completed.state.items.map(item => item.status), ['passed', 'passed'])
+    const predecessor = wallpaperStateSchema.parse(dataOf(f.domain.require('run', runId)).checkpoint.wallpaper)
+    assert.equal(predecessor.items[0]!.status, 'technical-failed')
+    assert.deepEqual(completed.state.items[1], predecessor.items[1])
+    assert.deepEqual(completed.state.items.map(item => item.imageVersionId), [first.imageVersionId, second.imageVersionId])
+    for (const item of completed.state.items) {
+      const attempt = item.attempts.at(-1)!
+      assert.equal(attempt.plan.imageVersionId, item.originalId)
+      assert.equal(f.domain.require('imageVersion', attempt.outputId!).parentImageVersionId, item.originalId)
+    }
+    assert.equal(planSources.filter(source => source === first.imageVersionId).length, 2)
+    assert.equal(planSources.filter(source => source === second.imageVersionId).length, scenario === 'settle' ? 1 : 2)
+    assert.deepEqual(await action('wallpaper-continue', request), { runId: completed.runId })
+  } finally {
+    admitted.resolve(null)
+    releaseSibling.resolve()
+    await reopened?.dispose()
+    await f.cleanup()
+  }
+})
 
 test('selected-image cancellation and replacement retain the other image and predecessor budgets', async () => {
   const f = await fixture()
@@ -82,6 +197,7 @@ test('selected-image cancellation and replacement retain the other image and pre
     const recordedRun = f.domain.require('run', runId), recordedData = dataOf(recordedRun)
     const before = wallpaperStateSchema.parse(recordedData.checkpoint.wallpaper)
     before.items[0]!.edits = 3
+    before.items[1]!.status = 'planning'
     const aggregateId = 'run:' + runId
     await f.repository.commit({ aggregateId, expectedRevision: f.repository.manifest(aggregateId)!.revision, operationId: 'record-spent-image-edits', request: {}, state: { runId }, records: [{ ...recordedRun, data: toJson({ ...recordedData, checkpoint: { ...recordedData.checkpoint, wallpaper: toJson(before) } }) }] })
     assert.equal(before.items.length, 2)

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-server-all-filter-pagination",
+  "category": "fixes",
+  "text": {
+    "en": "Choosing All in Visual Curator loads the remaining server image pages for browsing and shows progress while it loads.",
+    "zh-CN": "视觉策展的服务器图片列表点击「全部」后会加载剩余分页，并显示加载进度。"
+  }
+}

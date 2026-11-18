@@ -42,7 +42,7 @@ import { legacyManualInspection, wallpaperBatch, wallpaperAcceptsWork, wallpaper
 import { WallpaperDownloads } from './wallpaper-downloads.ts'
 import { wallpaperSourceReplanSchema, wallpaperSourceReplanPrompt, wallpaperSourceFramingPrompt, wallpaperSourceFramingMaxDetails } from '../shared/wallpaper-source-intent.ts'
 import { wallpaperPracticalInstructions, wallpaperPromptBundle, sourceFaithfulWallpaperPrompts, completeCanvasWallpaperPrompts } from '../shared/wallpaper-prompts.ts'
-import { wallpaperSourceFocusRequired, wallpaperCompositionEligible, wallpaperDisplayState, applyWallpaperRecoveryLimits, wallpaperEditingRetry, wallpaperGenerationRetry, wallpaperPendingDecision, wallpaperWorkImage, wallpaperPromptBundleSchema, wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperReviewOutputSchema, wallpaperStoredReviewSchema, wallpaperStoredSourceReviewV4Schema, wallpaperCompositionModeSchema, wallpaperGenerationInputSchema, wallpaperStateSchema, wallpaperProgress, wallpaperDownloadProgress, wallpaperReviewReworkAvailable, wallpaperRepairWithoutProgress, wallpaperReviewNeedsEvidence, wallpaperReworkCount, wallpaperStartSchema, wallpaperVerdict, wallpaperBackgroundReview, wallpaperSourceRestricted, wallpaperFailedStep, type WallpaperSettings, type WallpaperPlan, type WallpaperItem, type WallpaperExperience, type WallpaperState, type WallpaperView } from '../shared/wallpaper.ts'
+import { wallpaperSourceFocusRequired, wallpaperCompositionEligible, wallpaperDisplayState, applyWallpaperRecoveryLimits, wallpaperEditingRetry, wallpaperGenerationRetry, wallpaperPendingDecision, wallpaperWorkImage, wallpaperImageWorkStatus, wallpaperPromptBundleSchema, wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperReviewOutputSchema, wallpaperStoredReviewSchema, wallpaperStoredSourceReviewV4Schema, wallpaperCompositionModeSchema, wallpaperGenerationInputSchema, wallpaperStateSchema, wallpaperProgress, wallpaperDownloadProgress, wallpaperReviewReworkAvailable, wallpaperRepairWithoutProgress, wallpaperReviewNeedsEvidence, wallpaperReworkCount, wallpaperStartSchema, wallpaperVerdict, wallpaperBackgroundReview, wallpaperSourceRestricted, wallpaperFailedStep, type WallpaperSettings, type WallpaperPlan, type WallpaperItem, type WallpaperExperience, type WallpaperState, type WallpaperView } from '../shared/wallpaper.ts'
 import { blobRefSchema, imageVersionSchema, styleStandardSchema, assessmentSchema, selectionSchema, type CuratorRecord, type DomainActor, type ImageVersion, type Json, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { resolveCurrentConfig, type CuratorConfig } from './config.ts'
@@ -64,6 +64,15 @@ export interface WallpaperDependencies {
 }
 
 const pending = (item: WallpaperItem) => ['queued', 'downloading', 'planning', 'rendering', 'reviewing'].includes(item.status)
+const originalRetrySchema = z.strictObject({ imageVersionId: z.string() })
+const imageRetrySchema = originalRetrySchema.extend({ revision: z.number().int().positive().optional(), step: z.enum(['planning', 'rendering', 'reviewing']), receiptOnly: z.literal(true).optional() })
+const retryIntentSchema = z.strictObject({
+  runId: z.string(), operationId: z.string(), imageVersionId: z.string(), itemDigest: z.string(),
+  action: z.union([z.strictObject({ retryImage: imageRetrySchema }), z.strictObject({ retryOriginal: originalRetrySchema })]), errorCode: z.string().optional(),
+})
+const retryQueueSchema = z.array(retryIntentSchema)
+type RetryIntent = z.infer<typeof retryIntentSchema>
+const retryQueuePrefix = 'wallpaper-retries:'
 const handleSchema = z.object({ id: z.string(), provider: z.string(), model: z.string(), taskId: z.string() })
 function sourceLayoutFor(plan: WallpaperPlan, source: { width: number; height: number }, settings: WallpaperSettings): WallpaperSourceLayout | undefined {
   const policy = settings.sourceIntentPolicy
@@ -100,6 +109,12 @@ export class WallpaperWorkflows {
   private readonly enhancements = new Map<string, { revision: number; step: 'background' | 'subject'; progress: ResolutionProgress }>()
   constructor(private readonly deps: WallpaperDependencies) {}
 
+  private admit<T>(operation: () => Promise<T>): Promise<T> {
+    const work = this.admissions.then(operation)
+    this.admissions = work.then(() => {}, () => {})
+    return work
+  }
+
   private async trackEnhancement<T>(runId: string, imageId: string, revision: number, step: 'background' | 'subject', work: (progress: (value: ResolutionProgress) => void) => Promise<T>): Promise<T> {
     const key = `${runId}:${imageId}`, entry = { revision, step, progress: { completed: 0, total: 0, unit: 'percent' as ResolutionProgress['unit'] } }
     this.enhancements.set(key, entry)
@@ -113,7 +128,7 @@ export class WallpaperWorkflows {
    * @returns Accepted task receipt.
    */
   start(raw: unknown, actor: DomainActor): Promise<{ runId: string }> {
-    const work = this.admissions.then(() => this.startNow(raw, actor)); this.admissions = work.then(() => {}, () => {}); return work
+    return this.admit(() => this.startNow(raw, actor))
   }
   private async startNow(raw: unknown, actor: DomainActor): Promise<{ runId: string }> {
     const input = wallpaperStartSchema.parse(raw), source = this.deps.domain.require('run', input.sourceRunId), original = specOf(source)
@@ -225,15 +240,19 @@ export class WallpaperWorkflows {
     }
     previews ??= new Map(this.deps.domain.repository.list('imageVersion').flatMap(image => image.versionKind === 'preview' && image.parentImageVersionId && !image.processing?.requestedRect ? [[image.parentImageVersionId, image] as const] : []))
     const enhancements = items.flatMap(item => { const progress = this.enhancements.get(`${run.id}:${item.imageVersionId}`); return progress ? [[item.imageVersionId, progress] as const] : [] })
-    return { runId: run.id, sourceRunId: source.id, status: run.status, ...(wallpaperWorkImage(spec.input) ? { workImageVersionId: wallpaperWorkImage(spec.input) } : {}), settings: wallpaperSettingsSchema.parse(spec.fixed.wallpaper), ...(enhancements.length ? { enhancements: Object.fromEntries(enhancements) } : {}), state: { ...saved, items }, resources, previewResources, artifactTimes, sourceImages, artifactDimensions,
+    const workImageVersionId = wallpaperWorkImage(spec.input)
+    const imageRetries = requestedRunId || run.status === 'cancelled' ? {} : Object.fromEntries(this.retryQueue(source.id)
+      .filter(entry => entry.errorCode || !this.deps.domain.repository.get('run', this.deps.engine.operationRunId(entry.operationId, actor)))
+      .map(entry => [entry.imageVersionId, entry.errorCode ? { status: 'failed' as const, code: entry.errorCode } : { status: 'queued' as const }]))
+    return { runId: run.id, sourceRunId: source.id, status: run.status, ...(workImageVersionId ? { workImageVersionId } : {}), imageRetries, settings: wallpaperSettingsSchema.parse(spec.fixed.wallpaper), ...(enhancements.length ? { enhancements: Object.fromEntries(enhancements) } : {}), state: { ...saved, items }, resources, previewResources, artifactTimes, sourceImages, artifactDimensions,
       itemIndex: saved.items.map(item => {
         const image = this.deps.domain.repository.get('imageVersion', item.originalId ?? item.imageVersionId), preview = previews.get(item.originalId ?? item.imageVersionId)
         const sourceImage = this.deps.domain.repository.get('imageVersion', item.imageVersionId)
         const thumbnail = preview && preview.assetId === image?.assetId ? preview : sourceImage?.blob.remoteSource ? sourceImage : image
         return { imageVersionId: item.imageVersionId, status: item.status, ...(item.failedStep ? { failedStep: item.failedStep } : {}), planned: !!item.attempts.at(-1) && !item.attempts.at(-1)!.checks.length && item.attempts.at(-1)!.plan.mode !== 'uncertain', ...(thumbnail ? { previewPath: `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: thumbnail.id, ...(thumbnail.blob.remoteSource || thumbnail.versionKind !== 'preview' ? { preview: 'thumbnail' } : {}), ...(token ? { sessionToken: token } : {}) })}` } : {}) }
       }),
-      downloads: Object.fromEntries(saved.items.map(item => [item.imageVersionId, wallpaperDownloadProgress(item, run.status, this.downloads.read(run.id, item.imageVersionId))])),
-      total: saved.items.length, offset, warnings: dataOf(run).warnings, ...(dataOf(run).error ? { errorCode: dataOf(run).error!.code } : {}), counts: wallpaperProgress(saved, wallpaperWorkImage(spec.input), run.status) }
+      downloads: Object.fromEntries(saved.items.map(item => [item.imageVersionId, wallpaperDownloadProgress(item, wallpaperImageWorkStatus({ status: run.status, workImageVersionId }, item.imageVersionId), this.downloads.read(run.id, item.imageVersionId))])),
+      total: saved.items.length, offset, warnings: dataOf(run).warnings, ...(dataOf(run).error ? { errorCode: dataOf(run).error!.code } : {}), counts: wallpaperProgress(saved, workImageVersionId, run.status) }
   }
 
   /** Build a new plan revision while preserving the source batch and previous artifacts.
@@ -242,7 +261,7 @@ export class WallpaperWorkflows {
    * @returns Newly accepted task receipt.
    */
   replan(raw: unknown, actor: DomainActor): Promise<{ runId: string }> {
-    const work = this.admissions.then(() => this.replanNow(raw, actor)); this.admissions = work.then(() => {}, () => {}); return work
+    return this.admit(() => this.replanNow(raw, actor))
   }
   private async replanNow(raw: unknown, actor: DomainActor) {
     const input = z.strictObject({ runId: z.string(), imageVersionId: z.string(), plan: wallpaperPlanSchema, operationId: z.string(), backgroundPolicy: z.literal('current').optional() }).parse(raw)
@@ -274,22 +293,121 @@ export class WallpaperWorkflows {
 
   private state(run: RunRecord): WallpaperState { return wallpaperRunState(this.deps.domain, run) }
 
-  /** Continue unfinished work, recompose a saved generation, or independently review a saved output.
-   * @param raw Explicit continuation identity and settled task.
-   * @param actor Authenticated owner.
-   * @returns New receipt referencing the previous immutable task.
-   */
-  continue(raw: unknown, actor: DomainActor): Promise<{ runId: string }> {
-    const work = this.admissions.then(() => this.continueNow(raw, actor)); this.admissions = work.then(() => {}, () => {}); return work
+  private retryQueue(sourceRunId: string): RetryIntent[] {
+    return retryQueueSchema.parse(this.deps.domain.repository.manifest(retryQueuePrefix + sourceRunId)?.state ?? [])
   }
-  private async continueNow(raw: unknown, actor: DomainActor) {
-    const input = z.strictObject({ runId: z.string(), operationId: z.string(), imageAction: z.strictObject({ action: z.enum(['cancel', 'replace']), imageVersionId: z.string(), replacementId: z.string().optional() }).refine(value => (value.action === 'replace') === !!value.replacementId, 'Replacement requires one saved original.').optional(), rework: z.strictObject({ imageVersionId: z.string(), revision: z.number().int().positive(), outputId: z.string() }).optional(), review: z.strictObject({ outputId: z.string() }).optional(), practical: z.literal('current').optional(), completeCanvas: z.literal('current').optional(), recheckAll: z.literal('current').optional(), retryOriginal: z.strictObject({ imageVersionId: z.string() }).optional(), retryImage: z.strictObject({ imageVersionId: z.string(), revision: z.number().int().positive().optional(), step: z.enum(['planning', 'rendering', 'reviewing']), receiptOnly: z.literal(true).optional() }).optional(), reinspect: z.strictObject({ imageVersionId: z.string() }).optional(), decision: z.strictObject({ imageVersionId: z.string() }).optional(), recompose: z.strictObject({ imageVersionId: z.string(), revision: z.number().int().positive(), mode: wallpaperCompositionModeSchema.optional(), reviewPolicy: z.literal('current').optional(), backgroundResolution: z.literal('current').optional() }).optional() }).refine(value => [value.imageAction, value.rework, value.review, value.practical, value.completeCanvas, value.recheckAll, value.recompose, value.reinspect, value.retryOriginal, value.retryImage, value.decision].filter(Boolean).length <= 1, 'Choose one continuation action.').parse(raw), old = this.deps.engine.get(input.runId, actor)
-    const request = { continuationKind: input.imageAction ? 'image-action' : input.rework ? 'rework' : input.decision ? 'decision' : input.review ? 'review' : input.reinspect ? 'detail' : input.recompose ? 'recompose' : 'continue', continuationOf: old.id, ...(input.practical ? { practical: 'current' } : {}), ...(input.completeCanvas ? { completeCanvas: 'current' } : {}), ...(input.recheckAll ? { recheckAll: 'current', reviewPolicy: 'current' } : {}), ...(input.imageAction ? { imageAction: input.imageAction.action, actionImageVersionId: input.imageAction.replacementId ?? input.imageAction.imageVersionId, previousImageVersionId: input.imageAction.imageVersionId } : {}), ...(input.rework ? { reworkedImageId: input.rework.imageVersionId, reworkedRevision: String(input.rework.revision), reworkedOutputId: input.rework.outputId } : {}), ...(input.decision ? { decidedImageId: input.decision.imageVersionId } : {}), ...(input.retryImage ? { retryImageId: input.retryImage.imageVersionId, retryImageStep: input.retryImage.step, retryImageRevision: String(input.retryImage.revision ?? 0), ...(input.retryImage.receiptOnly ? { retryImageReceiptOnly: 'true' } : {}) } : {}), ...(input.retryOriginal ? { retryOriginalImageId: input.retryOriginal.imageVersionId } : {}), ...(input.reinspect ? { inspectedImageId: input.reinspect.imageVersionId } : {}), ...(input.review ? { reviewedOutputId: input.review.outputId, reviewPolicy: 'current' } : input.recompose ? { recomposedImageId: input.recompose.imageVersionId, recomposedRevision: String(input.recompose.revision), recomposedMode: input.recompose.mode ?? 'source-edge-v1', reviewPolicy: input.recompose.reviewPolicy ?? 'saved', ...(input.recompose.backgroundResolution ? { backgroundResolutionPolicy: input.recompose.backgroundResolution } : {}) } : {}) }
+
+  private async saveRetryQueue(sourceRunId: string, queue: RetryIntent[]): Promise<void> {
+    const aggregateId = retryQueuePrefix + sourceRunId, revision = this.deps.domain.repository.manifest(aggregateId)?.revision ?? 0
+    await this.deps.domain.repository.commit({ aggregateId, expectedRevision: revision, operationId: `${aggregateId}:${revision + 1}`, request: queue, records: [], state: toJson(queue) })
+  }
+
+  /** Start one recorded retry after the current snapshot settles and releases the execution slot.
+   * @param run A saved snapshot from this batch.
+   * @param signal Lifetime of the profile writer.
+   * @returns Completion after admitting the next retry or recording its failure.
+   */
+  async settled(run: RunRecord, signal: AbortSignal): Promise<void> {
+    const sourceRunId = String(specOf(run).input.sourceRunId)
+    await this.admit(async () => {
+      let queue = this.retryQueue(sourceRunId)
+      for (const entry of queue) {
+        if (signal.aborted) return
+        if (entry.errorCode) continue
+        const current = wallpaperBatch(this.deps.domain, run).current
+        if (current.status === 'cancelled') { await this.saveRetryQueue(sourceRunId, []); return }
+        if (!['completed', 'failed'].includes(current.status) || !wallpaperAcceptsWork(this.deps.domain, current)) return
+        const actor: DomainActor = { kind: 'human', id: 'profile-owner', profileId: current.profileId, ...(current.owner.kind === 'session' ? { sessionId: current.owner.sessionId } : {}) }
+        const target = this.state(current).items.find(item => item.imageVersionId === entry.imageVersionId)
+        const receipt = this.deps.domain.repository.get('run', this.deps.engine.operationRunId(entry.operationId, actor))
+        if ((receipt && specOf(receipt).input.retryQueuedFrom === entry.runId) || !target || target.status === 'passed' || target.status === 'cancelled') {
+          queue = queue.filter(item => item !== entry)
+          await this.saveRetryQueue(sourceRunId, queue)
+          continue
+        }
+        if (entry.itemDigest !== contentDigest(target)) {
+          entry.errorCode = 'revision-conflict'
+          await this.saveRetryQueue(sourceRunId, queue)
+          continue
+        }
+        try {
+          await this.continueNow({ ...entry.action, runId: current.id, operationId: entry.operationId }, actor, { fromRunId: entry.runId, signal })
+        } catch (error) {
+          if (signal.aborted) return
+          entry.errorCode = safeFailure(error).code
+          await this.saveRetryQueue(sourceRunId, queue)
+          continue
+        }
+        await this.saveRetryQueue(sourceRunId, queue.filter(item => item !== entry))
+        return
+      }
+    })
+  }
+
+  /** @param signal Lifetime of the profile writer. @returns Restored retry admissions after storage reopens. Paused batches keep their requests until resumed. */
+  async recoverRetries(signal: AbortSignal): Promise<void> {
+    for (const saved of this.deps.domain.repository.manifests(retryQueuePrefix)) {
+      const entry = retryQueueSchema.parse(saved.state).find(item => !item.errorCode)
+      if (!entry) continue
+      const run = this.deps.domain.require('run', entry.runId)
+      await this.settled(run, signal)
+    }
+  }
+
+  private imageRetryTarget(state: WallpaperState, request: z.infer<typeof imageRetrySchema>) {
+    const item = state.items.find(row => row.imageVersionId === request.imageVersionId), prior = item?.attempts.at(-1)
+    const step = item && (wallpaperFailedStep(item) ?? (!prior ? 'planning' : !prior.outputId ? 'rendering' : 'reviewing'))
+    if (!item?.originalId || prior?.revision !== request.revision || step !== request.step || !(['queued', 'planning', 'rendering', 'reviewing', 'technical-failed', 'cancelled'].includes(item.status) || item.status === 'needs-review' && (step === 'rendering' && prior?.generation && !prior.outputId || step === 'reviewing' && (prior?.nativeReviewCandidate || prior?.postResolutionReview)))) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'Choose the latest failed step of this image; refresh before retrying.')
+    if (request.receiptOnly && (step !== 'rendering' || !prior?.generation || prior.outputId)) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'Choose a saved generation receipt before checking it.')
+    return { item, prior, step }
+  }
+
+  private originalRetryTarget(state: WallpaperState, request: z.infer<typeof originalRetrySchema>) {
+    const item = state.items.find(row => row.imageVersionId === request.imageVersionId)
+    if (!item || item.originalId || !(['queued', 'downloading', 'cancelled'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'downloading')) throw new CuratorError('constraint-conflict', 'wallpaper-original-retry', 'Choose an original acquisition failure with no saved original.')
+    return item
+  }
+
+  /** Continue unfinished work, recompose a saved generation, or independently review a saved output.
+   * @param raw Explicit continuation identity and owning task.
+   * @param actor Authenticated owner.
+   * @returns The accepted continuation or the task retaining the queued image retry.
+   */
+  continue(raw: unknown, actor: DomainActor): Promise<{ runId: string; queued?: true }> {
+    return this.admit(() => this.continueNow(raw, actor))
+  }
+  private async continueNow(raw: unknown, actor: DomainActor, queuedRetry?: { fromRunId: string; signal: AbortSignal }) {
+    const retryQueuedFrom = queuedRetry?.fromRunId
+    const input = z.strictObject({ runId: z.string(), operationId: z.string(), imageAction: z.strictObject({ action: z.enum(['cancel', 'replace']), imageVersionId: z.string(), replacementId: z.string().optional() }).refine(value => (value.action === 'replace') === !!value.replacementId, 'Replacement requires one saved original.').optional(), rework: z.strictObject({ imageVersionId: z.string(), revision: z.number().int().positive(), outputId: z.string() }).optional(), review: z.strictObject({ outputId: z.string() }).optional(), practical: z.literal('current').optional(), completeCanvas: z.literal('current').optional(), recheckAll: z.literal('current').optional(), retryOriginal: originalRetrySchema.optional(), retryImage: imageRetrySchema.optional(), reinspect: z.strictObject({ imageVersionId: z.string() }).optional(), decision: z.strictObject({ imageVersionId: z.string() }).optional(), recompose: z.strictObject({ imageVersionId: z.string(), revision: z.number().int().positive(), mode: wallpaperCompositionModeSchema.optional(), reviewPolicy: z.literal('current').optional(), backgroundResolution: z.literal('current').optional() }).optional() }).refine(value => [value.imageAction, value.rework, value.review, value.practical, value.completeCanvas, value.recheckAll, value.recompose, value.reinspect, value.retryOriginal, value.retryImage, value.decision].filter(Boolean).length <= 1, 'Choose one continuation action.').parse(raw), old = this.deps.engine.get(input.runId, actor)
+    const request = { continuationKind: input.imageAction ? 'image-action' : input.rework ? 'rework' : input.decision ? 'decision' : input.review ? 'review' : input.reinspect ? 'detail' : input.recompose ? 'recompose' : 'continue', continuationOf: old.id, ...(retryQueuedFrom ? { retryQueuedFrom } : {}), ...(input.practical ? { practical: 'current' } : {}), ...(input.completeCanvas ? { completeCanvas: 'current' } : {}), ...(input.recheckAll ? { recheckAll: 'current', reviewPolicy: 'current' } : {}), ...(input.imageAction ? { imageAction: input.imageAction.action, actionImageVersionId: input.imageAction.replacementId ?? input.imageAction.imageVersionId, previousImageVersionId: input.imageAction.imageVersionId } : {}), ...(input.rework ? { reworkedImageId: input.rework.imageVersionId, reworkedRevision: String(input.rework.revision), reworkedOutputId: input.rework.outputId } : {}), ...(input.decision ? { decidedImageId: input.decision.imageVersionId } : {}), ...(input.retryImage ? { retryImageId: input.retryImage.imageVersionId, retryImageStep: input.retryImage.step, retryImageRevision: String(input.retryImage.revision ?? 0), ...(input.retryImage.receiptOnly ? { retryImageReceiptOnly: 'true' } : {}) } : {}), ...(input.retryOriginal ? { retryOriginalImageId: input.retryOriginal.imageVersionId } : {}), ...(input.reinspect ? { inspectedImageId: input.reinspect.imageVersionId } : {}), ...(input.review ? { reviewedOutputId: input.review.outputId, reviewPolicy: 'current' } : input.recompose ? { recomposedImageId: input.recompose.imageVersionId, recomposedRevision: String(input.recompose.revision), recomposedMode: input.recompose.mode ?? 'source-edge-v1', reviewPolicy: input.recompose.reviewPolicy ?? 'saved', ...(input.recompose.backgroundResolution ? { backgroundResolutionPolicy: input.recompose.backgroundResolution } : {}) } : {}) }
     const accepted = this.continuationReceipt(input.operationId, request, actor)
     if (accepted) return accepted
-    if (!isWallpaperRun(old) || ['created', 'running', 'pausing', 'cancelling'].includes(old.status)) throw new CuratorError('constraint-conflict', 'wallpaper-continue', 'Pause or finish the current wallpaper task first.')
+    if (!isWallpaperRun(old)) throw new CuratorError('invalid-input', 'wallpaper-continue', 'Choose a wallpaper task.')
+    const sourceRunId = String(specOf(old).input.sourceRunId)
+    const retry = input.retryImage ?? input.retryOriginal
+    const action = input.retryImage ? { retryImage: input.retryImage } : input.retryOriginal ? { retryOriginal: input.retryOriginal } : undefined
+    const queue = retry ? this.retryQueue(sourceRunId) : []
+    const previous = queue.find(entry => entry.operationId === input.operationId)
+    if (previous && !retryQueuedFrom) {
+      if (previous.runId !== old.id || contentDigest(previous.action) !== contentDigest(action)) throw new CuratorError('operation-conflict', 'wallpaper-image-retry', 'The operation ID belongs to another image retry.')
+      return { runId: old.id, queued: true as const }
+    }
     if (!wallpaperAcceptsWork(this.deps.domain, old) && !(input.practical && old.status === 'cancelled' && wallpaperBatch(this.deps.domain, old).current.id === old.id && !hiddenTaskIds(this.deps.domain.repository).has(String(specOf(old).input.sourceRunId)))) throw new CuratorError('constraint-conflict', 'wallpaper-continue', 'Use the current unfinished batch; cancelled or removed batches retain read-only results.')
+    const queued = !retryQueuedFrom && retry && queue.find(entry => !entry.errorCode && entry.imageVersionId === retry.imageVersionId)
+    if (queued) {
+      if (contentDigest(queued.action) !== contentDigest(action)) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'This image already has a queued retry.')
+      return { runId: old.id, queued: true as const }
+    }
     const spec = specOf(old), settings = wallpaperSettingsSchema.parse(spec.fixed.wallpaper), state = this.state(old), recoveredPlanRequests: Record<string, string> = {}
+    if (['created', 'running', 'pausing', 'cancelling'].includes(old.status)) {
+      if (!retry || !action || old.status === 'pausing' || old.status === 'cancelling') throw new CuratorError('constraint-conflict', 'wallpaper-continue', 'Pause or finish the current wallpaper task first.')
+      const item = input.retryImage ? this.imageRetryTarget(state, input.retryImage).item : this.originalRetryTarget(state, retry)
+      const workImageVersionId = wallpaperWorkImage(spec.input)
+      const parked = workImageVersionId && workImageVersionId !== item.imageVersionId && pending(item)
+      if (!parked && item.status !== 'technical-failed' && !(item.status === 'needs-review' && input.retryImage?.receiptOnly)) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'Only a stopped image can be queued while this batch is running.')
+      await this.saveRetryQueue(sourceRunId, [...queue.filter(entry => entry.imageVersionId !== item.imageVersionId), { runId: old.id, operationId: input.operationId, imageVersionId: item.imageVersionId, itemDigest: contentDigest(item), action }])
+      return { runId: old.id, queued: true as const }
+    }
     let framingReinspection = false
     if (input.imageAction) {
       const target = state.items.findIndex(item => item.imageVersionId === input.imageAction!.imageVersionId)
@@ -395,12 +513,7 @@ export class WallpaperWorkflows {
       }
     }
     if (input.retryImage) {
-      const item = state.items.find(row => row.imageVersionId === input.retryImage!.imageVersionId), prior = item?.attempts.at(-1)
-      const step = item && (wallpaperFailedStep(item) ?? (!prior ? 'planning' : !prior.outputId ? 'rendering' : 'reviewing'))
-      if (!item?.originalId || prior?.revision !== input.retryImage.revision || step !== input.retryImage.step || !(['queued', 'planning', 'rendering', 'reviewing', 'technical-failed', 'cancelled'].includes(item.status) || item.status === 'needs-review' && (step === 'rendering' && prior?.generation && !prior.outputId || step === 'reviewing' && (prior?.nativeReviewCandidate || prior?.postResolutionReview)))) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'Choose the latest failed step of this image; refresh before retrying.')
-      const newer = this.deps.domain.repository.list('run').some(run => isWallpaperRun(run) && run.createdAt > old.createdAt && specOf(run).input.sourceRunId === state.sourceRunId && run.profileId === old.profileId && contentDigest(run.owner) === contentDigest(old.owner))
-      if (newer) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'This task has a newer continuation. Refresh before retrying this image.')
-      if (input.retryImage.receiptOnly && (step !== 'rendering' || !prior?.generation || prior.outputId)) throw new CuratorError('constraint-conflict', 'wallpaper-image-retry', 'Choose a saved generation receipt before checking it.')
+      const { item, prior, step } = this.imageRetryTarget(state, input.retryImage)
       if (step === 'rendering' && prior?.generation) {
         if (!this.deps.llm) throw new CuratorError('capability-unavailable', 'wallpaper-image-retry', 'The saved image receipt cannot be checked with the current image service.')
         const saved = prior.generation
@@ -422,8 +535,7 @@ export class WallpaperWorkflows {
       item.status = step; delete item.reason; delete item.errorCode; delete item.failedStep
     }
     if (input.retryOriginal) {
-      const item = state.items.find(row => row.imageVersionId === input.retryOriginal!.imageVersionId)
-      if (!item || item.originalId || !(['queued', 'cancelled'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'downloading')) throw new CuratorError('constraint-conflict', 'wallpaper-original-retry', 'Choose an original acquisition failure with no saved original.')
+      const item = this.originalRetryTarget(state, input.retryOriginal)
       item.status = 'queued'; delete item.reason; delete item.errorCode; delete item.failedStep
       if (item.download) item.download.retrying = false
     }
@@ -547,7 +659,7 @@ export class WallpaperWorkflows {
     }
     if (genericContinue) for (const item of state.items) if (pending(item)) item.status = 'queued'
     const normalized = { ...spec.input }
-    for (const key of ['imageAction', 'actionImageVersionId', 'previousImageVersionId', 'reworkedImageId', 'reworkedRevision', 'reworkedOutputId', 'decidedImageId', 'retryOriginalImageId', 'retryImageId', 'retryImageStep', 'retryImageRevision', 'inspectedImageId', 'reviewedImageId', 'reviewedOutputId', 'practical', 'completeCanvas', 'recheckAll', 'recomposedImageId', 'recomposedRevision', 'recomposedMode', 'reviewPolicy', 'backgroundResolutionPolicy']) delete normalized[key]
+    for (const key of ['imageAction', 'actionImageVersionId', 'previousImageVersionId', 'reworkedImageId', 'reworkedRevision', 'reworkedOutputId', 'decidedImageId', 'retryOriginalImageId', 'retryImageId', 'retryImageStep', 'retryImageRevision', 'retryImageReceiptOnly', 'retryQueuedFrom', 'replacementImageId', 'replacementPlanDigest', 'inspectedImageId', 'sourceFramingInspection', 'reviewedImageId', 'reviewedOutputId', 'practical', 'completeCanvas', 'recheckAll', 'recomposedImageId', 'recomposedRevision', 'recomposedMode', 'reviewPolicy', 'backgroundResolutionPolicy']) delete normalized[key]
     Object.assign(normalized, { operationId: input.operationId, ...request, ...(reviewedImageId ? { reviewedImageId } : {}) })
     const fixed: Record<string, Json> = { ...spec.fixed, ...(state.items.some(item => item.attempts.some(attempt => attempt.generationBrief)) ? { reviewOrder: 'generation-before-resolution-v1' } : {}), wallpaper: toJson(settings), initialWallpaperState: toJson(state), ...(dataOf(old).checkpoint.wallpaperReplacementSearch ? { initialReplacementSearch: dataOf(old).checkpoint.wallpaperReplacementSearch } : {}), ...(Object.keys(recoveredPlanRequests).length ? { recoveredPlanRequests } : {}) }
     if (input.practical) {
@@ -600,15 +712,23 @@ export class WallpaperWorkflows {
     if (genericContinue) config = { ...config, limits: { ...config.limits, maxStorageBytes: current.limits.maxStorageBytes } }
     if ((!input.review && !input.imageAction || input.imageAction?.action === 'replace') && fixed.completeCanvasPolicy !== 'provider-canvas-v1') { fixed.generationPromptPolicy = toJson(wallpaperPromptPreparationPolicySchema.parse(this.deps.config().vision.wallpaperPromptPreparation ?? {})); fixed.generationPrompt = toJson(wallpaperGenerationBriefPrompt) }
     const next = executionSchema.parse({ ...spec, config, input: normalized, fixed, specDigest: contentDigest({ kind: spec.kind, config, input: normalized, fixed }) })
+    if (retry) {
+      queuedRetry?.signal.throwIfAborted()
+      // A provider receipt check can outlive a concurrent stop or resume.
+      const predecessor = this.deps.engine.get(old.id, actor)
+      if (['created', 'running', 'pausing', 'cancelling'].includes(predecessor.status) || !wallpaperAcceptsWork(this.deps.domain, predecessor)) throw new CuratorError('revision-conflict', 'wallpaper-image-retry', 'The batch changed while preparing this retry. Refresh to its current state.')
+    }
     return { runId: (await this.deps.engine.create(next, actor, this.worker(), input.operationId, input.decision || input.rework ? old.id : undefined)).id }
   }
 
   private continuationReceipt(operationId: string, request: Record<string, string>, actor: DomainActor): { runId: string } | undefined {
-    const accepted = this.deps.domain.repository.list('run').find(run => isWallpaperRun(run) && (specOf(run).input.operationId === operationId || specOf(run).input.continuationOf === request.continuationOf && ['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling'].includes(run.status)))
+    const sameOperation = this.deps.domain.repository.get('run', this.deps.engine.operationRunId(operationId, actor))
+    const accepted = sameOperation ?? this.deps.domain.repository.list('run').find(run => isWallpaperRun(run) && specOf(run).input.continuationOf === request.continuationOf && ['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling'].includes(run.status))
     if (!accepted) return undefined
     this.deps.engine.get(accepted.id, actor)
-    const input = specOf(accepted).input
-    if (Object.entries(request).some(([key, value]) => (input[key] ?? (key === 'recomposedMode' ? 'source-edge-v1' : key === 'reviewPolicy' ? 'saved' : undefined)) !== value)) throw new CuratorError('operation-conflict', 'wallpaper-continue', 'This task already has a different accepted continuation.')
+    const saved = specOf(accepted).input
+    const input = sameOperation && typeof saved.retryQueuedFrom === 'string' && request.retryQueuedFrom === undefined ? { ...saved, continuationOf: saved.retryQueuedFrom } : saved
+    if (Object.entries(request).some(([key, value]) => (input[key] ?? (key === 'recomposedMode' ? 'source-edge-v1' : key === 'reviewPolicy' ? 'saved' : undefined)) !== value) || request.retryImageId && request.retryImageReceiptOnly !== input.retryImageReceiptOnly) throw new CuratorError('operation-conflict', 'wallpaper-continue', 'This task already has a different accepted continuation.')
     return { runId: accepted.id }
   }
 
@@ -625,8 +745,7 @@ export class WallpaperWorkflows {
       const visualRules = release?.rules.filter(rule => rule.check.kind === 'visual') ?? []
       const recomposeOnly = ctx.spec.input.continuationKind === 'recompose'
       const decisionOnly = ctx.spec.input.continuationKind === 'decision'
-      const reviewOnly = ctx.spec.input.continuationKind === 'review', framingOnly = ctx.spec.input.sourceFramingInspection === 'source-only-v1', detailOnly = ctx.spec.input.continuationKind === 'detail' && !framingOnly, originalOnly = ctx.spec.input.continuationKind === 'continue' && (typeof ctx.spec.input.retryOriginalImageId === 'string' || typeof ctx.spec.input.retryImageId === 'string')
-      const reworkOnly = ctx.spec.input.continuationKind === 'rework'
+      const reviewOnly = ctx.spec.input.continuationKind === 'review', framingOnly = ctx.spec.input.continuationKind === 'detail' && ctx.spec.input.sourceFramingInspection === 'source-only-v1', detailOnly = ctx.spec.input.continuationKind === 'detail' && !framingOnly
       const { backgroundContextPixels: _context, ...legacySettings } = settings
       const requestSettings = { ...(z.object({ backgroundContextPixels: z.number().optional() }).parse(ctx.spec.fixed.wallpaper).backgroundContextPixels === undefined ? legacySettings : settings), ...(!settings.processing?.clockContrast ? { topBuffer: 0 } : {}) }
       const skill = z.object({ id: z.string(), content: z.string() }).parse(ctx.spec.fixed.skill), prompts = wallpaperPromptBundleSchema.parse(ctx.spec.fixed.prompts)
@@ -644,7 +763,8 @@ export class WallpaperWorkflows {
       const placementPolicy = completeCanvasPolicy ? 'subject-first-v2' : wholeGeneratedCanvas ? 'source-preserving-v3' : ['wallpaper-plan-v6', 'wallpaper-plan-v7', 'wallpaper-plan-v8'].includes(prompts.plan.version) ? 'subject-first-v2' : 'crop-first-v1'
       const actor: DomainActor = { kind: 'human', id: 'wallpaper-worker', profileId: this.deps.domain.profileId, ...(typeof ctx.spec.fixed.sourceSessionId === 'string' ? { sessionId: ctx.spec.fixed.sourceSessionId } : {}) }
       let providerPromise: Promise<StructuredVisionProvider> | undefined, stopped: unknown
-      const queued = state.items.filter(item => pending(item) && (!(reworkOnly || decisionOnly || recomposeOnly || reviewOnly || detailOnly || framingOnly || originalOnly) || item.imageVersionId === wallpaperWorkImage(ctx.spec.input))), ready = new Map<string, { promise: Promise<ImageVersion | undefined>; resolve(image: ImageVersion | undefined): void }>()
+      const workImageVersionId = wallpaperWorkImage(ctx.spec.input)
+      const queued = state.items.filter(item => pending(item) && (!workImageVersionId || item.imageVersionId === workImageVersionId)), ready = new Map<string, { promise: Promise<ImageVersion | undefined>; resolve(image: ImageVersion | undefined): void }>()
       for (const item of queued) {
         let resolve!: (image: ImageVersion | undefined) => void
         const promise = new Promise<ImageVersion | undefined>(done => { resolve = done })
@@ -784,7 +904,8 @@ export class WallpaperWorkflows {
           if (stopped) return
           let source: ImageVersion | undefined
           if (direct) {
-            ctx.signal.throwIfAborted(); item.status = 'downloading'; await save()
+            ctx.signal.throwIfAborted()
+            if (!item.originalId) { item.status = 'downloading'; await save() }
             source = await this.original(item, actor, ctx, save)
           } else source = await ready.get(item.imageVersionId)!.promise
           if (!source || stopped) return
@@ -1574,7 +1695,7 @@ export class WallpaperWorkflows {
             attempt.review = applyWallpaperClockContrast(priorReview, measured)
             if (wallpaperVerdict(attempt.review) !== 'pass') {
               item.status = 'rejected'; item.reason = attempt.review.checks.readability.reason
-              if (!reviewOnly && !recomposeOnly && !reworkOnly && !decisionOnly && !detailOnly && !originalOnly) {
+              if (!workImageVersionId) {
                 ready.set(item.imageVersionId, { promise: Promise.resolve(source), resolve() {} }); queued.push(item)
               }
               continue
@@ -1595,7 +1716,7 @@ export class WallpaperWorkflows {
       // Original availability and replacements settle before any new layout or image edit.
       if (!direct) await downloadAll()
       if (stopped) { ctx.signal.throwIfAborted(); if (state.budgetStopped) return 'budget-exhausted'; throw stopped }
-      if (!direct && !recomposeOnly && !reviewOnly && state.items.some(wallpaperSourceRestricted)) {
+      if (!direct && !workImageVersionId && state.items.some(wallpaperSourceRestricted)) {
         try {
           const replacements = await recoverWallpaperSources({ domain: this.deps.domain, files: this.deps.files, source: await this.deps.source(ctx.spec.config), media: this.deps.media(ctx.spec.config), vision: () => providerPromise ??= this.deps.vision(ctx.spec.config) }, ctx, state, actor, save)
           for (const item of replacements) {

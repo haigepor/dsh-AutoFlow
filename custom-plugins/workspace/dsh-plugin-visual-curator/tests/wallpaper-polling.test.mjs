@@ -311,14 +311,14 @@ test('the canvas loads large wallpaper artifacts and experience through the HTTP
 test('terminal Session wallpaper views renew once at expiry, update an open preview and suspend renewal while hidden', async context => {
   const previous = globalThis.document, document = new EventTarget()
   document.hidden = false; document.baseURI = 'https://owner.example/dsh/'; globalThis.document = document
-  let now = 1_000_000, expiry = now + 100, generation = 0
+  let now = 1_000_000, expiry = now + 100, generation = 0, imageId = 'image'
   context.mock.method(Date, 'now', () => now)
   context.mock.timers.enable({ apis: ['setTimeout'] })
   const calls = [], batch = { kind: 'search', runId: 'search', status: 'completed', matched: 1, wallpaper: { runId: 'wallpaper', status: 'completed' } }
   const fixture = hookFixture(batch, async (operation, args, signal) => {
     calls.push({ operation, args, signal })
     if (now > expiry) { expiry = now + 100; generation++ }
-    return { ...view('completed'), sourceRunId: args.sourceRunId, resourceExpiresAt: expiry, resources: { image: `/api/visual-curator/resource?imageVersionId=image&sessionToken=grant-${generation}` } }
+    return { ...view('completed'), sourceRunId: args.sourceRunId, resourceExpiresAt: expiry, resources: { [imageId]: `/api/visual-curator/resource?imageVersionId=${imageId}&sessionToken=grant-${generation}` } }
   })
   const advance = async milliseconds => { now += milliseconds; context.mock.timers.tick(milliseconds); await fixture.flush() }
   try {
@@ -333,6 +333,9 @@ test('terminal Session wallpaper views renew once at expiry, update an open prev
     await advance(1000); assert.equal(calls.length, 2, 'Hidden views cancel their resource-expiry timer')
     document.hidden = false; document.dispatchEvent(new Event('visibilitychange')); await fixture.flush()
     assert.equal(calls.length, 3); assert.match(fixture.value.preview, /sessionToken=grant-2/)
+    imageId = 'replacement'; fixture.refresh(); await fixture.flush()
+    assert.equal(fixture.value.preview, null, 'A replacement closes an open preview of the superseded image in the same batch')
+    fixture.value.setPreview('https://owner.example/dsh/api/visual-curator/resource?imageVersionId=replacement&sessionToken=grant-2'); await fixture.flush()
     fixture.update({ ...batch, runId: 'another-source' }); await fixture.flush()
     assert.equal(fixture.value.preview, null, 'Changing source closes the earlier resource preview')
     assert(calls.every(call => call.args.limit === 1), 'Expiry and visibility renewals retain the single-item read window')

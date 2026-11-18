@@ -186,6 +186,15 @@ export class CuratorService {
       if (!session) throw new CuratorError('owner-denied', 'auxiliary-request-log', 'The owning Session is unavailable; no auxiliary model request can be dispatched.')
       // 完整请求已提交到 run 的持久化日志；Session 通过工具结果中的 runId 关联，独立插件不写实验事件。
     }, this.config.limits, run => this.workflowCompleted(run), async run => {
+      if (!this.stopping && isWallpaperRun(run)) {
+        const continuation = this.wallpaperValue?.settled(run, this.lifetime.signal)
+        if (!continuation) return
+        this.foreground.add(continuation)
+        try { await continuation }
+        catch (error) { await this.engine.addWarning(run.id, { kind: 'human', id: 'profile-owner', profileId: this.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }, `Image retry requires attention: ${safeFailure(error).code}.`) }
+        finally { this.foreground.delete(continuation) }
+        return
+      }
       if (this.stopping || specOf(run).kind !== 'analyze') return
       try { await this.organizationValue?.settled(run) }
       catch (error) { await this.engine.addWarning(run.id, { kind: 'human', id: 'profile-owner', profileId: this.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }, `Automatic organization requires attention: ${safeFailure(error).code}.`) }
@@ -230,6 +239,7 @@ export class CuratorService {
     const recovery = async () => {
       await this.engine.resumeAnalyses(this.worker('analyze'))
       for (const run of this.domain.repository.list('run')) if (run.status === 'interrupted' && dataOf(run).autoResume === true && (isWallpaperRun(run) ? wallpaperAcceptsWork(this.domain, run) : specOf(run).fixed.wallpaperLearning === true)) await this.engine.control(run.id, 'resume', { kind: 'human', id: 'profile-owner', profileId: this.profileId }, this.worker(specOf(run).kind), false)
+      await this.wallpaperValue!.recoverRetries(this.lifetime.signal)
       await organization.recover()
       launches.recover()
       await serverQueue.recover()
@@ -464,7 +474,7 @@ export class CuratorService {
           const input = z.strictObject({ runId: z.string(), command: z.enum(['pause', 'resume', 'cancel']) }).parse(args)
           const run = this.engine.get(input.runId, actor)
           if (!isWallpaperRun(run)) throw new CuratorError('invalid-input', 'wallpaper-control', 'Choose a wallpaper task.')
-          if (input.command === 'resume' && !wallpaperAcceptsWork(this.domain, run)) throw new CuratorError('constraint-conflict', 'wallpaper-control', 'This snapshot was superseded, cancelled or removed. Open the current batch instead.')
+          if (input.command !== 'cancel' && !wallpaperAcceptsWork(this.domain, run)) throw new CuratorError('constraint-conflict', 'wallpaper-control', 'This snapshot was superseded, cancelled or removed. Open the current batch instead.')
           const cancelSettled = (current: RunRecord): boolean => {
             const saved = wallpaperRunState(this.domain, current)
             if (!wallpaperCanCancel(current.status, saved.items.length, saved.items.filter(item => item.status === 'passed').length)) throw new CuratorError('constraint-conflict', 'wallpaper-control', 'This batch has no unfinished images to cancel. Saved results remain available.')
@@ -474,6 +484,7 @@ export class CuratorService {
           }
           const controlled = await this.engine.control(run.id, input.command, actor, this.worker('crop'), input.command === 'cancel', input.command === 'cancel' ? cancelSettled : undefined)
           if (input.command === 'cancel') {
+            if (controlled.status === 'cancelled') await workflows.settled(controlled, this.lifetime.signal)
             const saved = dataOf(controlled).checkpoint.wallpaper, settings = wallpaperSettingsSchema.parse(specOf(controlled).fixed.wallpaper)
             if (saved) for (const item of wallpaperStateSchema.parse(saved).items) for (const attempt of item.attempts) {
               if (!attempt.generationOperation || attempt.outputId) continue

@@ -575,7 +575,7 @@ export const wallpaperStateSchema = z.strictObject({ version: z.union([z.literal
 export type WallpaperState = z.infer<typeof wallpaperStateSchema>
 /** @param input Frozen continuation inputs. @returns The one image selected for continuation, review, recomposition, detail or decision; ordinary batches process their full queue. */
 export function wallpaperWorkImage(input: Readonly<Record<string, Json>>): string | undefined {
-  const value = input.continuationKind === 'image-action' ? input.actionImageVersionId : input.continuationKind === 'rework' ? input.reworkedImageId : input.continuationKind === 'continue' && typeof input.retryImageId === 'string' ? input.retryImageId : input.continuationKind === 'continue' && typeof input.retryOriginalImageId === 'string' ? input.retryOriginalImageId : input.continuationKind === 'review' ? input.reviewedImageId : input.continuationKind === 'recompose' ? input.recomposedImageId : input.continuationKind === 'detail' ? input.inspectedImageId : input.continuationKind === 'decision' ? input.decidedImageId : undefined
+  const value = input.continuationKind === 'replan' ? input.replacementImageId : input.continuationKind === 'image-action' ? input.actionImageVersionId : input.continuationKind === 'rework' ? input.reworkedImageId : input.continuationKind === 'continue' ? input.retryImageId ?? input.retryOriginalImageId : input.continuationKind === 'review' ? input.reviewedImageId : input.continuationKind === 'recompose' ? input.recomposedImageId : input.continuationKind === 'detail' ? input.inspectedImageId : input.continuationKind === 'decision' ? input.decidedImageId : undefined
   return typeof value === 'string' ? value : undefined
 }
 /** Locate legacy original failures without modifying the saved checkpoint.
@@ -595,7 +595,7 @@ export function wallpaperPendingDecision(item: WallpaperItem | undefined, attemp
 }
 /** @param value Read-only task and explicit work target. @param imageVersionId Selected image. @returns A parked lifecycle for images outside a targeted continuation. */
 export function wallpaperImageWorkStatus(value: Pick<WallpaperView, 'status' | 'workImageVersionId'>, imageVersionId: string): RunRecord['status'] {
-  return value.workImageVersionId && value.workImageVersionId !== imageVersionId && ['created', 'running', 'pausing', 'cancelling'].includes(value.status) ? 'paused' : value.status
+  return value.workImageVersionId && value.workImageVersionId !== imageVersionId && value.status !== 'cancelled' && value.status !== 'cancelling' ? 'paused' : value.status
 }
 /** @param status Task lifecycle. @param total Frozen source count. @param passed Qualified source count. @returns Whether processing can be stopped, including a settled task retaining unfinished images. */
 export function wallpaperCanCancel(status: RunRecord['status'], total: number, passed: number): boolean {
@@ -671,6 +671,7 @@ export const wallpaperViewSchema = z.object({
   sourceImages: z.record(z.string(), z.object({ width: z.number().int().positive(), height: z.number().int().positive(), previewPath: z.string() })),
   previewResources: z.record(z.string(), z.string()).default({}),
   workImageVersionId: id.optional(),
+  imageRetries: z.record(id, z.discriminatedUnion('status', [z.strictObject({ status: z.literal('queued') }), z.strictObject({ status: z.literal('failed'), code: z.string() })])).optional(),
   downloads: z.record(z.string(), wallpaperDownloadProgressSchema).optional(),
   generationReceipts: z.record(id, z.enum(['queued', 'sent', 'succeeded', 'failed', 'cancelled', 'outcome-unknown', 'unavailable'])).optional(),
   enhancements: z.record(z.string(), z.strictObject({ revision: z.number().int().positive(), step: z.enum(['background', 'subject']), progress: resolutionProgressSchema })).optional(),

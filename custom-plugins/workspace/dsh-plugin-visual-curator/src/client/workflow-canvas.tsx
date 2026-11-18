@@ -435,8 +435,8 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     const wallpaperInvoke: WallpaperInvoke | undefined = context.wallpaper ? async (operation, args, signal) => {
       const value = await context.wallpaper!(operation, args, signal)
       if (['wallpaper-start', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update'].includes(operation)) {
-        const receipt = z.object({ runId: z.string() }).safeParse(value)
-        if (receipt.success && navigation) onNavigate?.({ ...navigation, runId: receipt.data.runId })
+        const receipt = z.object({ runId: z.string(), queued: z.literal(true).optional() }).safeParse(value)
+        if (receipt.success && navigation) onNavigate?.({ ...navigation, runId: receipt.data.queued ? undefined : receipt.data.runId })
       }
       return value
     } : undefined

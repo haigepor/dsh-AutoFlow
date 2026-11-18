@@ -15,7 +15,7 @@ import { wallpaperStage, workflowPhaseKeys, type WallpaperStep } from './workflo
 import { createWallpaperImageViewer, wallpaperGuidePixels, type WallpaperInspectionGuides } from './wallpaper-image-viewer.tsx'
 import { createSelectField } from './select-field.tsx'
 import { defaultImageModel, imageModelsForRoute, imageOptionsSchema, imageRouteReady, type ImageOptions } from './image-sources.ts'
-import { wallpaperRecovery, wallpaperCanDecide } from './wallpaper-recovery.ts'
+import { wallpaperRecovery, wallpaperCanDecide, wallpaperCanQueueRetry } from './wallpaper-recovery.ts'
 import { createWallpaperPlanEditor } from './wallpaper-plan-editor.tsx'
 import { wallpaperImageHistory, wallpaperReviewReasons } from './wallpaper-history.ts'
 import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
@@ -113,9 +113,9 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
               if (!imageId) return previous
               const paths = [...Object.values(value.resources), ...Object.values(value.previewResources), ...Object.values(value.sourceImages).map(image => image.previewPath)]
               const updated = paths.find(path => new URL(path, document.baseURI).searchParams.get('imageVersionId') === imageId)
-              return resource(updated) ?? previous
+              return resource(updated) ?? null
             })
-            poll = value ? active(value.status) || Object.values(value.generationReceipts ?? {}).some(state => state === 'queued' || state === 'sent') || Object.values(value.serverTransfers ?? {}).some(transfer => transfer.status === 'uploading' || transfer.status === 'waiting' && transfer.current === true) : active(batch?.wallpaper?.status ?? '') || !!batch?.wallpaperRequested && !batch.postProcessingError && (active(batch.status) || batch.status === 'completed' && batch.matched > 0)
+            poll = value ? active(value.status) || ['completed', 'failed'].includes(value.status) && Object.values(value.imageRetries ?? {}).some(retry => retry.status === 'queued') || Object.values(value.generationReceipts ?? {}).some(state => state === 'queued' || state === 'sent') || Object.values(value.serverTransfers ?? {}).some(transfer => transfer.status === 'uploading' || transfer.status === 'waiting' && transfer.current === true) : active(batch?.wallpaper?.status ?? '') || !!batch?.wallpaperRequested && !batch.postProcessingError && (active(batch.status) || batch.status === 'completed' && batch.matched > 0)
           }
         }
         catch (error) { if (!controller.signal.aborted) { setError(true); if (renewedExpiry !== undefined) poll = false } }
@@ -138,7 +138,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       void read()
       return () => { controller.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visibility) }
     }, [sourceId, pinnedRunId, windowStart, windowSize, revision, pollMs, refreshKey, enabled, batch?.status, batch?.matched, batch?.wallpaperRequested, batch?.wallpaper?.runId, batch?.wallpaper?.status, batch?.postProcessingError])
-    React.useEffect(() => { setBusy(false); setBatchCommand(undefined); setError(false); setSettingsOpen(false); setPlanText(null); setPreview(null); setExperienceOpen(false); setSample(null) }, [sourceId])
+    React.useEffect(() => { setBusy(false); setBatchCommand(undefined); setError(false); setSettingsOpen(false); setPlanText(null); setPreview(null); setImageMenu(null); setExperienceOpen(false); setSample(null) }, [sourceId])
     const work = async (callback: (call: WallpaperInvoke) => Promise<void>) => {
       if (!latest.current || working.current) return
       working.current = true
@@ -153,7 +153,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const detailAttempt = detailVersion?.image === item?.imageVersionId ? item?.attempts.find(row => row.revision === detailVersion?.revision) ?? attempt : attempt
     return { loading: !!sourceId && enabled && (resolvedPage?.sourceId !== sourceId || resolvedPage?.runId !== pinnedRunId || resolvedPage?.offset !== windowStart), value, item, attempt, detailAttempt, setRevision: (value: { image: string; revision: number }) => setRevision(value), setDetailRevision: (value: { image: string; revision: number }) => setDetailVersion(value), sourceId, downloads: task?.sourceRunId === sourceId && (!pinnedRunId || task.runId === pinnedRunId) ? task.downloads ?? {} : {}, itemIndex: task?.sourceRunId === sourceId ? task.itemIndex : undefined, total: task?.sourceRunId === sourceId ? task.total : batch?.matched ?? 0, sourceCount: batch?.matched ?? 0, pageSize: Math.max(1, pageSize), windowStart, windowSize, enabled: !!invoke, busy, batchCommand, error, actionNotice, offset, settings, models, providers, settingsOpen, setSettingsOpen, setSettings, preview, setPreview, imageMenu, setImageMenu, openImageMenu: (src: string, event: import('react').MouseEvent<HTMLElement>) => { event.preventDefault(); event.stopPropagation(); setImageMenu({ src, x: event.clientX, y: event.clientY, origin: event.currentTarget }) }, planText, setPlanText, details, historyOpen, setHistoryOpen, experience, experienceOpen, setExperienceOpen, sample, setSample, viewed, setViewed,
       setDetails(kind: WallpaperStep | 'clarity' | 'detail' | 'decision' | null, revision?: number) { setDetailVersion(kind && revision !== undefined && item ? { image: item.imageVersionId, revision } : undefined); setDetails(kind) },
-      page(at: number) { const next = Math.max(0, at); if (next !== offset) { setPlanText(null); setDetails(null); setPreview(null) } setPage({ sourceId, offset: next }) },
+      page(at: number) { const next = Math.max(0, at); if (next !== offset) { setPlanText(null); setDetails(null); setPreview(null); setImageMenu(null) } setPage({ sourceId, offset: next }) },
       openSettings() { void work(async call => { const result = settingsReply.parse(await call('wallpaper-options', {})); if (current.current === sourceId) { operation.current = { sourceId, id: crypto.randomUUID() }; setSettings(result.settings); setModels(result.models); setProviders(result.providers); setSettingsOpen(true) } }) },
       start() { const parsed = wallpaperSettingsSchema.safeParse(settings); if (!parsed.success) { setError(true); return } void work(async call => { await call('wallpaper-start', { operationId: operation.current.id, sourceRunId: sourceId, settings: jsonSchema.parse(parsed.data) }); if (current.current === sourceId) setSettingsOpen(false) }) },
       control(command: 'pause' | 'resume' | 'cancel') {
@@ -173,16 +173,17 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
           if (picked.files.length !== 1) { setActionNotice(oneImageMessage); return }
           const file = picked.files[0]!
           await call('direct-crop-replace', { runId, imageVersionId, operationId: mutationId(`replace:${runId}:${imageVersionId}:${file.path}`), file })
-          if (alive.current && current.current === sourceId) { setRevision({ image: '', revision: 0 }); setDetailVersion(undefined); setDetails(null) }
+          if (alive.current && current.current === sourceId) { setRevision({ image: '', revision: 0 }); setDetailVersion(undefined); setDetails(null); setHistoryOpen(false); setPreview(null); setImageMenu(null) }
         })
       },
       cancelImage() { if (value && item && !active(value.status) && value.status !== 'cancelled' && item.status !== 'passed' && item.status !== 'cancelled') void work(async call => { await call('wallpaper-continue', { runId: value.runId, operationId: mutationId(`cancel-image:${value.runId}:${item.imageVersionId}`), imageAction: { action: 'cancel', imageVersionId: item.imageVersionId } }) }) },
       recover(revision: number | undefined) {
-        if (!value || !item || active(value.status)) return
+        if (!value || !item || value.imageRetries?.[item.imageVersionId]?.status === 'queued') return
         const saved = item.attempts.at(-1)
         if (revision !== saved?.revision) return
         const recovery = wallpaperRecovery(value, item, saved)
         if (recovery.kind === 'none' || recovery.kind === 'history') return
+        if (active(value.status) && !wallpaperCanQueueRetry(recovery, item, value)) return
         if (recovery.kind === 'edit' && saved) {
           setRevision({ image: item.imageVersionId, revision: saved.revision })
           setPlanText(JSON.stringify(saved.plan, null, 2))
@@ -198,6 +199,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
           else if (recovery.kind === 'retry' || recovery.kind === 'receipt') {
             await call('wallpaper-continue', { ...args, retryImage: { imageVersionId: item.imageVersionId, ...(revision === undefined ? {} : { revision }), step: recovery.kind === 'retry' ? recovery.step : 'rendering', ...(recovery.kind === 'receipt' ? { receiptOnly: true } : {}) } })
           } else return
+          mutation.current = { key: '', id: '' }
           if (alive.current && current.current === sourceId) { setRevision({ image: '', revision: 0 }); setDetailVersion(undefined); setDetails(null) }
         })
       },
@@ -205,10 +207,10 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       decide() { if (value && value.status !== 'cancelled' && item && !active(value.status) && wallpaperCanDecide(item, attempt, value.status) && (!!wallpaperPendingDecision(item, attempt) || item.reason !== 'decision-round-limit' && (value.settings.decision === undefined || (item.decisions?.at(-1)?.round ?? 0) < value.settings.decision.maxRoundsPerImage))) void work(async call => { await call('wallpaper-continue', { runId: value.runId, operationId: mutationId(`decision:${value.runId}:${item.imageVersionId}:${attempt?.revision}:${item.decisions?.at(-1)?.id ?? ''}`), decision: { imageVersionId: item.imageVersionId } }) }) },
       reviewCurrent(revision: number) {
         const saved = item?.attempts.at(-1), outputId = saved?.outputId
-        if (!value || active(value.status) || !outputId || saved.revision !== revision || !wallpaperCompositionEligible(saved)) return
+        if (!value || active(value.status) || value.status === 'cancelled' || !outputId || saved.revision !== revision || !wallpaperCompositionEligible(saved)) return
         void work(async call => { await call('wallpaper-continue', { runId: value.runId, operationId: mutationId(`review:${value.runId}:${outputId}`), review: { outputId } }) })
       },
-      reviewGeneratedCanvas() { if (value && item && attempt?.generation && attempt === item.attempts.at(-1)) void work(async call => { await call('wallpaper-continue', { runId: value.runId, operationId: mutationId(`generated-canvas:${value.runId}:${item.imageVersionId}:${attempt.revision}`), recompose: { imageVersionId: item.imageVersionId, revision: attempt.revision, mode: 'generated-canvas-v1', reviewPolicy: 'current', backgroundResolution: 'current' } }) }) },
+      reviewGeneratedCanvas() { if (value && !active(value.status) && value.status !== 'cancelled' && item && attempt?.generation && attempt === item.attempts.at(-1)) void work(async call => { await call('wallpaper-continue', { runId: value.runId, operationId: mutationId(`generated-canvas:${value.runId}:${item.imageVersionId}:${attempt.revision}`), recompose: { imageVersionId: item.imageVersionId, revision: attempt.revision, mode: 'generated-canvas-v1', reviewPolicy: 'current', backgroundResolution: 'current' } }) }) },
       editPlan() { if (attempt) setPlanText(JSON.stringify(attempt.plan, null, 2)) },
       editImagePlan(imageId: string) {
         const index = value?.state.items.findIndex(row => row.imageVersionId === imageId) ?? -1
@@ -216,7 +218,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
         if (!value || !saved) return
         setPage({ sourceId, offset: value.offset + index }); setRevision({ image: imageId, revision: saved.revision }); setPlanText(JSON.stringify(saved.plan, null, 2))
       },
-      applyPlan() { if (!value || !item || planText === null) return; let parsed; try { parsed = wallpaperPlanSchema.safeParse(JSON.parse(planText)) } catch (error) { setError(true); return } if (!parsed.success) { setError(true); return } const plan = parsed.data; if (planValidationMessage(plan, value, item.originalId)) { setError(true); return } void work(async call => { await call('wallpaper-plan-update', { runId: value.runId, imageVersionId: item.imageVersionId, plan: jsonSchema.parse(plan), operationId: mutationId(`replan:${value.runId}:${item.imageVersionId}:${JSON.stringify(plan)}`) }); if (current.current === sourceId) setPlanText(null) }) },
+      applyPlan() { if (!value || active(value.status) || value.status === 'cancelled' || !item || planText === null) return; let parsed; try { parsed = wallpaperPlanSchema.safeParse(JSON.parse(planText)) } catch (error) { setError(true); return } if (!parsed.success) { setError(true); return } const plan = parsed.data; if (planValidationMessage(plan, value, item.originalId)) { setError(true); return } void work(async call => { await call('wallpaper-plan-update', { runId: value.runId, imageVersionId: item.imageVersionId, plan: jsonSchema.parse(plan), operationId: mutationId(`replan:${value.runId}:${item.imageVersionId}:${JSON.stringify(plan)}`) }); if (current.current === sourceId) setPlanText(null) }) },
       showExperience() { void work(async call => { const [saved, options] = await Promise.all([call('wallpaper-experience', {}), call('wallpaper-options', {})]); const catalog = wallpaperExperienceSchema.parse(saved), policy = settingsReply.parse(options); if (current.current === sourceId) { setExperience(catalog); setSettings(policy.settings); setExperienceOpen(true) } }) },
       experienceAction(args: Record<string, Json>) { void work(async call => { const catalog = wallpaperExperienceSchema.parse(await call('wallpaper-experience-action', args)); if (current.current === sourceId) { setExperience(catalog); setSample(null); setViewed(false) } }) },
       inspectCase(caseId: string) { void work(async call => { const entry = caseReply.parse(await call('wallpaper-case', { caseId })); if (current.current === sourceId) { setSample(entry); setViewed(false) } }) },
@@ -260,10 +262,11 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       const { value } = control
       if (entry?.status === 'passed') return undefined
       if (value?.status === 'cancelled' || entry?.status === 'cancelled') return { phase: 'cancelled', label: t(workflowPhaseKeys.cancelled) }
+      if (entry && value?.imageRetries?.[entry.imageVersionId]?.status === 'queued') return { phase: 'queued', label: t('wallpaperRetryQueued') }
       if (!value || !entry || !['queued', 'downloading', 'planning', 'rendering', 'reviewing'].includes(entry.status)) return undefined
-      if (value.workImageVersionId && value.workImageVersionId !== entry.imageVersionId && (active(value.status) || value.status === 'paused' || value.status === 'interrupted')) return { phase: 'idle', label: t('wallpaperImageOutsideWork') }
+      const status = wallpaperImageWorkStatus(value, entry.imageVersionId)
+      if (status === 'paused' || status === 'interrupted') return { phase: 'paused', label: t(workflowPhaseKeys.paused) }
       if (value.status === 'pausing' || control.batchCommand === 'pause') return { phase: 'pausing', label: t('wallpaperPausing') }
-      if (value.status === 'paused' || value.status === 'interrupted') return { phase: 'paused', label: t(workflowPhaseKeys.paused) }
     }
     return <nav ref={panel} className="vc-image-navigator" data-compact={width < 192 || undefined} style={{ '--vc-image-rail-width': `${width}px` } as import('react').CSSProperties} aria-label={t('wallpaperImageNavigation')}>
       <div className="vc-image-navigation-heading">
@@ -415,7 +418,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
   }
   function failureMessage(item: Controller['item'], t: WorkbenchText) {
     const code = item?.errorCode
-    return code === 'vision-invalid-output' || code === 'vision-output-truncated' ? t(item && wallpaperFailedStep(item) === 'planning' ? 'wallpaperPlanStructuredFailure' : 'wallpaperStructuredFailure') : code === 'remote-timeout' || code === 'remote-idle-timeout' ? t('wallpaperFailureTimeout') : code === 'source-protocol-error' ? t('wallpaperFailureProtocol') : code === 'image-resolution-insufficient' ? t('wallpaperFailureResolution') : code && ['IMAGE_TOO_LARGE', 'IMAGES_TOO_LARGE', 'IMAGE_TOO_MANY_PIXELS', 'IMAGE_DIMENSION_TOO_LARGE'].includes(code) ? t('wallpaperFailureReference') : code === 'image-operation-failed' ? t('wallpaperFailureGeneration') : code === 'original-source-restricted' ? t('workflowSourceRestricted') : code === 'original-account-mismatch' ? t('workflowSourceAccount') : code === 'vision-image-too-large' ? t('workflowVisionTooLarge') : code === 'vision-image-digest-mismatch' ? t('workflowVisionDigest') : code?.startsWith('original-download-http-') ? t('workflowDownloadNetwork') : code === 'reference-unavailable' || code === 'original-source-unavailable' ? t('workflowSourceUnavailable') : undefined
+    return code === 'vision-invalid-output' || code === 'vision-output-truncated' ? t(item && wallpaperFailedStep(item) === 'planning' ? 'wallpaperPlanStructuredFailure' : 'wallpaperStructuredFailure') : code === 'remote-timeout' || code === 'remote-idle-timeout' ? t(item && wallpaperFailedStep(item) === 'downloading' ? 'wallpaperFailureTimeout' : 'wallpaperProcessTimeout') : code === 'source-protocol-error' ? t('wallpaperFailureProtocol') : code === 'image-resolution-insufficient' ? t('wallpaperFailureResolution') : code && ['IMAGE_TOO_LARGE', 'IMAGES_TOO_LARGE', 'IMAGE_TOO_MANY_PIXELS', 'IMAGE_DIMENSION_TOO_LARGE'].includes(code) ? t('wallpaperFailureReference') : code === 'image-operation-failed' ? t('wallpaperFailureGeneration') : code === 'original-source-restricted' ? t('workflowSourceRestricted') : code === 'original-account-mismatch' ? t('workflowSourceAccount') : code === 'vision-image-too-large' ? t('workflowVisionTooLarge') : code === 'vision-image-digest-mismatch' ? t('workflowVisionDigest') : code?.startsWith('original-download-http-') ? t('workflowDownloadNetwork') : code === 'reference-unavailable' || code === 'original-source-unavailable' ? t('workflowSourceUnavailable') : undefined
   }
   function issueMessage(item: Controller['item'], t: WorkbenchText): string {
     if (item?.framingConflict?.inspection?.status === 'failed') return t('wallpaperFramingInspectionFailed')
@@ -424,10 +427,12 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const explanation = (text: string | undefined) => !text ? '' : text === 'source-layout-focus-required' ? t('wallpaperSourceFocusMissing') : text === 'complete-canvas-required' ? t('wallpaperCompleteCanvasRequired') : text === 'source-intent-unconfirmed' ? t('wallpaperSourceIntentUnconfirmed') : text === 'source-intent-repair-unconfirmed' ? t('wallpaperSourceIntentRepairUnconfirmed') : text === 'final-quality-review-required' ? t('wallpaperFinalReviewRequired') : text === 'candidate-background-protection-required' ? t('wallpaperBackgroundProtectionRequired') : text === 'boundary-review-unavailable' ? t('directCropBoundaryReviewRequired') : text === 'native-review-required' ? t('directCropNativeReviewRequired') : text === 'image-operation-failed' ? t('wallpaperFailureGeneration') : text === 'IMAGE_CREDITS_DISABLED' ? t('wallpaperCreditsDisabled') : text === 'image-operation-pruned' ? t('wallpaperReceiptPruned') : text === 'rework-limit' ? t('wallpaperReworkLimit') : text === 'edit-limit' ? t('wallpaperEditLimit') : text === 'image-capability-unavailable' ? t('wallpaperMissingCapability') : text === 'outcome-unknown' || text === 'image-outcome-unknown' || text === 'interrupted-after-send' ? t('wallpaperUnknown') : text === 'uncertain-subject' ? t('wallpaperUncertainReason') : text === 'vision-detail-unavailable' ? t('directCropDetailUnavailable') : text === 'unchanged-review-evidence' ? t('directCropUnchangedReview') : text
     return failureMessage(item, t) || explanation(item?.reason) || t('wallpaperGeometryFailed')
   }
-  function ImageRecoveryAction({ control, t, pauseControl = false, primary = false }: { control: Controller; t: WorkbenchText; pauseControl?: boolean; primary?: boolean }) {
+  function ImageRecoveryAction({ control, t, primary = false }: { control: Controller; t: WorkbenchText; primary?: boolean }) {
     const { value, item, attempt } = control
     if (!value) return null
     const recovery = wallpaperRecovery(value, item, attempt), running = active(value.status)
+    const queued = item ? value.imageRetries?.[item.imageVersionId] : undefined
+    if (queued?.status === 'queued' && recovery.kind !== 'history') return <ui.Button size="sm" variant={primary ? 'primary' : 'outline'} disabled>{t('wallpaperRetryQueued')}</ui.Button>
     if (recovery.kind === 'none') return primary ? <ui.Button size="sm" variant="primary" disabled>{t('wallpaperRetryImageFlow')}</ui.Button> : null
     const latest = item?.attempts.at(-1), revision = recovery.kind === 'history' ? latest?.revision : attempt?.revision
     const framing = !!item?.framingConflict || !attempt && item?.errorCode === 'constraint-conflict'
@@ -441,10 +446,11 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       if (recovery.kind === 'history' && item && latest) control.setRevision({ image: item.imageVersionId, revision: latest.revision })
       else control.recover(attempt?.revision)
     }
-    if (primary || recovery.kind === 'history') return <ui.Button size="sm" variant={primary ? 'primary' : 'outline'} disabled={control.busy || running && recovery.kind !== 'history'} onClick={click}>{text}</ui.Button>
+    const disabled = control.busy || running && recovery.kind !== 'history' && !wallpaperCanQueueRetry(recovery, item, value)
     return <React.Fragment>
-      <ActionButton action={recovery.kind === 'edit' ? 'edit' : 'retry'} label={text} disabled={control.busy || running} onClick={click} />
-      {running && pauseControl && value.status !== 'pausing' && value.status !== 'cancelling' && <><ActionButton action="pause" label={t('wallpaperPause')} disabled={control.busy} onClick={() => control.control('pause')} /><small className="vc-flow-muted vc-recovery-pause-hint">{t('wallpaperRecoveryPauseFirst')}</small></>}
+      {primary || recovery.kind === 'history' ? <ui.Button size="sm" variant={primary ? 'primary' : 'outline'} disabled={disabled} onClick={click}>{text}</ui.Button>
+        : <ActionButton action={recovery.kind === 'edit' ? 'edit' : 'retry'} label={text} disabled={disabled} onClick={click} />}
+      {primary && queued?.status === 'failed' && <small role="status" title={queued.code}>{t('wallpaperRetryQueueFailed')}</small>}
     </React.Fragment>
   }
   function GenerationReceipt({ control, t }: { control: Controller; t: WorkbenchText }) {
@@ -498,7 +504,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       return recoveryVisible ? null : <ImageRecoveryAction control={control} t={t} />
     }
     const pending = wallpaperPendingDecision(control.item, control.attempt), running = active(control.value.status), limit = control.value.settings.decision?.maxRoundsPerImage, limited = !pending && (control.item?.reason === 'decision-round-limit' || limit !== undefined && (control.item?.decisions?.at(-1)?.round ?? 0) >= limit)
-    return <><ui.Button size="sm" variant="primary" disabled={control.busy || running || limited} title={limited ? t('wallpaperDecisionLimit') : running ? t('wallpaperRecoveryPauseFirst') : undefined} onClick={control.decide}>{t(pending ? 'wallpaperDecisionResume' : 'wallpaperDecisionStart')}</ui.Button>{limited && <small className="vc-flow-muted">{t('wallpaperDecisionLimit')}</small>}{running && <><ui.Button size="sm" variant="outline" disabled={control.busy} onClick={() => control.control('pause')}>{t('wallpaperPause')}</ui.Button><small className="vc-flow-muted">{t('wallpaperRecoveryPauseFirst')}</small></>}</>
+    return <><ui.Button size="sm" variant="primary" disabled={control.busy || running || limited} title={limited ? t('wallpaperDecisionLimit') : running ? t('wallpaperRecoveryPauseFirst') : undefined} onClick={control.decide}>{t(pending ? 'wallpaperDecisionResume' : 'wallpaperDecisionStart')}</ui.Button>{(limited || running) && <small className="vc-flow-muted">{t(limited ? 'wallpaperDecisionLimit' : 'wallpaperRecoveryPauseFirst')}</small>}</>
   }
   function DecisionCard({ control, t, detailed = false }: { control: Controller; t: WorkbenchText; detailed?: boolean }) {
     const { value, item } = control, attempt = detailed ? control.detailAttempt : control.attempt
@@ -544,7 +550,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       {!!attempt?.detailAnalysis?.retainedUncertainties?.length && <div className="vc-flow-facts"><span>{t('directCropRetainedUnknowns')}</span><ul>{attempt.detailAnalysis.retainedUncertainties.map(entry => <li key={entry.text}>{entry.text}</li>)}</ul></div>}
       {detailed && rect && <div className="vc-flow-facts"><span>{t('directCropDetailRegion')}</span><strong>{[rect.x, rect.y, rect.width, rect.height].map(value => (value * 100).toFixed(1) + '%').join(' · ')}</strong></div>}
       {inspection.errorCode && <small className="vc-flow-muted">{inspection.errorCode}</small>}
-      {!detailed && <div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails('detail')} />{['failed', 'attention'].includes(phase) && wallpaperRecovery(value, item, attempt).kind === 'reinspect' && <ImageRecoveryAction control={control} t={t} pauseControl />}</div>}
+      {!detailed && <div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails('detail')} />{['failed', 'attention'].includes(phase) && wallpaperRecovery(value, item, attempt).kind === 'reinspect' && <ImageRecoveryAction control={control} t={t} />}</div>}
     </section>
   }
   function ImageStepCard({ kind, stage, control, t }: { kind: WallpaperStep; stage: ImageWorkflowStage; control: Controller; t: WorkbenchText }) {
@@ -557,20 +563,21 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
     const originalPreview = item.originalId ? resource(value.sourceImages[item.originalId]?.previewPath) : undefined
     const sourcePreview = kind === 'downloading' && !item.originalId ? resource(value.itemIndex?.find(row => row.imageVersionId === item.imageVersionId)?.previewPath) : undefined
     const preview = resource(id ? value.previewResources[id] : undefined) ?? ((stage === 'original' || stage === 'planning') && originalPreview && new URL(originalPreview).searchParams.get('imageVersionId') !== item.originalId ? originalPreview : undefined) ?? sourcePreview
-    const progress = value.downloads?.[item.imageVersionId] ?? wallpaperDownloadProgress(item, value.status)
+    const workStatus = wallpaperImageWorkStatus(value, item.imageVersionId)
+    const progress = value.downloads?.[item.imageVersionId] ?? wallpaperDownloadProgress(item, workStatus)
     const full = resource(id ? value.resources[id] : undefined)
-    const phase = imageWorkflowStagePhase(stage, item, wallpaperImageWorkStatus(value, item.imageVersionId), attempt), checks = review ? Object.entries(review.checks) : []
+    const phase = imageWorkflowStagePhase(stage, item, workStatus, attempt), checks = review ? Object.entries(review.checks) : []
     const clarity = imageWorkflowClarity(attempt)
-    const moving = active(value.status)
+    const moving = active(workStatus)
     const live = value.enhancements?.[item.imageVersionId]
     const resolutionProgress = live && live.revision === attempt?.revision ? live.progress : undefined
-    const enhancing = (stage === 'rendering' || stage === 'clarity') && attempt === item.attempts.at(-1) && ['running', 'pausing', 'paused', 'interrupted'].includes(wallpaperImageWorkStatus(value, item.imageVersionId)) && (attempt?.backgroundResolution?.status === 'enhancing' || attempt?.clarity?.status === 'enhancing')
+    const enhancing = (stage === 'rendering' || stage === 'clarity') && attempt === item.attempts.at(-1) && ['running', 'pausing', 'paused', 'interrupted'].includes(workStatus) && (attempt?.backgroundResolution?.status === 'enhancing' || attempt?.clarity?.status === 'enhancing')
     const ownIssue = ['failed', 'attention'].includes(phase) && !['geometry', 'final', 'clarity'].includes(stage)
     const previousReview = stage === 'rendering' ? imageWorkflowPreviousReview(item, attempt) : undefined
     const previousFinding = wallpaperAttemptReview(previousReview)
     const previewLabel = t(stage === 'final' ? 'wallpaperClean' : kind === 'downloading' ? 'wallpaperSource' : kind === 'planning' ? 'wallpaperAnalysis' : kind === 'rendering' ? 'wallpaperClean' : 'wallpaperSimulation')
     return <div className="vc-flow-node-body vc-image-step-card nodrag nopan nowheel" data-step={stage}><div className="vc-image-step-content">
-      {!enhancing && (stage !== 'final' || qualified) && imageWorkflowGallery(stage, item, attempt).some(slide => resource(value.resources[slide.id])) ? <StageGallery key={item.imageVersionId + ':' + stage + ':' + attempt?.revision} stage={stage} control={control} t={t} /> : <ImageStepPreview preview={preview} full={full} label={previewLabel} waiting={kind === 'rendering' && !attempt?.outputId && item.status === 'rendering' && ['running', 'pausing', 'paused', 'interrupted'].includes(value.status)} generating={kind === 'rendering' && !!attempt?.needsOutpaint && !!attempt.generation && !id && item.status === 'rendering'} enhancing={enhancing} progress={resolutionProgress} moving={moving} control={control} t={t} />}
+      {!enhancing && (stage !== 'final' || qualified) && imageWorkflowGallery(stage, item, attempt).some(slide => resource(value.resources[slide.id])) ? <StageGallery key={item.imageVersionId + ':' + stage + ':' + attempt?.revision} stage={stage} control={control} t={t} /> : <ImageStepPreview preview={preview} full={full} label={previewLabel} waiting={kind === 'rendering' && !attempt?.outputId && item.status === 'rendering' && ['running', 'pausing', 'paused', 'interrupted'].includes(workStatus)} generating={kind === 'rendering' && !!attempt?.needsOutpaint && !!attempt.generation && !id && item.status === 'rendering'} enhancing={enhancing} progress={resolutionProgress} moving={moving} control={control} t={t} />}
       {sourcePreview && <small className="vc-flow-muted">{t('wallpaperOriginalPreview')}</small>}
       {stage === 'planning' && attempt?.detailAnalysis && <small className="vc-flow-muted">{t(attempt.detailAnalysis.outcome === 'ready-for-edit' ? 'directCropDetailReady' : attempt.detailAnalysis.outcome === 'resolved' ? 'directCropDetailResolved' : attempt.detailAnalysis.outcome === 'violated' ? 'directCropDetailViolated' : 'directCropDetailUnresolved')}</small>}
       {ownIssue && !item.framingConflict && <section className="vc-stage-issue" role="alert"><strong>{t('workflowStageFailure')}</strong><p>{stage === 'reviewing' && review ? wallpaperReviewReasons(review, value.settings, t).join('；') || issueMessage(item, t) : issueMessage(item, t)}</p>{stage === 'reviewing' && attempt?.review && item.errorCode && <p>{t('wallpaperReviewTechnical')} · {issueMessage(item, t)}</p>}{item.errorCode && <code>{item.errorCode}</code>}</section>}
@@ -584,7 +591,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       {stage === 'rendering' && <GenerationReceipt control={control} t={t} />}
       {stage === 'rendering' && <GenerationBriefDetails control={control} t={t} />}
       {stage === 'rendering' && <BackgroundResolutionDetails control={control} t={t} />}
-      </div><div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails(stage === 'clarity' ? 'clarity' : kind)} />{stage === 'rendering' && <ActionButton action="history" label={t('wallpaperHistoryTitle')} onClick={() => control.setHistoryOpen(true)} />}{ownIssue ? <><ImageRecoveryAction control={control} t={t} pauseControl />{kind === 'planning' && attempt && wallpaperRecovery(value, item, attempt).kind !== 'edit' && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}</> : kind === 'planning' && stage !== 'geometry' && attempt && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}{stage === 'final' && qualified && full && <ActionButton action="download" label={t('wallpaperDownload')} href={full} />}</div>
+      </div><div className="vc-flow-node-actions"><ActionButton action="details" label={t('wallpaperStepDetails')} onClick={() => control.setDetails(stage === 'clarity' ? 'clarity' : kind)} />{stage === 'rendering' && <ActionButton action="history" label={t('wallpaperHistoryTitle')} onClick={() => control.setHistoryOpen(true)} />}{ownIssue ? <><ImageRecoveryAction control={control} t={t} />{kind === 'planning' && attempt && wallpaperRecovery(value, item, attempt).kind !== 'edit' && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}</> : kind === 'planning' && stage !== 'geometry' && attempt && <ActionButton action="edit" label={t('wallpaperEditPlan')} disabled={control.busy || active(value.status) || attempt !== item.attempts.at(-1)} onClick={control.editPlan} />}{stage === 'final' && qualified && full && <ActionButton action="download" label={t('wallpaperDownload')} href={full} />}</div>
     </div>
   }
 
@@ -696,7 +703,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       <ui.Button size="sm" variant="ghost" disabled={control.busy} onClick={() => control.setDetails(null)}>{t('close')}</ui.Button>
       <div className="vc-image-details-primary">
 
-        {running && <ui.Button size="sm" variant="outline" disabled={control.busy} onClick={() => control.control('pause')}>{t('wallpaperPause')}</ui.Button>}
+        {running && <ui.Button size="sm" variant="outline" disabled={control.busy || value.status === 'pausing' || value.status === 'cancelling'} onClick={() => control.control('pause')}>{t(value.status === 'pausing' ? 'wallpaperPausing' : 'wallpaperPause')}</ui.Button>}
         {paused && <ui.Button size="sm" variant="outline" disabled={control.busy} onClick={() => control.control('resume')}>{t('wallpaperResume')}</ui.Button>}
         {control.details === 'planning' && !running && attempt && wallpaperRecovery(value, item, attempt).kind !== 'edit' && <ui.Button size="sm" variant="outline" disabled={control.busy || running || attempt !== item?.attempts.at(-1)} onClick={control.editPlan}>{t('wallpaperEditPlan')}</ui.Button>}
         {control.details === 'reviewing' && !running && attempt?.outputId && wallpaperCompositionEligible(attempt) && wallpaperRecovery(value, item, attempt).kind !== 'review' && <ui.Button size="sm" variant="outline" disabled={control.busy || attempt !== item?.attempts.at(-1)} onClick={() => control.reviewCurrent(attempt.revision)}>{t('wallpaperReviewCurrent')}</ui.Button>}
@@ -968,7 +975,7 @@ export function createWallpaperCanvas(React: typeof import('react'), ui: typeof 
       </ui.Modal>
       <ui.Modal open={control.planText !== null} onClose={() => control.setPlanText(null)} title={t('wallpaperEditPlan')} closeLabel={t('close')} className="vc-wallpaper-modal vc-plan-modal" contentClassName="vc-plan-modal-shell" footer={<div className="vc-plan-modal-footer">
         <div className="vc-plan-modal-validation" role={planMessage || control.error || !editorPlan ? 'alert' : 'status'}><ui.StateDot state={planMessage || control.error || !editorPlan ? 'error' : 'idle'} /><span>{t(planMessage ?? (control.error || !editorPlan ? 'wallpaperInvalidPlan' : !editorSource ? 'wallpaperPlanUnchecked' : 'wallpaperEditorReady'))}</span></div>
-        <div className="vc-plan-modal-actions"><ui.Button variant="outline" onClick={() => control.setPlanText(null)}>{t('close')}</ui.Button><ui.Button variant="primary" disabled={control.busy || !editorPlan || !!planMessage} onClick={control.applyPlan}>{t('wallpaperApplyPlan')}</ui.Button></div>
+        <div className="vc-plan-modal-actions"><ui.Button variant="outline" onClick={() => control.setPlanText(null)}>{t('close')}</ui.Button><ui.Button variant="primary" disabled={control.busy || !control.value || active(control.value.status) || control.value.status === 'cancelled' || !editorPlan || !!planMessage} onClick={control.applyPlan}>{t('wallpaperApplyPlan')}</ui.Button></div>
       </div>}>
         <div className="vc-plan-modal-context"><span>{t('wallpaperImage')} {control.offset + 1}</span><p>{t('wallpaperPlanHint')}</p></div>
         {editorPlan && editorSource && resource(editorSource.previewPath) && <PlanEditor key={`${control.value?.runId}:${editorPlan.imageVersionId}`} plan={editorPlan} settings={control.value!.settings} source={{ ...editorSource, previewPath: resource(editorSource.previewPath)! }} disabled={control.busy} onChange={plan => control.setPlanText(JSON.stringify(plan, null, 2))} t={t} />}

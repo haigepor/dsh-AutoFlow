@@ -1,3 +1,19 @@
+## Visual Curator 0.2.28
+
+- Queue a failed image for retry while the batch continues. Its saved step resumes after the running images finish. Pausing holds queued retries until the batch resumes.
+- Replace or cancel one image, or apply a revised plan to it. The other images keep their saved progress and results. Switching images keeps previews and history tied to the selected source.
+- Choose All to load the remaining server image pages with visible progress. The table checkbox selects eligible images after the list finishes loading.
+
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261119.1. Restart after active tasks finish to load the matching Host and Client.
+
+## Visual Curator 0.2.28 更新说明
+
+- 批次运行时可为失败图片登记重试。正在处理的图片完成后，系统从该图已保存的步骤继续。暂停批次会保留排队中的重试，继续批次后恢复。
+- 替换、取消处理或应用修订后的规划只作用于选中的图片。其他图片保留已保存的进度和成品。切换图片时，预览和历史跟随选中的原图。
+- 点击服务器图片列表的「全部」会加载剩余分页并显示进度。使用表头复选框可在加载完成后勾选符合条件的图片。
+
+已为 AutoFlow Desktop 0.2.2-rc.3.20261119.1 准备。待当前任务结束后重启，以加载配套 Host 和 Client。
+
 ## Visual Curator 0.2.27
 
 - Scroll near the bottom of the server image list to load the next page. Select all loads the remaining pages and selects incomplete images in the current filter.

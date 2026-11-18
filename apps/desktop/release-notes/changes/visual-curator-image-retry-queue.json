@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-image-retry-queue",
+  "category": "fixes",
+  "text": {
+    "en": "Retry one Visual Curator image while the batch runs. Image actions keep their selected source and the batch keeps its saved progress.",
+    "zh-CN": "视觉策展支持在批次运行时重试单张失败图片，换图、取消和应用规划只作用于选中的图片，并保留批次进度。"
+  }
+}
