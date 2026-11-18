@@ -1,40 +1,27 @@
-version: 0.2.2-rc.3.20261117.2
+version: 0.2.2-rc.3.20261118.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261117.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261117.2-mac-x64-unsigned.zip
-    sha512: v2kdhhCcH++scIQ9hZoTSviIpuBajWOJx++O51I3ctlUpd6H+Mi1hJ9r2YgVuYi3g6IPdm+pBaBRM/EnCdIfTQ==
-    size: 519974206
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261117.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261117.2-mac-x64-unsigned.zip
-sha512: v2kdhhCcH++scIQ9hZoTSviIpuBajWOJx++O51I3ctlUpd6H+Mi1hJ9r2YgVuYi3g6IPdm+pBaBRM/EnCdIfTQ==
-releaseDate: '2026-11-17T06:31:43.307Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261118.2-mac-x64-unsigned.zip
+    sha512: l5aJUDu9mKvaO0XPZBuVSYf5Vj9humJ9RnF4pisZfD9SLoEKcVG/3YhdoFZ75w+Bxjk+zZ49jTtP+B2P32LiWA==
+    size: 520011122
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.3.20261118.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.3.20261118.2-mac-x64-unsigned.zip
+sha512: l5aJUDu9mKvaO0XPZBuVSYf5Vj9humJ9RnF4pisZfD9SLoEKcVG/3YhdoFZ75w+Bxjk+zZ49jTtP+B2P32LiWA==
+releaseDate: '2026-11-18T11:19:59.365Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.3.20261117.2
+  version: 0.2.2-rc.3.20261118.2
   items:
-    - id: visual-curator-migration-history-gaps
+    - id: visual-curator-style-image-recheck
       category: fixes
       text:
-        en: Image storage migration can continue when historical image files are already missing, while preserving records and verifying the files that are moved.
-        zh-CN: 修复历史图片文件缺失时存储迁移停在准备阶段的问题，迁移现有图片并保留历史记录。
-    - id: visual-curator-storage-progress-layout
-      category: improvements
-      text:
-        en: Image storage shows migration status, progress and recovery actions first, with shorter guidance and expandable quota settings.
-        zh-CN: 图片存储弹窗优先显示迁移状态、目标目录和进度，突出继续迁移操作，精简说明并折叠额度设置。
+        en: Visual Curator now applies the saved style rules when rechecking a complete generated image in a style task.
+        zh-CN: 风格任务复审已生成的完整图片时，视觉策展会按该任务保存的风格规则检查。
 releaseNotes: |-
-  ## 体验优化
-
-  - 图片存储弹窗优先显示迁移状态、目标目录和进度，突出继续迁移操作，精简说明并折叠额度设置。
-
   ## 问题修复
 
-  - 修复历史图片文件缺失时存储迁移停在准备阶段的问题，迁移现有图片并保留历史记录。
+  - 风格任务复审已生成的完整图片时，视觉策展会按该任务保存的风格规则检查。
 
   ---
 
-  ## Improvements
-
-  - Image storage shows migration status, progress and recovery actions first, with shorter guidance and expandable quota settings.
-
   ## Bug fixes
 
-  - Image storage migration can continue when historical image files are already missing, while preserving records and verifying the files that are moved.
+  - Visual Curator now applies the saved style rules when rechecking a complete generated image in a style task.
