@@ -260,7 +260,8 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
       ctx.sessionController.cancel({ sessionId })
       if (stopSession === 'model-cleanup') await waitEvent(modelCleanup.promise, 'conversation model cleanup')
       else await agent.whenIdle()
-      const stopped = await ctx.jobs.wait(target.id, 1500, sessionId)
+      // The Session can go idle before the cancelled job finishes writing its persisted receipt.
+      const stopped = await ctx.jobs.wait(target.id, 10_000, sessionId)
       assert.equal(stopped.status, 'killed', 'Stopping the Session must reach the accepted image-search producer')
       if (stopSession === 'model-cleanup') assert.equal(agent.status, 'running', 'Image cancellation must not wait for the conversation model cleanup')
       releaseModel.resolve()

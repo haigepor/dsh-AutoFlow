@@ -2,17 +2,19 @@
 
 - The crop canvas shows local pause status separately from remote image receipts. Resume uses the saved receipt.
 - Retry controls identify the action and its version. A same-image review stays in the review step. The rework line appears when a new image generation has been accepted.
+- Style tasks apply their saved style rules when rechecking a complete generated image.
 - Older planning holds can continue from an enlarged crop of the original. Source inspection retains the protected subject identities and the saved safe area. Accepted results and history are preserved.
 
-Prepared for AutoFlow Desktop 0.2.2-rc.3.20261118.1. Restart after active tasks finish to load the matching Host and Client.
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261118.2. Restart after active tasks finish to load the matching Host and Client.
 
 ## Visual Curator 0.2.26 更新说明
 
 - 裁剪画布分别显示本地暂停状态和远端生图回执。恢复沿用已保存的回执。
 - 重试按钮标明具体动作和版本。同图复审留在复审节点，实际重新生图后才显示返工线。
+- 风格任务复审完整生成图时，按该任务保存的风格规则检查。
 - 旧规划可以从原图局部放大复核接着处理。原图复核沿用受保护的主体和已保存的安全区，保留历史任务和已通过结果。
 
-已为 AutoFlow Desktop 0.2.2-rc.3.20261118.1 准备。待当前任务结束后重启，以加载配套 Host 和 Client。
+已为 AutoFlow Desktop 0.2.2-rc.3.20261118.2 准备。待当前任务结束后重启，以加载配套 Host 和 Client。
 
 ## Visual Curator 0.2.25
 
