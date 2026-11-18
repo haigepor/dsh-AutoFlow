@@ -8,6 +8,7 @@ import { wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperReviewKeys, wall
 import { applyWallpaperClockContrast, applyWallpaperNoClockRequirement } from '../src/host/wallpaper-review.ts'
 import { renderWallpaper } from '../src/media/wallpaper-render.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import { dataOf } from '../src/host/runtime.ts'
 import { wallpaperStateSchema } from '../src/shared/wallpaper.ts'
 import { contentDigest } from '../src/domain/repository.ts'
@@ -57,20 +58,21 @@ for (const bright of [false, true]) test(`current clock policy ${bright ? 'rejec
   let calls = 0
   f.service.config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'repair-when-needed', maxRepeatedDefects: 2 }
   f.service.config.wallpaper.imageModel = 'isolated-unused-image-model'
-  f.service.config.wallpaper.processing = resolveWallpaperProcessing({ clockContrast: { minimumRatio: bright ? 1 : 3 } })
+  f.service.config.wallpaper.processing = resolveWallpaperProcessing({ acceptance: { version: 'strict-v1' }, clockContrast: { minimumRatio: bright ? 1 : 3 } })
   const send = f.http.request.bind(f.http)
   f.http.request = async (url, request) => {
     if (!url.startsWith('https://vision.example.test')) return send(url, request)
     calls++
     const messages = z.object({ messages: z.array(z.object({ role: z.string(), content: z.unknown() })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8'))).messages
     const text = z.array(z.object({ text: z.string().optional() }).passthrough()).parse(messages.find(row => row.role === 'user')!.content)[0]!.text!
-    const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ imageVersionId: z.string(), role: z.string() })) }) }).parse(JSON.parse(text)).input
+    const wire = JSON.parse(text)
+    const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ imageVersionId: z.string(), role: z.string() })) }) }).parse(wire).input
     const source = input.images.find(image => image.role === 'wallpaper-original')!, output = input.images.find(image => image.role === 'actual-wallpaper')
     const subject = { x: 0.3, y: 0.4, width: 0.4, height: 0.2 }, core = { x: 0.4, y: 0.45, width: 0.2, height: 0.1 }
     const regions = [{ name: 'Scripted subject', entityId: 'subject', role: 'subject', rect: subject }, { name: 'Core', entityId: 'core', role: 'critical', rect: core }]
     const objectRoles = [{ entityId: 'subject', name: 'Scripted subject', role: 'primary', evidence: 'The visible focal motif.', rect: subject, sourceEdges: [] }, { entityId: 'core', name: 'Core', role: 'critical-part', evidence: 'The indispensable inner motif.', rect: core, sourceEdges: [] }]
     const result = input.operation === 'wallpaper-plan' ? { version: 1, imageVersionId: source.imageVersionId, mode: 'abstract', subject: 'Isolated qualification fixture', evidence: 'Scripted geometry', priorities: [], anchors: [], truncations: [], uncertainties: [], regions, objectRoles, editPrompt: 'Retain the existing complete canvas.', reason: 'Already fits the frozen canvas' } : { reviewVersion: 'wallpaper-review-source-v4', subject: 'Isolated qualification fixture', checks: Object.fromEntries([...wallpaperReviewKeys, 'clarity'].map(key => [key, { result: 'satisfied', reason: 'Scripted independent response' }])), issues: [], styleResults: [], sourceRepair: { result: 'satisfied', reason: 'Complete' }, sourceCorrespondence: { result: 'satisfied', reason: 'Same source' }, actualLayout: { imageVersionId: output!.imageVersionId, regions: regions.map(region => ({ ...region, scope: 'core' })) }, subjectIntegrity: { mode: 'abstract', source: { extent: 'complete', imageVersionId: source.imageVersionId, reason: 'Complete' }, output: { extent: 'complete', imageVersionId: output!.imageVersionId, reason: 'Complete' }, task: { result: 'satisfied', reason: 'Same content' } } }
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(wire, result)) }, finish_reason: 'stop' }] })) }
   }
   try {
     await f.service.initialize()
@@ -81,8 +83,9 @@ for (const bright of [false, true]) test(`current clock policy ${bright ? 'rejec
     const initial = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', { operationId: 'qualification-clock', name: 'Isolated native qualification', source: { kind: 'local', files: paths.map(path => ({ path, name: path.split(/[\\/]/).at(-1)! })) } }))
     await f.jobs.drain()
     const parent = f.domain.require('run', initial.runId), state = wallpaperStateSchema.parse(dataOf(parent).checkpoint.wallpaper), digest = contentDigest(parent)
-    assert.deepEqual(state.items.map(item => item.status), ['passed', 'passed']); assert.equal(calls, 4)
-    f.service.config.wallpaper.processing = resolveWallpaperProcessing({ clockContrast: { minimumRatio: bright ? 3 : 4.5 } })
+    assert.deepEqual(state.items.map(item => item.status), ['passed', 'passed'], JSON.stringify(state.items.map(({ reason, errorCode, attempts }) => ({ reason, errorCode, placement: attempts[0]?.plan.placement, checks: attempts[0]?.review?.checks }))))
+    assert.equal(calls, 4)
+    f.service.config.wallpaper.processing = resolveWallpaperProcessing({ acceptance: { version: 'strict-v1' }, clockContrast: { minimumRatio: bright ? 3 : 4.5 } })
     const current = z.object({ runId: z.string() }).parse(await f.action('wallpaper-continue', { runId: parent.id, operationId: 'current-qualification-clock', review: { outputId: state.items[0]!.attempts.at(-1)!.outputId! } }))
     await f.jobs.drain()
     const child = wallpaperStateSchema.parse(dataOf(f.domain.require('run', current.runId)).checkpoint.wallpaper), inherited = child.items[1]!

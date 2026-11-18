@@ -23,7 +23,7 @@ test('a failed rendering card keeps retry visible while another image is running
  control.item.status='technical-failed';control.item.failedStep='rendering';control.item.errorCode='capability-unavailable'
  control.attempt.checks=[];control.attempt.plan.uncertainties=[];control.attempt.plan.truncations=['正常自遮挡，不是主体截断']
  control.attempt.detailAnalysis={version:'wallpaper-plan-detail-v2',requestId:'saved-detail',outcome:'resolved'}
- control.retryImage=step=>control.events.push({retry:step});control.value.status='running'
+ control.recover=revision=>control.events.push({recover:revision});control.value.status='running'
  const paint=()=>act(async()=>rendered.render(React.createElement(components.ImageStepCard,{kind:'rendering',stage:'rendering',control,t:key=>zh[key]})))
  await paint()
  const buttons=()=>[...document.querySelectorAll('.vc-flow-node-actions button')]
@@ -37,32 +37,34 @@ test('a failed rendering card keeps retry visible while another image is running
  retry=buttons().find(button=>button.textContent===expected.recovery.retry)
  assert.equal(retry.disabled,false)
  await act(async()=>retry.click())
- assert.deepEqual(control.events,[{command:'pause'},{retry:'rendering'}])
+ assert.deepEqual(control.events,[{command:'pause'},{recover:1}])
 }))
 
 test('a pending planning card exposes detail inspection and plan editing as explicit separate actions',async()=>fixture(async rendered=>{
  const control=controller(),components=createWallpaperCanvas(React,ui)
+ control.recover=revision=>control.events.push({recover:revision})
  control.attempt.detailAnalysis={version:'wallpaper-plan-detail-v2',requestId:'saved-detail',outcome:'unresolved'}
  await act(async()=>rendered.render(React.createElement(components.ImageStepCard,{kind:'planning',stage:'planning',control,t:key=>zh[key]})))
  const buttons=[...document.querySelectorAll('.vc-flow-node-actions button')]
  const inspect=buttons.find(button=>button.textContent===expected.recovery.inspect),edit=buttons.find(button=>button.textContent===expected.recovery.edit)
  assert.ok(inspect);assert.ok(edit);assert.equal(inspect.disabled,false);assert.equal(edit.disabled,false);assert.deepEqual(control.events,[])
  await act(async()=>inspect.click());await act(async()=>edit.click())
- assert.deepEqual(control.events,[{detail:true},{edit:true}])
+ assert.deepEqual(control.events,[{recover:1},{edit:true}])
 }))
 
 test('an exhausted legacy extent decision offers reinspection of the saved original', async () => fixture(async rendered => {
   const control = controller()
+  control.recover = revision => control.events.push({ recover: revision })
   control.attempt.detailAnalysis = { version: 'wallpaper-plan-detail-v2', requestId: 'old-detail', outcome: 'violated' }
   control.item.reason = 'decision-round-limit'
   const { DecisionCard } = createWallpaperCanvas(React, ui)
   await act(async () => rendered.render(React.createElement(DecisionCard, { control, t: key => zh[key] })))
-  const inspect = [...document.querySelectorAll('button')].find(button => button.textContent === zh.directCropReinspect)
+  const inspect = [...document.querySelectorAll('button')].find(button => button.textContent === expected.recovery.inspect)
   assert.ok(inspect)
   assert.equal(inspect.disabled, false)
   assert.deepEqual(control.events, [])
   await act(async () => inspect.click())
-  assert.deepEqual(control.events, [{ detail: true }])
+  assert.deepEqual(control.events, [{ recover: 1 }])
 }))
 
 test('a saved output with a visible background seam offers rework after two planning decisions', async () => fixture(async rendered => {
@@ -77,6 +79,7 @@ test('a saved output with a visible background seam offers rework after two plan
   control.attempt.checks = []
   control.attempt.outputId = 'rendered'
   control.attempt.needsOutpaint = true
+  control.attempt.compositionMode = 'generated-canvas-v1'
   const pass = { result: 'satisfied', reason: 'Verified from the supplied pixels.' }
   const background = { result: 'violated', reason: 'A visible seam crosses the extended sky.' }
   control.attempt.review = {
@@ -86,20 +89,21 @@ test('a saved output with a visible background seam offers rework after two plan
     subjectIntegrity: { mode: 'single', source: { extent: 'complete', imageVersionId: 'source', reason: 'All vehicle contours are in frame.' }, output: { extent: 'complete', imageVersionId: 'rendered', reason: 'All vehicle contours were preserved.' }, task: pass },
   }
   control.reviewCurrent = () => control.events.push({ review: true })
-  control.rework = () => control.events.push({ rework: true })
+  control.recover = revision => control.events.push({ recover: revision })
   await act(async () => rendered.render(React.createElement(ImageStepCard, { kind: 'reviewing', stage: 'reviewing', control, t: key => zh[key] })))
   assert.ok(document.querySelector('[role="alert"]').textContent.includes(background.reason))
   const buttons = [...document.querySelectorAll('button')]
-  const rework = buttons.find(button => button.textContent === '继续返工')
+  const rework = buttons.find(button => button.textContent === expected.recovery.regenerate)
   assert.ok(rework && !rework.disabled)
   assert.equal(buttons.some(button => button.textContent === zh.wallpaperReviewCurrent), false)
   assert.deepEqual(control.events, [])
   await act(async () => rework.click())
-  assert.deepEqual(control.events, [{ rework: true }])
+  assert.deepEqual(control.events, [{ recover: 1 }])
 }))
 
 test('the failed manual inspection displays its own result and accepts another inspection after decision round two', async () => fixture(async rendered => {
   const control = controller(), components = createWallpaperCanvas(React, ui), t = key => zh[key]
+  control.recover = revision => control.events.push({ recover: revision })
   control.item.status = 'technical-failed'
   control.item.failedStep = 'planning'
   control.item.errorCode = 'vision-invalid-output'
@@ -116,25 +120,26 @@ test('the failed manual inspection displays its own result and accepts another i
   const card = [...document.querySelectorAll('section')].find(element => element.textContent.includes(zh.directCropDetailFailed))
   const buttons = [...card.querySelectorAll('button')]
   const details = buttons.find(button => button.textContent === zh.wallpaperStepDetails)
-  const retry = buttons.find(button => button.textContent === zh.directCropReinspect)
+  const retry = buttons.find(button => button.textContent === expected.recovery.inspect)
   assert.ok(retry && !retry.disabled)
   await act(async () => details.click())
   await act(async () => retry.click())
-  assert.deepEqual(control.events, [{ details: 'detail' }, { detail: true }])
+  assert.deepEqual(control.events, [{ details: 'detail' }, { recover: 1 }])
 }))
 
 test('the current-image bar exposes replacement, single-image cancel and retry separately from batch cancel',async()=>fixture(async rendered=>{
  const control=controller(),components=createWallpaperCanvas(React,ui)
  control.replaceImage=()=>control.events.push({replace:control.item.imageVersionId})
  control.cancelImage=()=>control.events.push({cancel:control.item.imageVersionId})
- control.retryCurrent=()=>control.events.push({retry:control.item.imageVersionId})
+ control.item.status='technical-failed';control.item.failedStep='rendering';control.attempt.checks=[];control.attempt.plan.uncertainties=[]
+ control.recover=revision=>control.events.push({recover:revision})
  const paint=()=>act(async()=>rendered.render(React.createElement(components.TaskStatus,{control,t:key=>zh[key]})))
  await paint()
  const buttons=()=>[...document.querySelectorAll('.vc-direct-task-actions button')]
  assert.deepEqual(buttons().filter(button=>expected.imageActions.includes(button.textContent)).map(button=>button.textContent),expected.imageActions)
  assert.deepEqual(control.events,[])
  for(const label of expected.imageActions)await act(async()=>buttons().find(button=>button.textContent===label).click())
- assert.deepEqual(control.events,[{replace:'source'},{cancel:'source'},{retry:'source'}])
+ assert.deepEqual(control.events,[{replace:'source'},{cancel:'source'},{recover:1}])
  await act(async()=>buttons().find(button=>button.textContent===zh.wallpaperBatchActions).click())
  const batchCancel=[...document.querySelectorAll('[role="menuitem"]')].find(node=>node.textContent===zh.wallpaperCancelAllImages)
  assert.ok(batchCancel)

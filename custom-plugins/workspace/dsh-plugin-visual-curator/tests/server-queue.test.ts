@@ -1,7 +1,6 @@
 /** Protocol integration uses real media, persistence and crop/review code with isolated vision responses. */
 import assert from 'node:assert/strict'
 import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
-import { wallpaperGenerationBriefOutputSchema, wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
 import { test } from 'node:test'
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -15,7 +14,7 @@ import { DirectCropTasks } from '../src/host/direct-crop.ts'
 import { WallpaperWorkflows } from '../src/host/wallpaper-workflow.ts'
 import { RunEngine, dataOf, specOf } from '../src/host/runtime.ts'
 import { resolveConfig } from '../src/host/config.ts'
-import { wallpaperReviewKeys, wallpaperStateSchema, wallpaperSettingsSchema } from '../src/shared/wallpaper.ts'
+import { wallpaperStateSchema, wallpaperSettingsSchema } from '../src/shared/wallpaper.ts'
 import { serverImageComplete, serverQueueViewSchema } from '../src/shared/server-queue.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 import { MediaError } from '../src/media/errors.ts'
@@ -29,10 +28,11 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   const f = await serviceFixture(); await f.service.initialize()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test', credentialRef: '' }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '' }, limits: { maxRetryAttempts: 0 } })
   const scenario = options.rework ? serverReworkScenario(f.root) : undefined
-  if (scenario) { config.wallpaper.imageProvider = 'isolated-images'; config.wallpaper.imageModel = 'isolated-background'; config.wallpaper.maxReworks = 1; config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'preserve', maxRepeatedDefects: 2 }; config.vision.wallpaperPromptPreparation = wallpaperPromptPreparationPolicySchema.parse({ reasoningEffort: 'high' }) }
+  if (scenario) { config.wallpaper.imageProvider = 'isolated-images'; config.wallpaper.imageModel = 'isolated-background'; config.wallpaper.maxReworks = 1 }
   const original = await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#536f53' } }).png().toBuffer()
   const md5 = createHash('md5').update(original).digest('hex'), items = Array.from({ length: count }, (_, index) => ({ id: String(index + 11), name: 'same-name.png', title: 'Untrusted article text', img_url: 'https://images.example.test/' + index, md5, size: String(original.length), update_time: '123' }))
   let mode: 'success' | 'timeout' | 'wrong-id' | 'rejected' | 'duplicate-index' | 'partial' = 'success', badReview = false, downloads = 0, maxActive = 0, active = 0
+  let reworkTarget: string | undefined, targetReviews = 0
   const uploadBatches: string[][] = [], rejectedOriginals = new Set<string>()
   const barrier = Promise.withResolvers<void>(), uploads: { id: string; digest: string; width: number; height: number }[] = [], observations: string[] = []
   const http: HttpClient = { request: async (url, request) => {
@@ -69,27 +69,36 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
     if (!url.startsWith('https://vision.example.test')) return oldRequest(url, request)
     const messages = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8'))).messages
     const content = messages.find(row => row.role === 'user')!.content; assert.ok(Array.isArray(content))
-    const preparedBrief = wallpaperGenerationBriefOutputSchema.safeParse(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), {}))
-    if (preparedBrief.success) {
-      const usage = z.object({ input: z.object({ usage: z.object({ plan: z.object({ editPrompt: z.string().optional() }), previousReview: z.object({ checks: z.record(z.string(), z.object({ result: z.string(), reason: z.string() })) }).optional() }) }) }).parse(JSON.parse(content[0]!.text!)).input.usage
-      const repair = [usage.plan.editPrompt, ...Object.values(usage.previousReview?.checks ?? {}).filter(check => check.result !== 'satisfied').map(check => check.reason)].filter(Boolean).join('\n')
-      const authored = { ...preparedBrief.data, ...(repair ? { repairInstructions: repair, generationPrompt: `${preparedBrief.data.generationPrompt}\n${repair}` } : {}) }
-      observations.push('wallpaper-generation-brief')
-      return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(authored) }, finish_reason: 'stop' }] })) }
-    }
-    const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ role: z.string(), imageVersionId: z.string() })), usage: z.unknown().optional() }) }).parse(JSON.parse(content[0]!.text!)).input
+    const wire = JSON.parse(content[0]!.text!)
+    const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ role: z.string(), imageVersionId: z.string() })) }) }).parse(wire).input
     observations.push(input.operation)
     if (input.operation === 'wallpaper-review' && observations.filter(operation => operation === 'wallpaper-review').length === 2) { options.onSecondReview?.(); await options.secondReview }
-    const originalId = input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId
-    if (input.operation === 'wallpaper-review' && originalId && rejectedOriginals.size < (options.rejectCount ?? 0)) rejectedOriginals.add(originalId)
-    const reject = badReview || originalId !== undefined && rejectedOriginals.has(originalId)
-    const subjectRect = { x: 0.35, y: 0.5, width: 0.3, height: 0.2 }, detailRect = { x: 0.45, y: 0.56, width: 0.05, height: 0.04 }
-    const regions = [{ name: 'Subject', ...(!scenario ? { entityId: 'subject' } : {}), role: 'subject', rect: subjectRect }, { name: 'Identity detail', ...(!scenario ? { entityId: 'detail' } : {}), role: 'critical', rect: detailRect }]
-    const result = input.operation === 'wallpaper-plan' ? { version: 1, imageVersionId: input.images[0]!.imageVersionId, mode: 'single', subject: 'Isolated central subject', evidence: 'Scripted observation only.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions, ...(!scenario ? { objectRoles: [{ entityId: 'subject', name: 'Subject', role: 'primary', evidence: 'Visible focal subject.', rect: subjectRect, sourceEdges: [] }, { entityId: 'detail', name: 'Identity detail', role: 'critical-part', evidence: 'Indispensable visible identity.', rect: detailRect, sourceEdges: [] }] } : {}), reason: 'Fits without generation.', editPrompt: 'Extend only the uniform muted green background and preserve protected original pixels, illumination and texture.' } : {
-      reviewVersion: scenario ? 'wallpaper-review-source-v1' : 'wallpaper-review-source-v4', subject: 'Isolated central subject', checks: { ...Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: reject && key === 'background' ? 'violated' : 'satisfied', reason: 'Isolated observation.' }])), clarity: { result: 'satisfied', reason: 'Isolated clarity.' } }, issues: reject ? [{ kind: 'background', check: 'background', code: 'other', reason: 'Visible isolated background defect.', evidence: { kind: 'background-artifact', entityIds: [], imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, outputRect: { x: 0.05, y: 0.05, width: 0.1, height: 0.1 } } }] : [], styleResults: [], ...(!scenario ? { sourceRepair: { result: 'satisfied', reason: 'Complete source.' }, sourceCorrespondence: { result: 'satisfied', reason: 'Same visible subject.' }, actualLayout: { imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId, regions: regions.map(region => ({ ...region, scope: 'core' })) } } : {}), subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Isolated source.', imageVersionId: input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId }, output: { extent: 'complete', reason: 'Isolated output.', imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId }, task: { result: 'satisfied', reason: 'Isolated task.' } },
+    const source = input.images.find(image => image.role === 'wallpaper-original')
+    assert.ok(source)
+    if (scenario) reworkTarget ??= source.imageVersionId
+    const target = source.imageVersionId === reworkTarget
+    const subjectRect = target ? { x: 0.06, y: 0.24, width: 0.88, height: 0.65 } : { x: 0.29, y: 0.39, width: 0.42, height: 0.36 }
+    const outputSubject = target ? { x: 0.153, y: 0.332, width: 0.694, height: 0.48 } : { x: 0.233, y: 0.357, width: 0.534, height: 0.429 }
+    const outputDetail = target ? { x: 0.468, y: 0.538, width: 0.063, height: 0.059 } : { x: 0.449, y: 0.512, width: 0.102, height: 0.095 }
+    const detailRect = { x: 0.46, y: 0.52, width: 0.08, height: 0.08 }
+    const regions = [{ name: 'Subject', entityId: 'subject', role: 'subject', rect: subjectRect }, { name: 'Identity detail', entityId: 'detail', role: 'critical', rect: detailRect }]
+    let result: object
+    if (input.operation === 'wallpaper-plan') {
+      result = { version: 1, imageVersionId: source.imageVersionId, mode: 'single', subject: 'Isolated central subject', evidence: 'Scripted observation only.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions,
+        objectRoles: [{ entityId: 'subject', name: 'Subject', role: 'primary', safetyClass: 'general', evidence: 'Visible focal subject.', rect: subjectRect, sourceEdges: [] }, { entityId: 'detail', name: 'Identity detail', role: 'critical-part', evidence: 'Indispensable visible identity.', rect: detailRect, sourceEdges: [] }],
+        reason: 'Preserve the visible source and its background.', editPrompt: targetReviews ? 'Correct the dark seam from the rejected version without changing the subject.' : 'Continue the uniform muted green background.' }
+    } else {
+      assert.equal(input.operation, 'wallpaper-review')
+      const actual = input.images.find(image => image.role === 'actual-wallpaper')
+      assert.ok(actual)
+      if (rejectedOriginals.size < (options.rejectCount ?? 0)) rejectedOriginals.add(source.imageVersionId)
+      const reject = badReview || rejectedOriginals.has(source.imageVersionId) || target && ++targetReviews === 1
+      result = { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v1', sourceImageVersionId: source.imageVersionId, outputImageVersionId: actual.imageVersionId, mode: 'single', subject: 'Isolated central subject',
+        actualLayout: { regions: regions.map(region => ({ ...region, rect: region.role === 'subject' ? outputSubject : outputDetail, scope: 'core' })) },
+        defects: reject ? [{ kind: 'collage-seam', severity: 'major', reason: 'The generated background has a dark seam.', outputRect: { x: 0.05, y: 0.05, width: 0.1, height: 0.1 } }] : [], uncertainties: [],
+      }
     }
-    const reply = scenario ? scenario.reply(input, result) : result
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), reply)) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(wire, result)) }, finish_reason: 'stop' }] })) }
   }
   let queue: ServerQueue
   const engine = new RunEngine(f.repository, f.jobs, undefined, undefined, options.autoDeliver ? run => queue.deliver(run) : undefined), wallpaper = new WallpaperWorkflows({ domain: f.domain, files: f.files, engine, config: () => config, vision: f.providers.vision, source: f.providers.source, media: f.providers.media, skill: () => ({ id: 'isolated', content: 'Scripted fixture' }), ...(scenario ? { llm: scenario.llm, attachments: scenario.attachments } : {}), ...(options.autoDeliver ? { approved: async (run, imageVersionId) => { await queue.deliver(run, imageVersionId); options.onApproved?.() } } : {}) })
@@ -100,7 +109,7 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   await queue.configure({ baseUrl: 'https://api.example.test', auth: { kind: 'postman', path }, allowedMediaOrigins: ['https://images.example.test'] }, f.actor)
   const snapshot = await queue.pull(f.actor, deps.signal)
   const start = async () => { const result = await queue.start({ operationId: 'server-test', name: 'Isolated server batch', snapshotId: snapshot.snapshotId, ids: items.map(item => item.id) }, f.actor, deps.signal); await queue.drain(); await f.jobs.drain(); return f.domain.require('run', result.runId) }
-  return { ...f, queue, deps, direct, engine, items, uploads, uploadBatches, original, observations, start, scenario, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
+  return { ...f, queue, deps, direct, engine, items, uploads, uploadBatches, original, observations, start, scenario, reworkTarget: () => reworkTarget, targetReviews: () => targetReviews, downloads: () => downloads, maxActive: () => maxActive, setMode(value: typeof mode) { mode = value }, rejectReview() { badReview = true }, cleanup: async () => { await engine.dispose(); await queue.drain(); await f.cleanup(); await scenario?.close() } }
 }
 
 test('server originals import concurrently, retain independent IDs and upload only reviewed clean PNGs once', async () => {
@@ -108,8 +117,10 @@ test('server originals import concurrently, retain independent IDs and upload on
   try {
     assert.equal(JSON.stringify(f.queue.read(f.actor)).includes('isolated-token'), false)
     assert.deepEqual(presented(f.queue.read(f.actor)), expected.pending)
-    const run = await f.start(); assert.equal(run.status, 'completed'); assert.equal(run.outcome, 'target-met', JSON.stringify(dataOf(run).checkpoint.wallpaper)); assert.equal(f.maxActive(), 2)
-    const state = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper); assert.equal(state.items.filter(item => item.status === 'passed').length, 2)
+    const run = await f.start(); assert.equal(run.status, 'completed')
+    const state = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper)
+    assert.equal(run.outcome, 'target-met', JSON.stringify(state.items.map(({ status, reason, errorCode, attempts }) => ({ status, reason, errorCode, placement: attempts[0]?.plan.placement }))))
+    assert.equal(f.maxActive(), 2); assert.equal(state.items.filter(item => item.status === 'passed').length, 2)
     await f.queue.deliver(run); await f.queue.deliver(run)
     assert.deepEqual(f.uploadBatches, [['11', '12']]); assert.deepEqual(f.uploads.map(row => row.id), ['11', '12']); assert.ok(f.uploads.every(row => row.width === 1845 && row.height === 3280))
     assert.ok(serverQueueViewSchema.parse(f.queue.read(f.actor)).items.every(row => row.transfer?.status === 'uploaded'))
@@ -137,20 +148,20 @@ test('approved outputs wait for the whole batch and use one multipart request', 
   } finally { release.resolve(); await started; await f.cleanup() }
 })
 
-test('a server batch resolves detail evidence, regenerates a rejected background and delivers only the approved artifacts', { timeout: 60000 }, async () => {
+test('a server batch regenerates a rejected complete canvas and delivers only independently approved artifacts', { timeout: 60000 }, async () => {
   const f = await fixture(2, { autoDeliver: true, rework: true })
   try {
     const run = await f.start(), state = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper)
-    const revised = state.items.find(item => item.imageVersionId === f.scenario!.target())!
-    assert.equal(revised.status, 'passed', JSON.stringify({ reason: revised.reason, error: revised.errorCode, step: revised.failedStep, edits: revised.edits }))
+    const revised = state.items.find(item => item.imageVersionId === f.reworkTarget())
+    assert.ok(revised)
+    assert.equal(revised.status, 'passed', JSON.stringify({ reason: revised.reason, error: revised.errorCode, step: revised.failedStep, edits: revised.edits, operations: f.observations, placement: revised.attempts[0]?.plan.placement }))
     assert.equal(run.outcome, 'target-met')
     assert.equal(f.downloads(), 2)
-    assert.ok(revised.attempts.some(attempt => attempt.detailAnalysis?.outcome === 'resolved'))
     const reviewed = revised.attempts.filter(attempt => attempt.review)
     assert.deepEqual(reviewed.map(attempt => attempt.review!.checks.background.result), ['violated', 'satisfied'])
     assert.equal(f.scenario!.generations.size, 2)
-    assert.equal(f.scenario!.reviews(), 3, 'The delivered file receives its own quality review after the two native candidate reviews')
-    assert.ok(revised.attempts.at(-1)!.postResolutionReview?.review)
+    assert.equal(f.targetReviews(), 2, 'Each candidate receives its own independent final review')
+    assert.ok(reviewed.every(attempt => attempt.compositionMode === 'generated-canvas-v1' && !attempt.sourceIntentProof))
     assert.notEqual(reviewed[0]!.generation!.id, reviewed[1]!.generation!.id)
     assert.notEqual(reviewed[0]!.outputId, reviewed[1]!.outputId)
     assert.ok(reviewed[1]!.generationInput?.prompt.includes('dark seam'))

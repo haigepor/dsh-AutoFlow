@@ -30,7 +30,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
   if (mode === 'pre-review-boundary-failure') f.service.config.wallpaper.decision = wallpaperSettingsSchema.parse({ decision: { enabled: false } }).decision
   if (mode.startsWith('pre-review-boundary')) { f.service.config.limits.maxReferenceImages = 8; f.service.config.wallpaper.sourceFrameRepair = wallpaperSettingsSchema.parse({ sourceFrameRepair: { enabled: true } }).sourceFrameRepair }
   if (authorized) f.service.config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'repair-when-needed', maxRepeatedDefects: 2 }
-  if (mode === 'authorized-repair-clock') f.service.config.wallpaper.processing = wallpaperSettingsSchema.parse({ processing: { sourcePreservation: false, clockContrast: {} } }).processing
+  if (mode === 'authorized-repair-clock') f.service.config.wallpaper.processing = wallpaperSettingsSchema.parse({ processing: { acceptance: { version: 'strict-v1' }, sourcePreservation: false, clockContrast: {} } }).processing
   f.host.attachments = attachments; f.host.llm = llm
   f.service.config.wallpaper.imageModel = 'isolated-edit-model'
   if (mode === 'framing-limit' || wholeCanvas) f.service.config.wallpaper.maxEditsPerImage = authorized && !mode.startsWith('pre-review-alignment') && !mode.startsWith('pre-review-boundary') ? 2 : 1
@@ -317,24 +317,16 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
     }
     if (wholeCanvas) {
       const previous = contentDigest(run), saved = item.attempts.at(-1)!
-      const next = z.object({ runId: z.string() }).parse(await f.action('wallpaper-continue', { runId: run.id, operationId: 'whole-canvas-only', recompose: { imageVersionId: item.imageVersionId, revision: saved.revision, mode: 'generated-canvas-v1', reviewPolicy: 'current', backgroundResolution: 'current' } }))
-      await f.jobs.drain()
-      const child = f.domain.require('run', next.runId), checked = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper).items[0]!, attempt = checked.attempts.at(-1)!
-      assert.equal(generations.size, 1); assert.equal(checked.edits, 1)
-      assert.equal(attempt.compositionMode, 'generated-canvas-v1'); assert.ok(attempt.outputId, JSON.stringify({ status: checked.status, reason: checked.reason, errorCode: checked.errorCode, failedStep: checked.failedStep, generations: checked.attempts.map(row => ({ revision: row.revision, generation: !!row.generation, output: !!row.outputId, review: !!row.review, alignment: row.generationAlignment?.result, framing: row.generationFramingFailure, retryFrom: row.retryFrom, retryTarget: row.retryTarget, preReview: !!row.preResolutionReview })), edits: checked.edits }))
-      if (mode === 'whole-canvas-clarity') {
-        assert.equal(checked.status, 'passed'); assert.ok(attempt.clarity?.enhancedOutputId); assert.equal(reviews, 2)
-        assert.equal(generations.size, 1); assert.equal(checked.edits, 1)
-        assert.equal(contentDigest(f.domain.require('run', run.id)), previous)
-        return
-      }
-      assert.equal(checked.status, 'needs-review'); assert.equal(wallpaperVerdict(attempt.review!), 'reject')
-      assert.equal(f.repository.list('selection').length, 0); assert.equal(contentDigest(f.domain.require('run', run.id)), previous)
-      const detailReview = z.object({ runId: z.string() }).parse(await f.action('wallpaper-continue', { runId: child.id, operationId: 'native-actual-subject-review', review: { outputId: attempt.outputId! } }))
-      await f.jobs.drain()
-      const verified = wallpaperStateSchema.parse(dataOf(f.domain.require('run', detailReview.runId)).checkpoint.wallpaper).items[0]!
-      assert.equal(verified.status, 'passed'); assert.equal(verified.edits, 1); assert.equal(generations.size, 1)
-      assert.equal(verified.attempts.at(-1)!.outputId, attempt.outputId, 'Review evidence changes without changing the saved candidate pixels')
+      const originalReads = receiptReads
+      await assert.rejects(f.action('wallpaper-continue', { runId: run.id, operationId: 'whole-canvas-only', recompose: { imageVersionId: item.imageVersionId, revision: saved.revision, mode: 'generated-canvas-v1', reviewPolicy: 'current', backgroundResolution: 'current' } }), { code: 'constraint-conflict', stage: 'wallpaper-recompose' })
+      assert.equal(receiptReads, originalReads)
+      assert.equal(contentDigest(f.domain.require('run', run.id)), previous)
+      assert.equal(generations.size, 1); assert.equal(item.edits, 1)
+      assert.equal(saved.compositionMode, 'generated-canvas-v1')
+      assert.ok(saved.generatedImageId)
+      assert.ok(f.domain.require('imageVersion', saved.generatedImageId), 'The historical provider result remains readable')
+      assert.equal(saved.outputId, undefined, JSON.stringify({ status: item.status, reason: item.reason, errorCode: item.errorCode }))
+      assert.equal(f.repository.list('selection').length, 0)
       return
     }
     assert.equal(item.status, 'passed', JSON.stringify({ status: item.status, reason: item.reason, errorCode: item.errorCode, edits: item.edits, operations, requests: f.repository.list('request').map(record => ({ state: record.state, detail: z.object({ error: z.unknown(), diagnostics: z.unknown().optional() }).safeParse(record.data).data })) }))
