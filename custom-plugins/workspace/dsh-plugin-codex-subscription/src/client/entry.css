@@ -1,15 +1,15 @@
 /* Codex image surfaces consume the application palette without redefining it. */
-.ci-tool { min-width: 0; margin: 10px 0 16px; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 22px; }
-.ci-process-row { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 22px; font-weight: 400; }
+.ci-tool { min-width: 0; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 22px; }
+.ci-process-row { display: flex; align-items: center; gap: 8px; min-height: 24px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 22px; font-weight: 400; }
 .ci-process-row > svg { flex: none; }
-.ci-process-action { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.ci-process-action > svg { flex: none; }
+.ci-image-count { color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.ci-image-body { min-width: 0; padding: 6px 0 8px 22px; }
+.ci-inspect { display: grid; flex: none; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--dsw-radius-xs); background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
 @media (hover: hover) {
-.ci-process-action:hover { color: var(--dsw-alias-label-primary); } }
-.ci-process-row[data-state='failed'] { color: var(--dsw-alias-state-error-primary); }
+.ci-inspect:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); } }
 .ci-notice { color: var(--dsw-alias-label-secondary); font-weight: 400; }
 .ci-images { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 14px; }
-.ci-image-item { min-width: 0; }
+.ci-image-item { min-width: 0; max-width: 100%; }
 .ci-frame { position: relative; isolation: isolate; display: block; width: 216px; max-width: 100%; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; border-radius: var(--dsw-radius-xl, 20px); background: var(--dsw-alias-bg-layer-1); box-shadow: var(--dsw-elevation-panel); }
 .ci-frame::before { content: ''; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--dsw-specific-menu) 55%, transparent); backdrop-filter: blur(12px) saturate(104%); pointer-events: none; }
 .ci-pill { position: absolute; box-sizing: border-box; right: 12px; bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 64px; min-height: 26px; max-width: calc(100% - 24px); padding: 2px 8px; border: 0; border-radius: 99px; corner-shape: round; color: var(--dsw-alias-link); background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 88%, transparent); backdrop-filter: blur(8px) saturate(105%); box-shadow: var(--dsw-elevation-soft); font-size: 12px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: center; }
@@ -18,7 +18,7 @@
 .ci-result:disabled { cursor: default; }
 .ci-result > img { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .24s ease; }
 .ci-result > img[data-ready='true'] { opacity: 1; }
-.ci-result:focus-visible, .ci-thumbnail:focus-visible, .ci-icon-button:focus-visible, .ci-action:focus-visible, .ci-text-action:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 3px; }
+.ci-result:focus-visible, .ci-thumbnail:focus-visible, .ci-icon-button:focus-visible, .ci-inspect:focus-visible, .ci-action:focus-visible, .ci-text-action:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 3px; }
 .ci-media-failure { display: grid; place-items: center; position: absolute; inset: 0; padding: 16px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .ci-notice { margin: 8px 0 0; max-width: 54ch; font-size: 12px; line-height: 20px; }
 .ci-text-action { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-link); cursor: pointer; text-decoration: none; font: inherit; font-weight: 500; }

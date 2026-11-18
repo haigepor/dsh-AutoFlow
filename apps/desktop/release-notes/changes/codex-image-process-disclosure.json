@@ -1,0 +1,8 @@
+{
+  "id": "codex-image-process-disclosure",
+  "category": "improvements",
+  "text": {
+    "en": "Generated image previews and call details appear together in a collapsible row at the original request in the conversation process.",
+    "zh-CN": "对话中的生图预览和调用详情集中在原请求位置的折叠行内，展开后即可查看图片。"
+  }
+}

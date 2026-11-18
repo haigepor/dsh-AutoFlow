@@ -126,22 +126,23 @@ test('real AgentLoop records image tools, canonical metadata, owner refusal, val
       { entries: () => [imageTurnDefinition, imageConversationDefinition], fallbackEntry: () => undefined },
       { entries: () => [imageProjectionView()] },
     )
-    const displayedImages = () => z.array(z.object({ kind: z.string(), groupTree: z.string(), visibility: z.string(), anchorSeq: z.number(), data: z.unknown() }))
+    const displayedImages = () => z.array(z.object({ kind: z.string(), groupTree: z.string().optional(), visibility: z.string(), anchorSeq: z.number(), data: z.unknown() }))
       .parse(projection.snapshot('chat')).filter(node => node.kind === 'codex-image')
     const generation = events.find(event => event.type === 'tool/call' && event.data.name === 'codex_image_generate')
     assert.ok(generation)
     projection.replaceWindow(events.filter(event => event.seq <= generation.seq).map(event => ({ type: 'event' as const, event })), false)
     projection.activateTarget('chat')
     const pendingImage = displayedImages()[0]
-    assert.equal(pendingImage?.groupTree, 'turn')
+    assert.equal(pendingImage?.groupTree, undefined)
     assert.equal(pendingImage?.visibility, 'visible')
     assert.deepEqual(pendingImage?.data, { callId: 'generate', settled: false, failed: false, saved: undefined, live: true })
     projection.replaceWindow(events.map(event => ({ type: 'event' as const, event })), false)
     projection.flush()
     const displayed = displayedImages()
     assert.equal(displayed.length, 1, 'result queries must not create duplicate image rows')
-    assert.equal(displayed[0]?.groupTree, 'turn', 'images must remain outside completed process folding')
-    assert.ok((displayed[0]?.anchorSeq ?? 0) > (results.at(-1)?.seq ?? 0), 'the entire tool process must precede the image')
+    assert.equal(displayed[0]?.groupTree, undefined, 'images join the same process group as their call')
+    assert.ok(pendingImage && pendingImage.anchorSeq > generation.seq && pendingImage.anchorSeq < generation.seq + 1)
+    assert.equal(displayed[0]?.anchorSeq, pendingImage.anchorSeq, 'saved and queried results stay at the original call')
     const oldGeneration = events.map(event => event.type === 'tool/result' && event === results[0]
       ? { ...event, data: { ...event.data, meta: { codexImage: { version: 1, operation: 'generate', ...imageToolValue({ ...task, state: 'sent', assets: [] }, false) } } } } : event)
     projection.replaceWindow(oldGeneration.map(event => ({ type: 'event' as const, event })), false)

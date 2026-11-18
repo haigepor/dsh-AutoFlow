@@ -1,4 +1,4 @@
-/** Logged image calls receive an independent Chat node outside process folding. */
+/** Logged image calls own a disclosure at their dispatch position in the Chat process. */
 import type { ConversationMatch, ConversationNodeContext, ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-tool-executor-ptc/types'
@@ -10,7 +10,7 @@ import { imageTaskActive, recordedImageTask } from './model.ts'
 /** A UI projection of one logged generate call, never a synthetic Session result. */
 export interface ConversationImageData { callId: string; settled: boolean; failed: boolean; live?: boolean; saved?: ImageViewTask | undefined }
 
-interface ImageTurnState { lastSeq: number; tasks: ReadonlyMap<string, ImageViewTask> }
+interface ImageTurnState { tasks: ReadonlyMap<string, ImageViewTask> }
 
 declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
   interface ConversationTurnDataMap { 'codex-image-turn': ImageTurnState }
@@ -24,30 +24,29 @@ const operation = z.object({ codexImage: z.object({ operation: z.literal('genera
 
 function updateTurn(previous: ImageTurnState | undefined, match: ConversationMatch): ImageTurnState {
   const { event } = match
+  const state = previous ?? { tasks: new Map<string, ImageViewTask>() }
+  // Refresh dependent cards when the Turn closes even if no further tool result was recorded.
+  if (event.type === 'turn/end') return { ...state }
   const saved = event.type === 'tool/result' && isAppendSurfaceEvent(event)
     ? recordedImageTask(event.data.meta, event.data.message.content, event.time) : undefined
-  let tasks = previous?.tasks ?? new Map<string, ImageViewTask>()
-  const old = saved && tasks.get(saved.taskId)
-  // 历史生成调用可能只记录 sent；后续查询的完成结果优先，不能被旧的进行中快照覆盖。
-  if (saved && (!old || imageTaskActive(old) || !imageTaskActive(saved))) tasks = new Map(tasks).set(saved.taskId, saved)
-  return { lastSeq: event.seq, tasks }
+  if (!saved) return state
+  const old = state.tasks.get(saved.taskId)
+  if (old && !imageTaskActive(old) && imageTaskActive(saved)) return state
+  return { tasks: new Map(state.tasks).set(saved.taskId, saved) }
 }
 
-/** Share durable result-query facts and current process ordering within one Turn. */
+/** Share durable results with their generation calls in the same Turn. */
 export const imageTurnDefinition: ConversationNodeDefinition<ImageTurnState> = {
   kind: 'codex-image-turn',
   match(event) {
     switch (event.type) {
-      case 'turn/start': case 'turn/end': case 'step/start': case 'step/end':
-      case 'tool/call': case 'tool/result': case 'assistant/message': case 'assistant/live-chunk':
+      case 'turn/start': case 'turn/end': case 'tool/result':
         return { id: String(event.data.turn), role: 'start' }
-      // Other extensible Session events do not change image presentation ordering.
       default: return null
     }
   },
   start: (_context, match) => updateTurn(undefined, match),
   update: (context, match) => updateTurn(context.state, match),
-  publication: match => match.event.type === 'assistant/live-chunk' ? 'animation-frame' : 'immediate',
   buildLocationData(context, scope, previous) {
     if (scope !== 'turn' || !context.state) return null
     const location = context.start?.location ?? context.matches[0]?.location
@@ -75,15 +74,14 @@ function node(context: ConversationNodeContext<ConversationImageData | undefined
   const turn = location.kind === 'turn' || location.kind === 'step' ? location.turn : undefined
   const activity = turn?.data.get('codex-image-turn')
   const saved = (state.saved && activity?.tasks.get(state.saved.taskId)) ?? state.saved
-  const answer = turn?.data.get('turn-process')?.answerAnchorSeq
-  // 图片留在正文；工具、查询与真实思考均排在它之前，不拆出图片下方的第二段工具过程。
-  const anchorSeq = answer != null ? answer - .05 : (activity?.lastSeq ?? context.matches.at(-1)?.event.seq ?? 0) + .05
+  // Stay with the dispatch instead of following later reasoning, polls or the final reply.
+  const anchorSeq = (context.start?.event.seq ?? context.matches[0]?.event.seq ?? 0) + .05
   const live = turn?.status === 'open'
   const current = context.current.get('chat') as ChatNode<'codex-image'> | null | undefined
   const data = current?.data.callId === state.callId && current.data.settled === state.settled && current.data.failed === state.failed
     && current.data.saved === saved && current.data.live === live ? current.data : { ...state, saved, live }
   if (current?.data === data && current.anchorSeq === anchorSeq && current.location === location) return current
-  return { key: context.key, id: context.id, target: 'chat', kind: 'codex-image', anchorSeq, location, visibility: 'visible', groupTree: 'turn', data }
+  return { key: context.key, id: context.id, target: 'chat', kind: 'codex-image', anchorSeq, location, visibility: 'visible', data }
 }
 
 /** Project only native generation calls; result polls remain in the ordinary process history. */
@@ -96,7 +94,7 @@ export const imageConversationDefinition: ConversationNodeDefinition<Conversatio
     return null
   },
   start: (_context, match, reader) => {
-    // Location 数据不会自动重建其他节点；登记同轮前序依赖，后续思考与查询才能及时更新图片位置。
+    // Later recorded polls can refresh the card without changing its position.
     reader.previous<ImageTurnState>('codex-image-turn')
     return project(match)
   },

@@ -32,7 +32,7 @@ function conversation() {
   }
 }
 
-test('live reasoning and ordinary tools precede a card created only at image dispatch', () => {
+test('live generation joins its process group and stays at dispatch through subsequent tools and reasoning', () => {
   const view = conversation()
   view.append('turn/start', { turn: 1 })
   view.append('step/start', { turn: 1, step: 1 })
@@ -53,21 +53,24 @@ test('live reasoning and ordinary tools precede a card created only at image dis
   view.append('tool/call', { turn: 1, step: 2, callId: 'generate', name: 'codex_image_generate', arguments: '{"prompt":"A green square"}' })
   assert.equal(view.nodes().filter(node => node.kind === 'codex-image').length, 1)
   assert.equal(view.groups().length, 1)
-  assert.equal(view.groups()[0].data.closed, false, 'the body card must not mark its running process completed')
+  assert.equal(view.groups()[0].data.closed, false)
   assert.equal(view.groups()[0].data.summary.running, 'tools')
   const image = view.nodes().find(node => node.kind === 'codex-image')
   assert.equal(image.data.live, true)
-  assert.ok(view.nodes().filter(node => node.kind === 'tool-call' || node.kind === 'assistant-step').every(node => node.anchorSeq < image.anchorSeq))
+  assert.ok(view.groups()[0].members.some(member => member.key === image.key))
   view.append('tool/call', { turn: 1, step: 2, callId: 'query', name: 'codex_image_result', arguments: '{"taskId":"one"}' })
   assert.equal(view.nodes().filter(node => node.kind === 'codex-image').length, 1, 'query calls must not duplicate the card')
-  assert.equal(view.groups().length, 1, 'later process events must remain above the image instead of opening another group below it')
+  assert.equal(view.groups().length, 1, 'an image never splits the process group')
   assert.equal(view.groups()[0].data.closed, false)
   view.append('step/end', { turn: 1, step: 2 })
   view.append('step/start', { turn: 1, step: 3 })
   view.append('assistant/live-chunk', { turn: 1, step: 3, chunk: { type: 'reasoning-delta', index: 0, text: 'Checking the saved image.' } })
   assert.equal(view.groups().length, 1)
   const currentImage = view.nodes().find(node => node.kind === 'codex-image')
-  assert.ok(view.nodes().filter(node => node.kind === 'tool-call' || node.kind === 'assistant-step').every(node => node.anchorSeq < currentImage.anchorSeq))
+  const members = view.groups()[0].members.map(member => member.key)
+  const query = view.nodes().find(node => node.kind === 'tool-call' && node.id === 'query')
+  assert.equal(currentImage.anchorSeq, image.anchorSeq)
+  assert.ok(members.includes(query.key) && members.indexOf(image.key) < members.indexOf(query.key))
   view.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
   assert.equal(view.groups()[0].data.closed, true)
   assert.equal(view.nodes().find(node => node.kind === 'codex-image').data.live, false)
@@ -81,4 +84,21 @@ test('a direct image call does not invent preceding reasoning', () => {
   assert.equal(view.nodes().filter(node => node.kind === 'codex-image').length, 1)
   assert.equal(view.nodes().filter(node => node.kind === 'assistant-step').length, 0)
   assert.equal(view.groups()[0].data.closed, false)
+})
+
+test('each dispatch keeps its own disclosure and the reply remains outside the process group', () => {
+  const view = conversation()
+  view.append('turn/start', { turn: 1 })
+  view.append('step/start', { turn: 1, step: 1 })
+  for (const callId of ['first', 'second']) {
+    view.append('tool/call', { turn: 1, step: 1, callId, name: 'codex_image_generate', arguments: '{"prompt":"A green square"}' })
+  }
+  view.append('step/end', { turn: 1, step: 1 })
+  view.append('step/start', { turn: 1, step: 2 })
+  view.append('assistant/live-chunk', { turn: 1, step: 2, chunk: { type: 'text-delta', index: 0, text: 'Here are the saved files.' } })
+  const images = view.nodes().filter(node => node.kind === 'codex-image')
+  assert.deepEqual(images.map(image => image.data.callId), ['first', 'second'])
+  const imageKeys = new Set(images.map(image => image.key))
+  assert.deepEqual(view.groups()[0].members.filter(member => imageKeys.has(member.key)).map(member => member.key), [...imageKeys])
+  assert.ok(view.assembler.grouped('chat').entries.some(entry => entry.kind === 'node' && entry.groupPart === 'response'))
 })

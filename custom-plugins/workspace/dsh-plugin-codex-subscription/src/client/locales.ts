@@ -2,6 +2,7 @@
 export const en = {
   title: 'Image generation', preparing: 'Preparing image', queued: 'Queued', generating: 'Generating image', succeeded: 'Image generated',
   generationRequest: 'Image generation request', inspectRequest: 'Inspect image generation request',
+  imageCount: '{count} saved',
   failed: 'Image generation failed', cancelled: 'Generation cancelled', unknown: 'Result needs confirmation', estimated: 'Est.',
   elapsed: '{seconds} s', unavailable: 'Task status is temporarily unavailable', reconnecting: 'Connection interrupted; retrying',
   image: 'Generated image', openImage: 'Preview generated image', previewTitle: 'Image preview', close: 'Close image preview',
@@ -16,6 +17,7 @@ export const en = {
 export const zh: Record<keyof typeof en, string> = {
   title: '图片生成', preparing: '正在准备图片', queued: '排队中', generating: '正在生成图片', succeeded: '图片已生成',
   generationRequest: '图片生成请求', inspectRequest: '查看图片生成调用详情',
+  imageCount: '{count} 张',
   failed: '图片生成失败', cancelled: '已取消生成', unknown: '生成结果待确认', estimated: '预计',
   elapsed: '{seconds} 秒', unavailable: '暂时无法读取任务状态', reconnecting: '连接暂时中断，正在重试',
   image: '生成的图片', openImage: '预览生成图片', previewTitle: '图片预览', close: '关闭图片预览',

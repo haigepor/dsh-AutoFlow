@@ -29,9 +29,7 @@ browser.__ModuleLoader__.load({ id: 'dsh-plugin-codex-subscription', factory(req
     }, 'Codex image styles')
     ctx.effect(() => ctx.uiConversation.events.register({ ...imageTurnDefinition, match: {
       'turn/start': imageTurnDefinition.match, 'turn/end': imageTurnDefinition.match,
-      'step/start': imageTurnDefinition.match, 'step/end': imageTurnDefinition.match,
-      'tool/call': imageTurnDefinition.match, 'tool/result': imageTurnDefinition.match,
-      'assistant/message': imageTurnDefinition.match, 'assistant/live-chunk': imageTurnDefinition.match,
+      'tool/result': imageTurnDefinition.match,
     } }), 'Codex image Turn results')
     ctx.effect(() => ctx.uiConversation.events.register({ ...imageConversationDefinition, match: {
       'tool/call': imageConversationDefinition.match,
@@ -54,8 +52,8 @@ browser.__ModuleLoader__.load({ id: 'dsh-plugin-codex-subscription', factory(req
       return url.href
     } })
     ctx.slots.inject('tool.call.toolview', function* () {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'codex_image_generate', locale: 'codexImages', inject: face }, ToolCard)
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'codex_image_result', locale: 'codexImages', inject: face }, ToolCard)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'codex_image_generate', locale: 'codexImages' }, ToolCard)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'codex_image_result', locale: 'codexImages' }, ToolCard)
     })
     ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'codex-image', locale: 'codexImages', inject: face }, ConversationCard))
     ctx.slots.inject('conversation.chat.process.status', function* () {
