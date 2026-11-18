@@ -93,3 +93,57 @@ it.each([
     })
   }
 })
+
+it.each([
+  { name: 'recovers an explicit timeout when the new output is valid', retry: true, firstStatus: 504, secondStatus: 200, secondBody: 'zip', expectedCalls: 2, failure: '' },
+  { name: 'still rejects an invalid output after recovery', retry: true, firstStatus: 504, secondStatus: 200, secondBody: 'invalid', expectedCalls: 2, failure: 'invalid Office ZIP signature' },
+  { name: 'fails the pass when the recovery attempt times out', retry: true, firstStatus: 504, secondStatus: 504, secondBody: 'timeout', expectedCalls: 2, failure: 'HTTP 504 timeout' },
+  { name: 'keeps a timeout outside the recovery lane fatal', retry: false, firstStatus: 504, secondStatus: 200, secondBody: 'zip', expectedCalls: 1, failure: 'HTTP 504 LibreOffice conversion timed out.' },
+  { name: 'never retries a different server failure with timeout-like text', retry: true, firstStatus: 500, secondStatus: 200, secondBody: 'zip', expectedCalls: 1, failure: 'HTTP 500 LibreOffice conversion timed out.' },
+  { name: 'fails another operation once the pass has used its recovery attempt', retry: true, firstStatus: 504, secondStatus: 200, secondBody: 'zip', expectedCalls: 2, failure: 'HTTP 504 later timeout', laterTimeout: true },
+])('$name', async ({ retry, firstStatus, secondStatus, secondBody, expectedCalls, failure, laterTimeout }) => {
+  let recalculateCalls = 0
+  let odpCalls = 0
+  const server = createServer((request, response) => {
+    const path = request.url ?? ''
+    if (path === '/desktop-smoke-office/xlsx/recalculate') {
+      if (++recalculateCalls === 1) {
+        response.statusCode = firstStatus
+        response.end('LibreOffice conversion timed out.')
+      } else {
+        response.statusCode = secondStatus
+        response.end(secondBody === 'zip' ? Buffer.from('504b0304', 'hex') : secondBody)
+      }
+    } else if (laterTimeout && path === '/desktop-smoke-office/pptx/to-odp' && ++odpCalls === 1) {
+      response.statusCode = 504
+      response.end('later timeout')
+    } else if (path.endsWith('/to-pdf')) {
+      response.end('%PDF-1.7\n%%EOF\n')
+    } else if (path.endsWith('/render-images')) {
+      response.end('["89504e470d0a1a0a"]')
+    } else {
+      response.end(Buffer.from('504b0304', 'hex'))
+    }
+  })
+  try {
+    const listening = once(server, 'listening')
+    server.listen(0, '127.0.0.1')
+    await listening
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('Office fixture requires a TCP listener')
+    const smoke = smokeOfficeOperations(`http://127.0.0.1:${address.port}`, '', 5_000, retry)
+    if (failure) {
+      await expect(smoke).rejects.toMatchObject({
+        name: 'AggregateError',
+        errors: [{ message: expect.stringContaining(laterTimeout ? 'Office pptx/to-odp failed' : 'Office xlsx/recalculate failed'), cause: { message: failure } }],
+      })
+    } else {
+      await expect(smoke).resolves.toBeUndefined()
+    }
+    expect(recalculateCalls).toBe(expectedCalls)
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => { if (error) reject(error); else resolve() })
+    })
+  }
+})

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-positioned-outpaint-review",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator uses the planned framing from the first outpainting request. Safety-area confirmation measures the finished image, and final review accounts for the subject scale when checking preserved action props.",
+    "zh-CN": "视觉策展从首轮扩图起明确使用规划取景。安全区确认测量实际成品，复审按主体缩放评估完整保留的动作道具。"
+  }
+}

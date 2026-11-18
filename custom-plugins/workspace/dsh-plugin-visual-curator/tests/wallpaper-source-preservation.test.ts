@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { z } from 'zod'
 import { wallpaperCompleteCanvasPrompt } from '../src/media/wallpaper-generation.ts'
-import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
+import { applyWallpaperCriticalDetail, applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { wallpaperPracticalReviewOutputSchema, wallpaperPracticalReviewSchema, type WallpaperPracticalReview } from '../src/shared/wallpaper-practical.ts'
 import { wallpaperItemSchema, wallpaperPlanSchema, wallpaperReviewReworkAvailable, wallpaperRoleObservationOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 
@@ -86,6 +86,56 @@ test('an indispensable frozen structure requires its own actual region and prese
   assert.equal(stored.sourceCorrespondence.result, 'unknown')
   assert.ok('practicalReview' in stored && stored.practicalReview?.uncertainties.some(reason => reason.includes('engraving')))
   assert.equal(protectedSchema.safeParse({ ...output, actualLayout: { regions: output.actualLayout.regions.filter(region => region.entityId !== critical.entityId) } }).success, false)
+})
+
+test('a preserved held award follows the accepted portrait scale without weakening its own safety and completeness checks', () => {
+  const focus = { x: 0.27, y: 0.332, width: 0.3, height: 0.248 }
+  const part = { entityId: 'award', name: 'Held award', role: 'critical' as const, scope: 'core' as const, rect: { x: 0.553, y: 0.64, width: 0.101, height: 0.104 } }
+  const critical = { ...part, role: 'critical-part' as const }
+  const output = review(), primary = output.actualLayout.regions[0], preserved = output.sourcePreservation[0]
+  assert.ok(primary && preserved)
+  primary.rect = { x: 0.195, y: 0.33, width: 0.585, height: 0.43 }
+  primary.layoutFocus = focus
+  output.actualLayout.regions.push(part)
+  output.sourcePreservation.push({ entityId: part.entityId,
+    framing: { result: 'satisfied', reason: 'The visible trophy outline and base remain complete under the same grip occlusion.' },
+    appearance: { result: 'satisfied', reason: 'The original gilded silhouette is retained.' },
+    relationships: { result: 'satisfied', reason: 'The same hand holds the trophy in front of the lectern.' } })
+  const wire = wallpaperPracticalReviewOutputSchema('original', 'final', [main, critical], 'single', true)
+  const sourceLayout = {
+    version: 'source-intent-v2' as const, alignment: 'subject-fill-v1' as const, minimumSubjectScaleRatio: 0.9,
+    fill: { safeOccupancy: 0.86, minimumRetainedAxis: 0.4, maximumCenterDrift: 0.08, relativeLayout: { minimumRelativeScaleRatio: 0.8, minimumWholeAspectRatio: 0.65 } },
+    expectedSubjects: [{ entityId: main.entityId, rect: { x: 0.288, y: 0.322, width: 0.258, height: 0.258 } }],
+    expectedActionParts: [{ entityId: part.entityId, name: part.name, rect: { x: 0.563, y: 0.638, width: 0.092, height: 0.133 } }],
+  }
+  const assess = () => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(wire.parse(output), false, settings, sourceLayout))
+  const accepted = assess()
+  assert.equal(wallpaperVerdict(accepted), 'pass')
+  assert.deepEqual(accepted.actualLayout.regions.find(region => region.entityId === part.entityId)?.rect, part.rect)
+  assert.deepEqual(accepted.practicalReview?.sourcePreservation, output.sourcePreservation)
+
+  output.uncertainties = ['The glasses frame is difficult to see in the full image.']
+  output.inspection = { sourceRect: focus, outputRect: focus, question: 'Does the final portrait preserve the source glasses frame?' }
+  const uncertain = assess()
+  assert.equal(wallpaperVerdict(uncertain), 'needs-review')
+  assert.equal(wallpaperVerdict(applyWallpaperCriticalDetail(uncertain, accepted, settings, 'detail', sourceLayout)), 'pass', 'Resolving an unrelated detail should preserve the observed action-part scale')
+  output.uncertainties = []
+  delete output.inspection
+
+  part.rect.height = 0.084
+  assert.ok(assess().layoutChecks.includes('action-part-too-small:Held award'), 'A substantially shortened award still fails geometry even when the visual response misses it')
+  part.rect.height = 0.104
+  part.rect.x = 0.83
+  assert.ok(assess().layoutChecks.includes('critical-outside:Held award'), 'The award must still stay within its critical bounds')
+  part.rect.x = 0.553
+  const inspection = output.sourcePreservation.find(row => row.entityId === part.entityId)
+  assert.ok(inspection)
+  inspection.framing = { result: 'violated', reason: 'The formerly visible award base is cut off.' }
+  const truncated = assess()
+  assert.equal(wallpaperVerdict(truncated), 'reject')
+  assert.ok(truncated.layoutChecks.includes('action-part-too-small:Held award'))
+  inspection.framing = { result: 'unknown', reason: 'The base is obscured and its visible extent cannot be confirmed.' }
+  assert.notEqual(wallpaperVerdict(assess()), 'pass')
 })
 
 test('review cannot invent a focus for a whole source to bypass complete-subject safety', () => {

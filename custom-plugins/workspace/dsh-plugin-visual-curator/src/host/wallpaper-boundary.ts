@@ -9,8 +9,8 @@ import { wallpaperSourceReviewV4Schema } from '../shared/wallpaper.ts'
 type ActualLayout = z.infer<typeof wallpaperSourceReviewV4Schema>['actualLayout']
 type Rect = ActualLayout['regions'][number]['rect']
 
-/** @param layout Independently observed final-pixel regions. @param mode Observed subject mode. @param settings Frozen output and tolerance. @param sourceLayout New-task output focus and size targets; omission retains historical complete-region checks. @returns Hard geometry failures and measured nonblocking warnings. */
-export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPlan['mode'], settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout) {
+/** @param layout Independently observed final-pixel regions. @param mode Observed subject mode. @param settings Frozen output and tolerance. @param sourceLayout New-task output focus and size targets; omission retains historical complete-region checks. @param preservedActionParts Parts with explicit successful framing, appearance and relationship checks. @returns Hard geometry failures and measured nonblocking warnings. */
+export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPlan['mode'], settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout, preservedActionParts?: ReadonlySet<string>) {
   const visible = layout.regions.filter(region => region.scope === 'core')
   const focus = sourceLayout ? visible.map(region => region.role === 'subject' && region.safetyClass !== 'automobile' && region.layoutFocus ? { ...region, rect: region.layoutFocus } : region) : visible
   const core = sourceLayout?.reviewWholeSubjects ? visible : focus
@@ -38,14 +38,16 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
     const relative = sourceLayout.fill.relativeLayout
     if (relative) {
       const span = (rect: Rect) => Math.max(rect.width * settings.width, rect.height * settings.height)
+      const diagonal = (rect: Rect) => Math.hypot(rect.width * settings.width, rect.height * settings.height)
+      const aspectRetention = (actual: Rect, expected: Rect) => {
+        const xScale = actual.width / expected.width, yScale = actual.height / expected.height
+        return Math.min(xScale, yScale) / Math.max(xScale, yScale)
+      }
       const center = (rect: Rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
       const matches = planned.flatMap(expected => {
         const actual = visible.find(region => region.role === 'subject' && region.entityId === expected.entityId)
         if (!actual) return []
-        if (expected.wholeRect) {
-          const xScale = actual.rect.width / expected.wholeRect.width, yScale = actual.rect.height / expected.wholeRect.height
-          if (Math.min(xScale, yScale) / Math.max(xScale, yScale) < relative.minimumWholeAspectRatio) hard.push(`subject-aspect-changed:${actual.name}`)
-        }
+        if (expected.wholeRect && aspectRetention(actual.rect, expected.wholeRect) < relative.minimumWholeAspectRatio) hard.push(`subject-aspect-changed:${actual.name}`)
         const target = expected.focus ?? expected.rect
         const measured = actual.safetyClass === 'automobile' ? actual.rect : actual.layoutFocus ?? actual.rect
         return [{ name: actual.name, sourceCenter: center(target), actualCenter: center(measured), scale: span(measured) / span(target) }]
@@ -60,10 +62,18 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
         if (Math.abs(x) * settings.width > settings.safe.width * sourceLayout.fill.maximumCenterDrift ||
             Math.abs(y) * settings.height > (bounds.critical.bottom - bounds.top) * sourceLayout.fill.maximumCenterDrift) hard.push(`subject-relative-position:${pair}`)
       }
+      // A preserved part may follow the accepted group shrinkage. A smaller group member cannot set the scale for the others.
+      const subjectScale = matches.length && matches.length === planned.length && matches.every(match => match.scale >= sourceLayout.minimumSubjectScaleRatio)
+        ? Math.min(1, Math.max(...matches.map(match => match.scale)))
+        : 1
       for (const expected of sourceLayout.expectedActionParts ?? []) {
         const actual = visible.find(region => region.role === 'critical' && region.entityId === expected.entityId)
-        if (!actual) hard.push(`missing-action-part:${expected.name}`)
-        else if (span(actual.rect) / span(expected.rect) < relative.minimumRelativeScaleRatio) hard.push(`action-part-too-small:${expected.name}`)
+        if (!actual) { hard.push(`missing-action-part:${expected.name}`); continue }
+        const preserved = preservedActionParts?.has(expected.entityId)
+        const extent = preserved ? diagonal : span
+        const scale = preserved ? subjectScale : 1
+        if (extent(actual.rect) / (extent(expected.rect) * scale) < relative.minimumRelativeScaleRatio) hard.push(`action-part-too-small:${expected.name}`)
+        else if (preserved && aspectRetention(actual.rect, expected.rect) < relative.minimumWholeAspectRatio) hard.push(`subject-aspect-changed:${expected.name}`)
       }
     }
   }

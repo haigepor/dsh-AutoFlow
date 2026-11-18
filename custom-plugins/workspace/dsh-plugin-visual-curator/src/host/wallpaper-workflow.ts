@@ -1154,7 +1154,7 @@ export class WallpaperWorkflows {
                 catch (error) {
                   if (!(error instanceof Error) || !('code' in error) || error.code !== 'IMAGE_GENERATION_NOT_FOUND') throw error
                   const identities = inputs.map((input, index) => ({ role: input.role, attachmentId: references[index]!.attachmentId, width: references[index]!.width, height: references[index]!.height, ...('sourceRect' in input && input.sourceRect ? { sourceRect: input.sourceRect } : {}) }))
-                  const prompt = attempt.generationInput?.prompt ?? (completeCanvasPolicy ? wallpaperCompleteCanvasPrompt(editingPlan, settings, previousReview?.issues.map(issue => issue.reason)) : protectedContext || attempt.generationBrief?.status === 'saved' ? wallpaperGenerationPrompt(prompts.outpaint.text, editingPlan, settings, identities, item.attempts, singleCanvas ? editingGeometry : undefined, opaqueCanvas, attempt.generationBrief?.status === 'saved' ? attempt.generationBrief.result : undefined) : prompts.outpaint.text)
+                  const prompt = attempt.generationInput?.prompt ?? (completeCanvasPolicy ? wallpaperCompleteCanvasPrompt(editingPlan, settings, previousReview?.issues.map(issue => issue.reason), rendered.geometry.target) : protectedContext || attempt.generationBrief?.status === 'saved' ? wallpaperGenerationPrompt(prompts.outpaint.text, editingPlan, settings, identities, item.attempts, singleCanvas ? editingGeometry : undefined, opaqueCanvas, attempt.generationBrief?.status === 'saved' ? attempt.generationBrief.result : undefined) : prompts.outpaint.text)
                   const generationInput = wallpaperGenerationInputSchema.parse({ version: maskedCanvas ? 'wallpaper-edit-input-v6' : positionedCanvas ? 'wallpaper-edit-input-v5' : completeCanvasPolicy ? 'wallpaper-edit-input-v4' : opaqueCanvas ? 'wallpaper-edit-input-v3' : singleCanvas ? 'wallpaper-edit-input-v2' : 'wallpaper-edit-input-v1', prompt, references: identities, ...(maskedCanvas && mask ? { mask: { attachmentId: mask.attachmentId, width: reference.width, height: reference.height } } : {}) })
                   if (attempt.generationInput && contentDigest(attempt.generationInput) !== contentDigest(generationInput)) throw new CuratorError('operation-conflict', 'wallpaper-edit', 'The saved image request differs from the current references. Keep the receipt for reconciliation before requesting another image.')
                   attempt.generationInput = generationInput; await save()
@@ -1570,18 +1570,23 @@ export class WallpaperWorkflows {
             }
             const practicalReview = wallpaperStoredSourceReviewV4Schema.safeParse(attempt.review)
             if (practical && practicalReview.success && practicalReview.data.layoutChecks.length && !practicalReview.data.modelIssues.length && !practicalReview.data.practicalReview?.uncertainties.length && attempt.boundaryReview?.status !== 'completed') {
-              const requestId = attempt.boundaryReview?.requestId ?? `${ctx.runId}:${item.imageVersionId}:review:${attempt.revision}:layout-confirm`
+              const requestId = attempt.boundaryReview?.requestId ?? `${ctx.runId}:${item.imageVersionId}:review:${attempt.revision}:actual-pixels:layout-confirm`
               attempt.boundaryReview = { requestId, status: 'pending' }; await save()
-              let guide = positionedReviewGuide
+              // Pending historical requests keep the guide and prompt that identify their saved receipts.
+              const useActualGuide = requestId.endsWith(':actual-pixels:layout-confirm')
+              const plannedGuide = useActualGuide ? undefined : positionedReviewGuide
+              let guide = plannedGuide
               if (!guide) {
                 const artifact = await this.artifact(source, (await wallpaperOverlays(finalBytes, { ...rendered.geometry, regions: [] }, settings)).analysis, ctx, 'analysis', item, attempt.revision)
                 guide = artifact.image; await save(artifact.records)
               }
-              const remeasure = protectActionParts
+              const remeasure = useActualGuide
+                ? '本次只核对成品坐标。wallpaper-layout-only使用与actual-wallpaper相同的成品画面，叠加安全区标注。用这两张同坐标图定位实际可见边缘，逐边比对安全线；原图只用于核对身份、外观和原有遮挡。主体框须覆盖焦点框四边；手持道具从可见末端量到另一端，排除手指、袖口、承托物和倒影。主体框排除独立托盘、背景、投影和留白。现有数据无法确定边缘时，请报告疑点。'
+                : protectActionParts
                 ? '本次仅核对一次布局矛盾：快速检查没有发现明确缺陷，但估算框触发布局检查。请依据完整成品与单独安全区辅助图重新定位主体和关键道具，紧贴可见边缘，不把托盘、投影、背景或留白并入主框。仍不确定就如实保留疑点，不能据粗略框要求重新生图。'
                 : '本次仅核对一次布局矛盾：快速检查没有发现明确缺陷，但其估算框触发安全区检查。请依据完整成品与单独安全区辅助图重新定位主体主要体量，紧贴主体本身，不把托盘、投影、背景或留白并入主框；不要沿用上次估算。外围小细节可自然伸出。仍不确定就如实保留疑点，不能据粗略框要求重新生图。'
-              const confirmation: VisionInput = { requestId, wallpaperPrompt: { ...prompts.review, text: `${prompts.review.text}\n${remeasure}${positionedReviewGuide ? `\n${focusComparison}` : ''}` }, taskBrief, rules: visualRules, reasoningEffort: settings.processing!.criticalReasoningEffort,
-                images: [{ imageVersionId: output.id, digest: output.blob.digest, mime: output.blob.mime, bytes: finalBytes, role: 'actual-wallpaper' }, original, { imageVersionId: guide.id, digest: guide.blob.digest, mime: guide.blob.mime, bytes: await this.deps.files.read(guide.blob, ctx.signal), role: 'wallpaper-layout-only' }], usage: toJson({ settings: { width: settings.width, height: settings.height, safe: settings.safe, acceptance: settings.processing?.acceptance }, objectPolicy: { mode: attempt.plan.mode, sourceMedium: attempt.plan.sourceMedium, objectRoles: attempt.plan.objectRoles }, layoutCoordinates: wallpaperLayoutCoordinates(settings), referenceFocus: positionedReviewGuide ? plannedFocus : undefined, ...(protectActionParts ? { remeasure: practicalReview.data.layoutChecks } : {}) }) }
+              const confirmation: VisionInput = { requestId, wallpaperPrompt: { ...prompts.review, text: `${prompts.review.text}\n${remeasure}${plannedGuide ? `\n${focusComparison}` : ''}` }, taskBrief, rules: visualRules, reasoningEffort: settings.processing!.criticalReasoningEffort,
+                images: [{ imageVersionId: output.id, digest: output.blob.digest, mime: output.blob.mime, bytes: finalBytes, role: 'actual-wallpaper' }, original, { imageVersionId: guide.id, digest: guide.blob.digest, mime: guide.blob.mime, bytes: await this.deps.files.read(guide.blob, ctx.signal), role: 'wallpaper-layout-only' }], usage: toJson({ settings: { width: settings.width, height: settings.height, safe: settings.safe, acceptance: settings.processing?.acceptance }, objectPolicy: { mode: attempt.plan.mode, sourceMedium: attempt.plan.sourceMedium, objectRoles: attempt.plan.objectRoles }, layoutCoordinates: wallpaperLayoutCoordinates(settings), referenceFocus: plannedGuide ? plannedFocus : undefined, ...(protectActionParts ? { remeasure: practicalReview.data.layoutChecks } : {}) }) }
               const confirmed = await committed(confirmation, 'wallpaper-review', prepared => wallpaperReviewOutputSchema(prompts.review.version, [], prepared.images.map(image => image.imageVersionId), output.id, source.id, wallpaperGenerativeRepair(settings), attempt.plan.objectRoles, false, true, attempt.plan.mode, !!settings.sourceIntentPolicy, protectActionParts))
               attempt.review = applyWallpaperSourceReview(confirmed, wallpaperSubjectRepairAuthorized(attempt, settings), settings, sourceLayout)
               if (!settings.processing?.clockContrast) attempt.review = applyWallpaperNoClockRequirement(wallpaperStoredSourceReviewV4Schema.parse(attempt.review))

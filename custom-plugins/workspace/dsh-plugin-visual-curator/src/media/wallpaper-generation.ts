@@ -5,7 +5,7 @@ import type { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-g
 import type { WallpaperPlan, WallpaperItem, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperAttemptReview, wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair } from '../shared/wallpaper-policy.ts'
-import { wallpaperLayoutCoordinates, wallpaperPositionedLayout, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
+import { wallpaperLayoutCoordinates, wallpaperPositionedLayout, wallpaperSourceContinuationTargets, type wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
 
 type Region = WallpaperPlan['regions'][number]['rect']
 type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp' | 'image/jpeg'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
@@ -14,15 +14,18 @@ type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp' | 'im
  * @param plan Frozen source observations and the current scene-specific edit brief.
  * @param settings Frozen output and safety limits.
  * @param corrections Current localized defects from the previous independent review, without its coordinates or transcript.
+ * @param positionedFrame Pixel bounds of the existing content in the rendered master after clipping to the target canvas.
  * @returns Compact visual instructions with one output-coordinate safe area and no pixel-restoration permission.
  */
-export function wallpaperCompleteCanvasPrompt(plan: WallpaperPlan, settings: WallpaperSettings, corrections: readonly string[] = []): string {
+export function wallpaperCompleteCanvasPrompt(plan: WallpaperPlan, settings: WallpaperSettings, corrections: readonly string[] = [], positionedFrame?: ReturnType<typeof wallpaperGeometry>['target']): string {
   const actionParts = plan.objectRoles?.filter(object => plan.actionPartIds?.includes(object.entityId)).map(object => object.name) ?? []
   if (settings.sourceIntentPolicy?.version === 'source-intent-v2') return [
-    `只编辑图1的灰色空白背景，输出${settings.width}×${settings.height}完整竖幅图片。`,
-    '图1是已确定位置和大小的主画布，编辑蒙版透明区为待扩背景，不透明区为保留画面；图2是完整原图，仅核对外观、动作、细节和画风；图3是同坐标安全区规划图，仅作标注参考。',
-    '保持图1已有画面的位置、大小和相对比例，人物、手部、手持物与相互遮挡整体保留，不单独移动或重画。保留原有半身、特写和画框截断，不补造画外身体，不裁掉、遮盖或渐隐已有内容。',
-    settings.sourceIntentPolicy.alignment === 'subject-fill-v1' ? '构图以图1为准，图2中已取舍的外围背景无需恢复。' : '',
+    `按图1的四边扩图，输出${settings.width}×${settings.height}完整竖幅图片。沿用图1已有画面在成品中的位置、大小、主体占比和留边。`,
+    '图1是唯一构图基准和蒙版所对应的主画布。蒙版透明区的灰色为待扩背景，不透明区保留现有画面。',
+    positionedFrame ? `图1已有画面的外框约在成品横向${(positionedFrame.left / settings.width * 100).toFixed(1)}%–${((positionedFrame.left + positionedFrame.width) / settings.width * 100).toFixed(1)}%、纵向${(positionedFrame.top / settings.height * 100).toFixed(1)}%–${((positionedFrame.top + positionedFrame.height) / settings.height * 100).toFixed(1)}%。按此范围定位已有内容，用连续背景补齐空白。` : '',
+    '图2是完整原图，仅核对外观、动作、细节和画风。禁止按图2重新取景、缩放主体或直接返回图2。图3是同坐标的安全区规划图，仅核对安全边界和主体标注。',
+    '整体保留图1的人物、手部、手持物与相互遮挡，不单独移动或重画。保留原有半身、特写和画框截断，不补造画外身体，不裁掉、遮盖或渐隐已有内容。',
+    settings.sourceIntentPolicy.alignment === 'subject-fill-v1' ? '保留图1对外围背景的取舍。' : '',
     actionParts.length ? `完整保留图1中的${actionParts.join('、')}，从原有连接处到最远可见末端保持连续、姿态和尺寸。` : '',
     '只沿原图光线、透视、颜色和笔触自然延展背景，接缝连续；不要复制标注线、编号、罩色或灰色占位，不添加重复主体、矩形贴片、日期和界面。',
     corrections.length ? `上一轮需纠正：${[...new Set(corrections)].join('；')}。位置与大小统一恢复到图1，不重新设计构图。` : '',

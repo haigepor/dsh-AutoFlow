@@ -309,6 +309,21 @@ test('masked positioned editing has one spatial authority and ignores free-form 
   assert.match(wallpaperCompleteCanvasPrompt(plan, current, ['right overflow']), /right overflow.*恢复到图1/)
 })
 
+test('the first masked edit anchors the rendered frame and keeps the original as an appearance reference', async () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: { version: 'source-intent-v2' } })
+  const positioned = { ...plan, placement: { scale: 1.125, left: -5, top: 1400 } }
+  const original = await sharp({ create: { width: 96, height: 64, channels: 3, background: '#c87842' } }).png().toBuffer()
+  const { geometry, mask } = await renderWallpaper(original, positioned, current, undefined, 'generated-canvas-v1', current.sourceIntentPolicy)
+  const prompt = wallpaperCompleteCanvasPrompt(positioned, current, [], geometry.target)
+  assert.match(prompt, /图1已有画面的外框约在成品横向0\.0%–5\.6%、纵向42\.7%–44\.9%/)
+  assert.match(prompt, /图2是完整原图，仅核对外观、动作、细节和画风。禁止按图2重新取景/)
+  const alpha = await sharp(mask).extractChannel('alpha').raw().toBuffer()
+  assert.equal(alpha[1400 * current.width - 1], 0)
+  assert.equal(alpha[1400 * current.width], 255)
+  assert.equal(alpha[1400 * current.width + 102], 255)
+  assert.equal(alpha[1400 * current.width + 103], 0)
+})
+
 test('scene and abstract edits retain their composition without inventing a separate main subject', () => {
   for (const mode of ['scene', 'abstract'] as const) {
     const prompt = wallpaperCompleteCanvasPrompt({ ...plan, mode, regions: [], objectRoles: [] }, settings)

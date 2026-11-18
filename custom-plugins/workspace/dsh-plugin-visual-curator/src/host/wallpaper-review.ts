@@ -162,17 +162,10 @@ export function applyWallpaperStyleReview(output: unknown, standard: StyleStanda
   return wallpaperStoredReviewV2Schema.parse({ ...review, checks: { ...review.checks, style: { result, reason } }, modelStyleCheck: review.checks.style, styleMatch, issues: styleMatch.verdict === 'matched' ? review.issues.filter(issue => issue.kind !== 'style') : review.issues })
 }
 
-/** @param output Strict direct-original review. @param edgeRepairAuthorized Saved task policy and local evidence authorize frame-edge continuation; omission retains source completeness veto. @param settings Frozen bounds required for complete-canvas review. @param sourceLayout Frozen output focus and minimum source-relative size. @returns Source-grounded subject checks plus every independent quality result. */
-export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized = false, settings?: WallpaperSettings, sourceLayout?: WallpaperSourceLayout): WallpaperReview {
+/** @param output Strict direct-original review. @param edgeRepairAuthorized Saved task policy and local evidence authorize frame-edge continuation; omission retains source completeness veto. @param settings Frozen bounds required for complete-canvas review. @param sourceLayout Frozen output focus and minimum source-relative size. @param sourcePreservation Verified preservation rows from the same original/output pair when rechecking a merged detail review. @returns Source-grounded subject checks plus every independent quality result. */
+export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized = false, settings?: WallpaperSettings, sourceLayout?: WallpaperSourceLayout, sourcePreservation?: Extract<WallpaperPracticalReview, { protocol: 'practical-v2' }>['sourcePreservation']): WallpaperReview {
   const practical = wallpaperPracticalReviewSchema.safeParse(output)
-  if (practical.success) {
-    const effective = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(practicalReviewFields(practical.data), edgeRepairAuthorized, settings, sourceLayout))
-    const warnings = practical.data.defects.filter(defect => defect.severity === 'minor' || defect.kind === 'layout').map(defect => defect.reason)
-    const sourceUnknowns = practical.data.protocol === 'practical-v2' ? [...practical.data.sourcePreservation.flatMap(row => (['framing', 'appearance', 'relationships'] as const).filter(key => row[key].result === 'unknown').map(key => `${row.entityId} · ${key}: ${row[key].reason}`)), ...(practical.data.sourceStyle.result === 'unknown' ? [practical.data.sourceStyle.reason] : [])] : []
-    const uncertainties = [...(practical.data.mode === 'uncertain' && !practical.data.uncertainties.length ? ['实际主体范围尚无法确认，需要人工复核。'] : practical.data.uncertainties), ...sourceUnknowns].slice(0, 4)
-    return wallpaperStoredSourceReviewV4Schema.parse({ ...effective, layoutWarnings: [...effective.layoutWarnings, ...warnings], practicalReview: { version: practical.data.protocol, warnings, uncertainties, ...(practical.data.protocol === 'practical-v2' ? { sourcePreservation: practical.data.sourcePreservation, sourceStyle: practical.data.sourceStyle } : {}) } })
-  }
-  const balanced = wallpaperSourceReviewV4Schema.safeParse(output)
+  const balanced = wallpaperSourceReviewV4Schema.safeParse(practical.success ? practicalReviewFields(practical.data) : output)
   if (balanced.success) {
     balanced.data = applyWallpaperInventory(balanced.data)
     if (!settings) throw new CuratorError('constraint-conflict', 'wallpaper-review', 'Complete-canvas review requires frozen output geometry.')
@@ -185,7 +178,9 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     }) }
     const base = applyWallpaperSourceReview({ ...source, reviewVersion: 'wallpaper-review-source-v2', issues: modelIssues.map(({ kind, reason }) => ({ kind, reason })) }, edgeRepairAuthorized, settings, sourceLayout)
     const hasSubject = actualLayout.regions.some(region => region.role === 'subject')
-    const boundary = wallpaperActualBoundary(actualLayout, wallpaperPracticalAcceptance(settings) ? source.subjectIntegrity.mode : hasSubject ? 'group' : source.subjectIntegrity.mode, settings, sourceLayout)
+    const preservation = practical.success && practical.data.protocol === 'practical-v2' ? practical.data.sourcePreservation : sourcePreservation
+    const preservedActionParts = new Set(preservation?.filter(row => row.framing.result === 'satisfied' && row.appearance.result === 'satisfied' && row.relationships.result === 'satisfied').map(row => row.entityId))
+    const boundary = wallpaperActualBoundary(actualLayout, wallpaperPracticalAcceptance(settings) ? source.subjectIntegrity.mode : hasSubject ? 'group' : source.subjectIntegrity.mode, settings, sourceLayout, preservedActionParts)
     const checks = { ...base.checks }, modelProtectionCheck = balanced.data.checks.protection
     if (hasSubject && source.subjectIntegrity.output.extent === 'not-applicable') checks.subject = { result: 'unknown', reason: '实际成品标有主体范围，须独立确认其完整性，不能记为不适用' }
     const issues = [...(base.issues.length > modelIssues.length ? [{ ...base.issues[0]!, check: 'subject' as const, code: 'other' as const }] : []), ...modelIssues]
@@ -201,7 +196,12 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
     const minorOnly = !boundary.hard.length && boundary.warnings.length > 0 && protectionIssues.length > 0 && protectionIssues.every(issue => issue.code === 'minor-peripheral-overflow')
     if (minorOnly && checks.protection.result === 'violated') checks.protection = { result: 'satisfied', reason: '外围细节越界在冻结面积容差内；主体核心与关键部位仍满足安全区' }
     const effectiveIssues = minorOnly ? issues.filter(issue => issue.check !== 'protection' || issue.code !== 'minor-peripheral-overflow') : issues
-    return wallpaperStoredSourceReviewV4Schema.parse({ ...balanced.data, actualLayout, modelChecks: balanced.data.checks, ...(edgeRepairAuthorized ? { sourceRepairAuthorized: true } : {}), checks, issues: effectiveIssues.slice(0, 32), layoutChecks: boundary.hard, layoutWarnings: boundary.warnings, modelProtectionCheck, modelIssues })
+    const effective = { ...balanced.data, actualLayout, modelChecks: balanced.data.checks, ...(edgeRepairAuthorized ? { sourceRepairAuthorized: true } : {}), checks, issues: effectiveIssues.slice(0, 32), layoutChecks: boundary.hard, layoutWarnings: boundary.warnings, modelProtectionCheck, modelIssues }
+    if (!practical.success) return wallpaperStoredSourceReviewV4Schema.parse(effective)
+    const warnings = practical.data.defects.filter(defect => defect.severity === 'minor' || defect.kind === 'layout').map(defect => defect.reason)
+    const sourceUnknowns = practical.data.protocol === 'practical-v2' ? [...practical.data.sourcePreservation.flatMap(row => (['framing', 'appearance', 'relationships'] as const).filter(key => row[key].result === 'unknown').map(key => `${row.entityId} · ${key}: ${row[key].reason}`)), ...(practical.data.sourceStyle.result === 'unknown' ? [practical.data.sourceStyle.reason] : [])] : []
+    const uncertainties = [...(practical.data.mode === 'uncertain' && !practical.data.uncertainties.length ? ['实际主体范围尚无法确认，需要人工复核。'] : practical.data.uncertainties), ...sourceUnknowns].slice(0, 4)
+    return wallpaperStoredSourceReviewV4Schema.parse({ ...effective, layoutWarnings: [...effective.layoutWarnings, ...warnings], practicalReview: { version: practical.data.protocol, warnings, uncertainties, ...(practical.data.protocol === 'practical-v2' ? { sourcePreservation: practical.data.sourcePreservation, sourceStyle: practical.data.sourceStyle } : {}) } })
   }
   const canvas = wallpaperSourceReviewV3Schema.safeParse(output)
   if (canvas.success) {
@@ -276,6 +276,7 @@ export function applyWallpaperCriticalDetail(original: BalancedReview, detail: B
     task: original.subjectIntegrity.task.result === 'unknown' ? detail.subjectIntegrity.task : original.subjectIntegrity.task } : original.subjectIntegrity
   const issues = [...original.modelIssues.filter(issue => !resolved.includes(issue.check as CriticalCheck)), ...detail.modelIssues.filter(issue => resolved.includes(issue.check as CriticalCheck)), ...detail.layoutChecks.map(reason => ({ kind: 'layout' as const, check: 'protection' as const, code: 'other' as const, reason }))].slice(0, 32)
   const raw = wallpaperSourceReviewV4Schema.parse({ reviewVersion: original.reviewVersion, subject: original.subject, checks, issues, styleResults: original.styleResults, sourceRepair, subjectIntegrity, actualLayout: original.actualLayout, sourceCorrespondence })
-  const merged = applyWallpaperSourceReview(raw, original.sourceRepairAuthorized === true, settings, sourceLayout?.alignment === 'subject-fill-v1' ? sourceLayout : undefined)
+  const preservation = (resolved.includes('sourceCorrespondence') ? detail : original).practicalReview?.sourcePreservation
+  const merged = applyWallpaperSourceReview(raw, original.sourceRepairAuthorized === true, settings, sourceLayout?.alignment === 'subject-fill-v1' ? sourceLayout : undefined, preservation)
   return wallpaperStoredSourceReviewV4Schema.parse({ ...merged, criticalDetail: { requestId, examinedChecks: targets, resolvedChecks: resolved } })
 }

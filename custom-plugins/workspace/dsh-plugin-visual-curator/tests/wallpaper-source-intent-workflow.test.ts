@@ -28,6 +28,7 @@ type ReviewResult = 'pass' | 'unknown' | 'legacy-response' | 'layout-correction'
 async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', uncertainSource = false, historical = false) {
   let exportDirectory = ''
   const legacyPlacement = result === 'layout-correction' || result === 'invalid-replan'
+  const actionPart = result === 'layout-retry' ? { entityId: 'award', name: 'Held award', rect: { x: 0.6, y: 0.56, width: 0.08, height: 0.1 } } : undefined
   const f = await serviceFixture(undefined, {}, { pickLocalPaths: async kind => kind === 'folder' ? [exportDirectory] : null })
   const context = new Context(), llm = new LlmRuntime(context), attachments = new LocalAttachmentStore(context, { dshHome: f.root })
   const startJob = f.jobs.start
@@ -48,7 +49,7 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
     { input: await sharp({ create: { width: 200, height: 100, channels: 3, background: '#30241a' } }).png().toBuffer(), left: 100, top: 430 },
   ]).resize(historical ? 1000 : 400, historical ? 1600 : 640).png().toBuffer()
   const path = join(f.root, 'synthetic-partial-portrait.png'); await writeFile(path, source)
-  const requests: ImageGenerationRequest[] = [], tasks = new Map<string, ImageGenerationTask>(), reviews: { id: string; protocol: string; roles: string[] }[] = []
+  const requests: ImageGenerationRequest[] = [], tasks = new Map<string, ImageGenerationTask>(), reviews: { id: string; requestId: string; protocol: string; roles: string[]; guideId?: string }[] = []
   const generated = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: '#df3158' } }).png().toBuffer()
   let runId = '', plans = 0
   const replanFields: string[][] = [], frozenPlans: Omit<z.infer<typeof wallpaperPlanSchema>, 'placement' | 'editPrompt'>[] = []
@@ -61,7 +62,8 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
   llm.startImageGeneration = async request => {
     requests.push(request)
     const moving = result === 'layout-correction' || result === 'invalid-replan' || result === 'layout-retry'
-    const pixels = moving ? await sharp(Buffer.from(`<svg width="1845" height="3280"><rect width="1845" height="3280" fill="#314f66"/><rect x="553" y="${requests.length === 1 ? 328 : 1246}" width="553" height="1312" fill="#d5b389"/></svg>`)).png().toBuffer() : generated
+    const background = result === 'layout-retry' ? '#456b55' : '#314f66'
+    const pixels = moving ? await sharp(Buffer.from(`<svg width="1845" height="3280"><rect width="1845" height="3280" fill="${background}"/><rect x="553" y="${requests.length === 1 ? 328 : 1246}" width="553" height="1312" fill="#d5b389"/></svg>`)).png().toBuffer() : generated
     const original = await attachments.saveFile({ data: pixels, name: 'synthetic-provider-canvas.png' })
     const [preview] = await attachments.saveImages([{ data: pixels, mediaType: 'image/png' }]); assert.ok(preview)
     const task: ImageGenerationTask = { id: request.id, provider: request.provider, model: request.model, taskId: brandString<ImageGenerationTaskId>('isolated-source-task'), state: 'succeeded', images: [{ original, preview }] }
@@ -85,15 +87,17 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
         frozenPlans.push(frozen)
         output = { imageVersionId: original.imageVersionId, editPrompt: 'Move the entire group down to the Host target layout while retaining the original cropped upper body, smile, glasses, clothing and lectern occlusion.', reason: 'Correct only the observed top overflow; retain the frozen source facts.', ...(result === 'invalid-replan' ? { objectRoles: [] } : {}) }
       } else output = { version: 1, imageVersionId: original.imageVersionId, mode: 'single', subject: 'Synthetic half-length portrait behind a lectern', evidence: 'The fixture records a visible upper body and the original foreground occlusion.',
-        ...(historical ? {} : { sourceMedium: 'photograph', ...(legacyPlacement ? {} : { actionPartIds: [] }) }), priorities: ['Keep the original smile and glasses.'], anchors: ['Continue the same dark blue stage.'], truncations: [], uncertainties: [],
-        objectRoles: [{ entityId: 'portrait', name: 'Portrait', role: 'primary', safetyClass: 'general', evidence: 'This is the single focal subject.', rect: subjectRect, sourceEdges: [], ...(historical ? {} : { sourceIntent: { framing: uncertainSource ? 'uncertain' : 'partial', visibility: 'occluded', preserve: ['Keep the original smile, glasses and clothing.'], relationships: ['The original lectern occludes the lower body.'], ...(uncertainSource ? {} : { layoutFocus: sourceFocus }) } }) }],
-        regions: [{ entityId: 'portrait', name: 'Portrait', role: 'subject', rect: subjectRect }], reason: 'Retain the source view and keep its focal upper body prominent.', editPrompt: 'Extend only the dark blue stage; keep the upper-body framing and do not reveal legs.' }
+        ...(historical ? {} : { sourceMedium: 'photograph', ...(legacyPlacement ? {} : { actionPartIds: actionPart ? [actionPart.entityId] : [] }) }), priorities: ['Keep the original smile and glasses.'], anchors: ['Continue the same dark blue stage.'], truncations: [], uncertainties: [],
+        objectRoles: [{ entityId: 'portrait', name: 'Portrait', role: 'primary', safetyClass: 'general', evidence: 'This is the single focal subject.', rect: subjectRect, sourceEdges: [], ...(historical ? {} : { sourceIntent: { framing: uncertainSource ? 'uncertain' : 'partial', visibility: 'occluded', preserve: ['Keep the original smile, glasses and clothing.'], relationships: ['The original lectern occludes the lower body.'], ...(uncertainSource ? {} : { layoutFocus: sourceFocus }) } }) },
+          ...(actionPart ? [{ ...actionPart, role: 'critical-part', evidence: 'The subject holds the visible award.', sourceEdges: [], sourceIntent: { framing: 'whole', visibility: 'visible', preserve: ['Keep the visible award.'], relationships: ['The award remains in the subject’s hand.'] } }] : [])],
+        regions: [{ entityId: 'portrait', name: 'Portrait', role: 'subject', rect: subjectRect }, ...(actionPart ? [{ ...actionPart, role: 'critical' }] : [])], reason: 'Retain the source view and keep its focal upper body prominent.', editPrompt: 'Extend only the dark blue stage; keep the upper-body framing and do not reveal legs.' }
     } else {
       assert.equal(input.operation, 'wallpaper-review')
       const actual = input.images.find(image => image.role === 'actual-wallpaper'); assert.ok(actual)
       const protocol = historical ? 'practical-v1' : 'practical-v2'
       assert.ok(JSON.stringify(descriptor.outputSchema).includes(protocol), 'The actual final request retains the task-frozen preservation protocol')
-      reviews.push({ id: actual.imageVersionId, protocol, roles: input.images.map(image => image.role) })
+      const guide = input.images.find(image => image.role === 'wallpaper-layout-only')
+      reviews.push({ id: actual.imageVersionId, requestId: input.requestId, protocol, roles: input.images.map(image => image.role), ...(guide ? { guideId: guide.imageVersionId } : {}) })
       const currentRun = f.repository.list('run').find(row => input.requestId.startsWith(row.id + ':')); assert.ok(currentRun)
       const attempt = state(currentRun.id).items[0]?.attempts.at(-1); assert.ok(attempt)
       const sourceImage = f.domain.require('imageVersion', original.imageVersionId), settings = wallpaperSettingsSchema.parse(specOf(currentRun).fixed.wallpaper)
@@ -102,8 +106,10 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
       const measured = (rect: typeof subjectRect) => result === 'layout-retry' && requests.length === 1 ? { ...positioned(rect), y: rect === subjectRect ? 0.1 : 0.15 } : moving ? rect === subjectRect ? { x: 0.3, y: requests.length === 1 ? 0.1 : 0.38, width: 0.3, height: 0.4 } : { x: 0.35, y: requests.length === 1 ? 0.15 : 0.45, width: 0.2, height: 0.2 } : positioned(rect)
       const satisfied = { result: 'satisfied', reason: 'The independently scripted final finding retains this source property.' }
       output = { reviewVersion: 'wallpaper-review-source-v4', protocol: historical || result === 'legacy-response' ? 'practical-v1' : 'practical-v2', sourceImageVersionId: original.imageVersionId, outputImageVersionId: actual.imageVersionId, mode: 'single', subject: 'Synthetic half-length portrait',
-        actualLayout: { regions: [{ entityId: 'portrait', name: 'Portrait', role: 'subject', scope: 'core', rect: measured(subjectRect), ...(historical || result === 'legacy-response' ? {} : { layoutFocus: measured(sourceFocus) }) }] }, defects: [], uncertainties: [],
-        ...(historical || result === 'legacy-response' ? {} : { sourcePreservation: [{ entityId: 'portrait', framing: satisfied, appearance: result === 'unknown' ? { result: 'unknown', reason: 'The final eye detail cannot be established from the isolated observation.' } : satisfied, relationships: satisfied }], sourceStyle: satisfied }) }
+        actualLayout: { regions: [{ entityId: 'portrait', name: 'Portrait', role: 'subject', scope: 'core', rect: measured(subjectRect), ...(historical || result === 'legacy-response' ? {} : { layoutFocus: measured(sourceFocus) }) },
+          ...(actionPart ? [{ ...actionPart, role: 'critical', scope: 'core', rect: positioned(actionPart.rect) }] : [])] }, defects: [], uncertainties: [],
+        ...(historical || result === 'legacy-response' ? {} : { sourcePreservation: [{ entityId: 'portrait', framing: satisfied, appearance: result === 'unknown' ? { result: 'unknown', reason: 'The final eye detail cannot be established from the isolated observation.' } : satisfied, relationships: satisfied },
+          ...(actionPart ? [{ entityId: actionPart.entityId, framing: satisfied, appearance: satisfied, relationships: satisfied }] : [])], sourceStyle: satisfied }) }
     }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] })) }
   }
@@ -153,6 +159,7 @@ test('a new batch sends a positioned master, original and safety guide and adopt
   assert.equal(request.prompt.includes('必须拉远镜头'), false)
   assert.equal(request.references.length, 3)
   assert.match(request.prompt, /图1.*主画布/)
+  assert.match(request.prompt, /图1已有画面的外框约在成品横向/)
   assert.match(request.prompt, /图2.*完整原图/)
   assert.match(request.prompt, /图3.*安全区规划图/)
   const reference = request.references[1]; assert.ok(reference)
@@ -190,12 +197,21 @@ test('unknown final preservation retains the saved output without another genera
   await assert.rejects(w.f.action('direct-crop-export', { runId, title: 'Unknown is not approved' }), /no independently approved/)
 })
 
-test('a V2 layout deviation retries the same positioned master and mask without asking a replanner to move body parts', async t => {
+test('a V2 layout deviation measures the actual candidate before retrying the same positioned master and mask', async t => {
   const w = await sourceWorkflow(t, 'layout-retry'); await w.start()
   const item = w.state().items[0]; assert.ok(item)
   assert.equal(item.status, 'passed', w.diagnostics())
   assert.equal(w.requests.length, 2); assert.equal(w.plans(), 1); assert.equal(w.replanFields.length, 0)
   const first = item.attempts[0], last = item.attempts.at(-1); assert.ok(first?.generationInput && last?.generationInput)
+  assert.ok(first.outputId && first.layoutAnalysisId)
+  assert.equal(w.reviews[0]?.guideId, first.layoutAnalysisId, 'The independent first review compares the planned guide when the portrait carries an action part')
+  const confirmation = w.reviews.find(review => review.requestId.endsWith(':layout-confirm'))
+  assert.ok(confirmation?.guideId)
+  assert.equal(confirmation.id, first.outputId)
+  assert.notEqual(confirmation.guideId, first.layoutAnalysisId)
+  const guide = w.f.domain.require('imageVersion', confirmation.guideId)
+  const unmarkedPixel = await sharp(await w.f.files.read(guide.blob)).extract({ left: 40, top: 2000, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
+  assert.deepEqual([...unmarkedPixel], [69, 107, 85], 'The same-output guide shows provider pixels at the unannotated location')
   assert.equal(first.generationInput.version, 'wallpaper-edit-input-v6')
   assert.equal(last.generationInput.version, 'wallpaper-edit-input-v6')
   assert.deepEqual(last.plan, first.plan)

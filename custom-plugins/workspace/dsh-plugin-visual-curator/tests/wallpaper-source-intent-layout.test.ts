@@ -118,6 +118,27 @@ test('automatic placement keeps at least forty percent of both rasterized axes a
   assert.deepEqual(onePixelLarger.checks, ['source-background-context'])
 })
 
+test('confirmed grape clusters retain extent across both axes while shortened and distorted parts fail', () => {
+  const current = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: protectedFill })
+  const subjects = [
+    { entityId: 'bear', name: 'Bear', role: 'subject' as const, scope: 'core' as const, rect: { x: 0.2, y: 0.4, width: 0.22, height: 0.33 } },
+    { entityId: 'cup', name: 'Cup', role: 'subject' as const, scope: 'core' as const, rect: { x: 0.54, y: 0.39, width: 0.24, height: 0.34 } },
+  ]
+  const propRect = (width: number, height: number) => ({ x: 0.27, y: 0.55, width: width / current.width, height: height / current.height })
+  const measure = (source: [number, number], rendered: [number, number], verified: boolean) => wallpaperActualBoundary({
+    imageVersionId: 'final', regions: [...subjects, { entityId: 'prop', name: 'Held prop', role: 'critical', scope: 'core', rect: propRect(...rendered) }],
+  }, 'group', current, {
+    ...protectedFill,
+    expectedSubjects: subjects.map(({ entityId, rect }) => ({ entityId, rect })),
+    expectedActionParts: [{ entityId: 'prop', name: 'Held prop', rect: propRect(...source) }],
+  }, verified ? new Set(['prop']) : undefined).hard
+
+  assert.deepEqual(measure([445.704, 280.384], [322.875, 295.2], true), [])
+  assert.deepEqual(measure([445.704, 280.384], [322.875, 295.2], false), ['action-part-too-small:Held prop'])
+  assert.deepEqual(measure([445.704, 280.384], [322.875, 490], true), ['subject-aspect-changed:Held prop'])
+  assert.deepEqual(measure([600, 44], [404, 44], true), ['action-part-too-small:Held prop'])
+})
+
 test('the final gate checks pairwise size, position and the aspect of complete subjects', () => {
   const subject = (entityId: string, name: string, x: number, y: number, width: number, height: number) => ({ entityId, name, role: 'subject' as const, scope: 'core' as const, rect: { x, y, width, height } })
   const person = subject('person', 'Person', 0.22, 0.42, 0.24, 0.31)

@@ -126,7 +126,7 @@ export function completeCanvasWallpaperPrompts(settings: WallpaperSettings, sour
   const prompts = sourceFaithfulWallpaperPrompts(settings)
   const practical = wallpaperPracticalAcceptance(settings), safety = wallpaperSafetyInstructions(settings)
   const protectActionParts = settings.sourceIntentPolicy?.alignment === 'subject-fill-v1' && !!settings.sourceIntentPolicy.fill.relativeLayout
-  const actionObservation = protectActionParts ? '\n单独追踪主体的动作道具。完整形态参与主体动作的手持或连接物（例如绸带与握杆、牵引绳、演奏的琴弓）应各有一个entityId和覆盖从连接处到最远可见末端的原图rect，标为critical-part并将ID列入actionPartIds。缺少这类道具时返回[]。保留原有真实断开与遮挡；靠近画框的可见末梢仍计入完整范围。普通承托、反射、投影和装饰留在supporting。' : ''
+  const actionObservation = protectActionParts ? '\n单独追踪主体的动作道具。完整形态参与主体动作的手持或连接物（例如绸带与握杆、牵引绳、演奏的琴弓）应各有一个entityId，标为critical-part并将ID列入actionPartIds。rect紧贴道具本身的所有可见边缘，从连接处追踪到最远可见末端；握持的手指、袖口、承托物及倒影不计入道具尺寸。保留原有真实断开与遮挡；靠近画框的可见末梢仍计入范围。缺少这类道具时返回[]。普通承托、反射、投影和装饰留在supporting。' : ''
   const actionReview = protectActionParts ? '\n每件critical-part都必须用自己的entityId和critical/core区域单独复审。对照原图，从连接或握持处一直追踪到最远的可见末端，检查断开、裁断、缺段、重复和错误续接。原图可见的道具被截掉时，该道具的framing为violated；看不清则unknown。关系核对包括共同主角的相对大小、左右或前后位置和原来的接触点。' : ''
   const observationInstructions = sourceIntentPolicy ? `\n${wallpaperSourceIntentObservationInstructions}${actionObservation}` : ''
   const reviewInstructions = sourceIntentPolicy ? `\n${wallpaperSourceIntentReviewInstructions}${actionReview}` : ''

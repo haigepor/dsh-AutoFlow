@@ -1,3 +1,19 @@
+## Visual Curator 0.2.30
+
+- The first outpainting request uses the positioned canvas as the framing reference. The original image supplies appearance details, and the safety overlay supplies layout guidance.
+- Safety-area confirmation annotates the actual finished image to keep the measured edges in the output coordinate system.
+- Final review measures a faithfully preserved action prop relative to the accepted subject scale. Missing parts, visible truncation and safety-area violations still block acceptance.
+
+Prepared for AutoFlow Desktop 0.2.2-rc.3.20261119.2.
+
+## Visual Curator 0.2.30 更新说明
+
+- 首轮扩图按规划画布定位。原图用于核对外观，标注图用于核对安全区。
+- 安全区确认直接在同一张成品画面上叠加标注，避免复用原图和规划图的坐标。
+- 复审根据合格主体的实际缩放评估完整保留的动作道具。缺失、明显截断和安全区越界仍会阻止通过。
+
+已为 AutoFlow Desktop 0.2.2-rc.3.20261119.2 准备。
+
 ## Visual Curator 0.2.29
 
 - Queue a failed image for retry while the batch continues. Its saved step resumes after the running images finish. Pausing holds queued retries until the batch resumes.

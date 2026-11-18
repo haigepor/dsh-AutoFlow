@@ -18,6 +18,7 @@ const OFFICE_INPUTS = [
   { extension: 'xlsx', format: 'ods' },
   { extension: 'pptx', format: 'odp' },
 ]
+const OFFICE_SMOKE_TIMEOUT_STATUS = 504
 
 /**
  * Require each bundled Office skill to be listed and loaded with a nonempty body.
@@ -35,18 +36,28 @@ export function assertOfficeSkillsLoadable(results: ReadonlyArray<{ readonly nam
  * @param baseUrl The smoke Host's loopback URL.
  * @param cookie The smoke Host's local session cookie.
  * @param timeoutMs The request deadline for a single operation.
+ * @param retryOfficeTimeout Allow this smoke pass one recovery attempt after a reported Office engine timeout. Defaults to false.
  * @returns Resolves after all required PDF, PNG and archive signatures pass.
  */
-export async function smokeOfficeOperations(baseUrl: string | URL, cookie: string, timeoutMs: number): Promise<void> {
+export async function smokeOfficeOperations(
+  baseUrl: string | URL, cookie: string, timeoutMs: number, retryOfficeTimeout = false,
+): Promise<void> {
   const failures: Error[] = []
+  let recoveryAvailable = retryOfficeTimeout
   const checkOffice = async (extension: string, operation: string, verify: (response: Response) => Promise<void>) => {
     const label = `desktop runtime: Office ${extension}/${operation}`
     const started = performance.now()
     console.log(`${label} started`)
     try {
-      const result = await fetch(new URL(`/desktop-smoke-office/${extension}/${operation}`, baseUrl), {
+      const requestProbe = () => fetch(new URL(`/desktop-smoke-office/${extension}/${operation}`, baseUrl), {
         headers: { cookie }, signal: AbortSignal.timeout(timeoutMs),
       })
+      let result = await requestProbe()
+      if (recoveryAvailable && result.status === OFFICE_SMOKE_TIMEOUT_STATUS) {
+        recoveryAvailable = false
+        console.warn(`${label} timed out after ${Math.round(performance.now() - started)} ms; retrying once`, await result.text())
+        result = await requestProbe()
+      }
       if (!result.ok) throw new Error(`HTTP ${result.status} ${await result.text()}`)
       await verify(result)
       console.log(`${label} passed in ${Math.round(performance.now() - started)} ms`)
@@ -224,7 +235,7 @@ export function apply(ctx) {
           try {
             response.end(await probe())
           } catch (error) {
-            response.statusCode = 500
+            response.statusCode = error instanceof Error && error.name === 'OfficeKitError' && error.code === 'timeout' ? ${OFFICE_SMOKE_TIMEOUT_STATUS} : 500
             response.end(inspect(error, { depth: 5 }))
           }
         } }))
@@ -269,7 +280,7 @@ export function apply(ctx) {
     assertOfficeSkillsLoadable(loadedSkills)
     console.log('desktop runtime: packaged Office skills listed and loaded')
     if (intelMacCI) console.log(`desktop runtime: Intel macOS CI Office deadline ${ciOfficeTimeoutMs} ms per operation`)
-    await smokeOfficeOperations(ready.url, cookie, officeRequestTimeoutMs)
+    await smokeOfficeOperations(ready.url, cookie, officeRequestTimeoutMs, intelMacCI)
     console.log('desktop runtime: DOCX, XLSX, PPTX to PDF, image rendering, conversion, and recalculation passed')
   } finally {
     clearTimeout(timer)
