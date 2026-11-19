@@ -1,0 +1,8 @@
+{
+  "id": "git-dialog-layout",
+  "category": "improvements",
+  "text": {
+    "en": "The Git dialog shows changed files and the commit form side by side on wider windows. File status badges and a selection count make changes easier to scan, and the commit actions stay visible while scrolling.",
+    "zh-CN": "Git 弹窗在宽屏并排显示改动与提交表单，用状态标记和已选数量帮助浏览文件，滚动时仍可看到提交操作。"
+  }
+}

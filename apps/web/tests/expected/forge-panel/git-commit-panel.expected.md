@@ -1,18 +1,26 @@
+- banner:
+  - heading "Git 分支与改动" [level=2]
+  - button "关闭"
 - button "切换分支" [disabled]: main
 - button "刷新状态"
 - button "查看改动"
-- text: 1 个变更
-- checkbox "选择全部" [checked]
-- text: 选择全部
-- checkbox "README.md" [checked]
-- text: README.md
-- code: M
-- text: 提交说明
-- button "操作说明"
-- button "生成提交信息"
-- textbox "提交说明":
-  - /placeholder: 描述本次提交的改动
-  - text: 更新工作区说明：补充 Git 流程
+- region "1 个变更":
+  - heading "1 个变更" [level=3]
+  - text: 已选 1 项
+  - checkbox "选择全部" [checked]
+  - text: 选择全部
+  - list:
+    - listitem:
+      - checkbox "README.md" [checked]
+      - text: README.md
+      - code: M
+- region "提交说明":
+  - text: 提交说明
+  - button "操作说明"
+  - textbox "提交说明":
+    - /placeholder: 描述本次提交的改动
+    - text: 更新工作区说明：补充 Git 流程
+  - button "生成提交信息"
 - button "推送到 origin"
 - button "推送"
 - button "提交所选文件"

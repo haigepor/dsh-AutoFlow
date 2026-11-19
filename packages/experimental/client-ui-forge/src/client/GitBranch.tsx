@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  Button, Checkbox, IconBranchOutlineRegular, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconInfoOutlineRegular,
-  IconSearchOutlineRegular, IconUploadOutlineRegular, IconWorkspaceTreeOutlineRegular, Input, Menu, MenuItemButton,
+  Button, Checkbox, IconBranchOutlineRegular, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconCloseOutlineRegular,
+  IconInfoOutlineRegular, IconSearchOutlineRegular, IconSparkleRegular, IconUploadOutlineRegular, IconWorkspaceTreeOutlineRegular,
+  Input, Menu, MenuItemButton,
   Modal, StateDot, TextArea, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -67,6 +68,7 @@ export function GitBranch({
   const [branchList, setBranchList] = useState<RemoteResult<ForgeBranches> | null>(null)
   const [query, setQuery] = useState('')
   const messageId = useId()
+  const filesTitleId = useId()
   const known = checkout?.state === 'ready'
   const readRevision = useRef(0)
   const reload = useCallback(async (signal: AbortSignal) => {
@@ -166,6 +168,8 @@ export function GitBranch({
       report('git.switched', { branch })
     })
   }
+  const title = t('git.title')
+  const hasChanges = current !== null && current.files.length > 0
   return <>
     <Tooltip label={entryTip} side="top" portal>
       <button type="button" className={css.trigger} aria-haspopup="dialog" aria-expanded={open}
@@ -176,88 +180,103 @@ export function GitBranch({
         <IconChevronDownOutlineRegular size={12} />
       </button>
     </Tooltip>
-    <Modal open={open} title={t('git.title')} closeLabel={t('review.close')} onClose={close}
-      className={clsx(css.dialog)} contentClassName={clsx(css.content)}>
+    <Modal open={open} title={title} onClose={close} headless className={clsx(css.dialog, hasChanges && css.withChanges)}>
       <div className={css.body} data-forge-git-panel="" aria-busy={pending || loading}>
-        <div className={css.toolbar}>
-          <Menu open={branchMenu} portal dense onClose={() => { setBranchMenu(false) }}
-            className={css.branchMenu} listClassName={css.menu} anchor={(
-              <Tooltip label={switchReason ?? t('git.switch')} portal side="bottom">
-                <button type="button" className={css.branchPicker} disabled={locked || !canSwitch || switchReason !== null}
-                  aria-label={t('git.switch')} aria-haspopup="menu" aria-expanded={branchMenu} onClick={() => { setBranchMenu(value => !value) }}>
-                  <IconBranchOutlineRegular size={14} />
-                  <span className={css.branch}>{current?.branch ?? name}</span><IconChevronDownOutlineRegular size={12} />
-                </button>
-              </Tooltip>
-            )}>
-            <div className={css.search} data-forge-branch-search=""><Input className={clsx(css.searchInput)} icon={<IconSearchOutlineRegular size={14} />}
-              aria-label={t('git.search')} placeholder={t('git.search')} value={query}
-              onChange={(event) => { setQuery(event.target.value) }} /></div>
-            {branchList === null ? <div className={css.hint}><StateDot state="ongoing" /></div>
-              : !branchList.ok ? <div className={css.hint} role="alert">{t('toast.branchesFailed')}</div>
-                : matchingBranches.length === 0 ? <p className={css.menuEmpty} role="status">{t('git.noBranches')}</p>
-                  : matchingBranches.map(branch => (
-                    <MenuItemButton key={branch} current={branch === current?.branch} onSelect={() => { pickBranch(branch) }}>
-                      <span className={css.branchOption} data-forge-branch-name="">{branch}</span>
-                    </MenuItemButton>
-                  ))}
-          </Menu>
-          <Tooltip label={t('refresh')} portal side="top">
-            <Button size="sm" variant="outline" className={css.iconAction} aria-label={t('refresh')} disabled={pending || loading}
-              icon={<RefreshGlyph busy={loading} size={14} />} onClick={() => { void reload(new AbortController().signal) }} />
-          </Tooltip>
-          <Button size="sm" variant="outline" onClick={() => { close(); viewChanges() }}>{t('git.changes')}</Button>
-        </div>
-        <WorktreeToggle usePanel={usePanel} {...worktree} showCurrentBranch={false} t={t} />
-        {current !== null && current.upstream !== null && current.ahead !== null && current.behind !== null && (
-          <Tooltip label={t('git.tracking', { upstream: current.upstream, ahead: current.ahead, behind: current.behind })}
-            portal side="top" openOnClick>
-            <button type="button" className={css.tracking}>{current.upstream} · ↑{current.ahead} ↓{current.behind}</button>
-          </Tooltip>
-        )}
-        {blocked !== null && <p className={css.hint} role="status">{blocked}</p>}
-        {readError !== null && <p className={css.error} role="alert">{t('git.statusFailed', { message: readError })}</p>}
-        {error !== null && <p className={css.error} role="alert">{error}</p>}
-        {current === null && loading && <div className={css.hint} role="status"><StateDot state="ongoing" /></div>}
-        {current !== null && <>
-          {current.files.length === 0 ? <div className={css.clean} role="status">
-            <IconCheckOutlineRegular size={18} /><span>{t('git.clean')}</span>
-          </div> : <>
-            <div className={css.toolbar}>
-              <span>{t('git.files', { count: current.files.length })}</span>
-              <Checkbox label={t('git.selectAll')} disabled={pending} checked={paths.length === current.files.length}
-                onChange={(checked) => { setSelected(new Set(checked ? current.files.map(file => file.path) : [])) }} />
-            </div>
-            <div className={css.files}>{current.files.map(file => (
-              <div key={file.path} className={css.file}>
-                <Checkbox className={css.fileCheck} label={file.originalPath === null ? file.path : `${file.originalPath} → ${file.path}`}
-                  checked={selected.has(file.path)} disabled={pending} onChange={(checked) => {
-                    setSelected((value) => {
-                      const next = new Set(value)
-                      if (checked) next.add(file.path)
-                      else next.delete(file.path)
-                      return next
-                    })
-                  }} />
-                <code className={file.conflicted ? css.error : css.fileStatus}>{file.index}{file.worktree}</code>
+        <header className={css.header}>
+          <h2>{title}</h2>
+          <Button size="sm" className={css.iconAction} aria-label={t('review.close')} icon={<IconCloseOutlineRegular size={16} />}
+            onClick={close} />
+        </header>
+        <div className={css.content}>
+          <div className={css.toolbar}>
+            <Menu open={branchMenu} portal dense onClose={() => { setBranchMenu(false) }}
+              className={css.branchMenu} listClassName={css.menu} anchor={(
+                <Tooltip label={switchReason ?? t('git.switch')} portal side="bottom">
+                  <button type="button" className={css.branchPicker} disabled={locked || !canSwitch || switchReason !== null}
+                    aria-label={t('git.switch')} aria-haspopup="menu" aria-expanded={branchMenu} onClick={() => { setBranchMenu(value => !value) }}>
+                    <IconBranchOutlineRegular size={14} />
+                    <span className={css.branch}>{current?.branch ?? name}</span><IconChevronDownOutlineRegular size={12} />
+                  </button>
+                </Tooltip>
+              )}>
+              <div className={css.search} data-forge-branch-search=""><Input className={clsx(css.searchInput)} icon={<IconSearchOutlineRegular size={14} />}
+                aria-label={t('git.search')} placeholder={t('git.search')} value={query}
+                onChange={(event) => { setQuery(event.target.value) }} /></div>
+              {branchList === null ? <div className={css.hint}><StateDot state="ongoing" /></div>
+                : !branchList.ok ? <div className={css.hint} role="alert">{t('toast.branchesFailed')}</div>
+                  : matchingBranches.length === 0 ? <p className={css.menuEmpty} role="status">{t('git.noBranches')}</p>
+                    : matchingBranches.map(branch => (
+                      <MenuItemButton key={branch} current={branch === current?.branch} onSelect={() => { pickBranch(branch) }}>
+                        <span className={css.branchOption} data-forge-branch-name="">{branch}</span>
+                      </MenuItemButton>
+                    ))}
+            </Menu>
+            <Tooltip label={t('refresh')} portal side="top">
+              <Button size="sm" variant="outline" className={css.iconAction} aria-label={t('refresh')} disabled={pending || loading}
+                icon={<RefreshGlyph busy={loading} size={14} />} onClick={() => { void reload(new AbortController().signal) }} />
+            </Tooltip>
+            <Button size="sm" variant="outline" onClick={() => { close(); viewChanges() }}>{t('git.changes')}</Button>
+          </div>
+          <WorktreeToggle usePanel={usePanel} {...worktree} showCurrentBranch={false} t={t} />
+          {current !== null && current.upstream !== null && current.ahead !== null && current.behind !== null && (
+            <Tooltip label={t('git.tracking', { upstream: current.upstream, ahead: current.ahead, behind: current.behind })}
+              portal side="top" openOnClick>
+              <button type="button" className={css.tracking}>{current.upstream} · ↑{current.ahead} ↓{current.behind}</button>
+            </Tooltip>
+          )}
+          {blocked !== null && <p className={css.hint} role="status">{blocked}</p>}
+          {readError !== null && <p className={css.error} role="alert">{t('git.statusFailed', { message: readError })}</p>}
+          {error !== null && <p className={css.error} role="alert">{error}</p>}
+          {current === null && loading && <div className={css.hint} role="status"><StateDot state="ongoing" /></div>}
+          {current !== null && (hasChanges ? <div className={css.workbench}>
+            <section className={css.changes} aria-labelledby={filesTitleId}>
+              <div className={css.sectionBar}>
+                <div className={css.counts}>
+                  <h3 id={filesTitleId}>{t('git.files', { count: current.files.length })}</h3>
+                  <span className={css.hint} aria-live="polite">{t('git.selected', { count: paths.length })}</span>
+                </div>
+                <Checkbox label={t('git.selectAll')} disabled={pending} checked={paths.length === current.files.length}
+                  onChange={(checked) => { setSelected(new Set(checked ? current.files.map(file => file.path) : [])) }} />
               </div>
-            ))}</div>
-            {conflicted && <p className={css.error} role="status">{t('git.conflict')}</p>}
-            <div className={css.messageHeading}>
-              <label htmlFor={messageId}>{t('git.message')}</label>
-              <Tooltip label={`${t('git.generateHint')}\n${t('git.selectionHint')}`} portal side="top" openOnClick>
-                <button type="button" className={css.info} aria-label={t('git.info')}><IconInfoOutlineRegular size={14} /></button>
-              </Tooltip>
-              <Button size="sm" variant="outline" disabled={pending || running || loading || readError !== null || !canGenerate || paths.length === 0}
+              <ul className={css.files} role="list" data-forge-git-files="">{current.files.map(file => (
+                <li key={file.path} className={css.file} data-selected={selected.has(file.path) || undefined}>
+                  <Checkbox className={css.fileCheck} label={file.originalPath === null ? file.path : `${file.originalPath} → ${file.path}`}
+                    checked={selected.has(file.path)} disabled={pending} onChange={(checked) => {
+                      setSelected((value) => {
+                        const next = new Set(value)
+                        if (checked) next.add(file.path)
+                        else next.delete(file.path)
+                        return next
+                      })
+                    }} />
+                  <code className={css.fileStatus}
+                    data-change={file.conflicted ? 'conflicted' : file.index === ' ' ? file.worktree : file.index}>{file.index}{file.worktree}</code>
+                </li>
+              ))}</ul>
+              {conflicted && <p className={css.conflict} role="status">{t('git.conflict')}</p>}
+            </section>
+            <section className={css.commitForm} aria-labelledby={`${messageId}-label`}>
+              <div className={css.messageHeading}>
+                <label id={`${messageId}-label`} htmlFor={messageId}>{t('git.message')}</label>
+                <Tooltip label={`${t('git.generateHint')}\n${t('git.selectionHint')}`} portal side="top" openOnClick>
+                  <Button size="sm" className={css.iconAction} aria-label={t('git.info')} icon={<IconInfoOutlineRegular size={14} />} />
+                </Tooltip>
+              </div>
+              <TextArea id={messageId} className={css.message} value={message} rows={4} disabled={pending}
+                placeholder={t('git.messagePlaceholder')} onChange={(event) => { setMessage(event.target.value) }} />
+              <Button size="sm" variant="outline" className={css.generate} icon={<IconSparkleRegular size={14} />}
+                disabled={pending || running || loading || readError !== null || !canGenerate || paths.length === 0}
                 onClick={() => { void run(async () => {
                   const result = await generate(current, paths)
                   if (result.ok) setMessage(result.value)
                   else setError(t('git.generateFailed', { message: result.error.message }))
                 }, 'generate') }}>{t(operation === 'generate' ? 'git.generating' : 'git.generate')}</Button>
-            </div>
-            <TextArea id={messageId} className={css.message} value={message} rows={5} disabled={pending}
-              placeholder={t('git.messagePlaceholder')} onChange={(event) => { setMessage(event.target.value) }} />
-          </>}
+            </section>
+          </div> : <div className={css.clean} role="status">
+            <IconCheckOutlineRegular size={18} /><span>{t('git.clean')}</span>
+          </div>)}
+        </div>
+        {current !== null && (
           <div className={css.footer}>
             <div className={css.toolbar}>
               {remote === '' ? <span className={css.hint}>{t('git.noRemote')}</span> : <Menu
@@ -271,7 +290,7 @@ export function GitBranch({
                 if (result.ok) report('git.pushed'); else setError(t('git.failed', { message: result.error.message }))
               }) }}>{t('git.push')}</Button>
             </div>
-            {current.files.length > 0 && <div className={css.actions}>
+            {hasChanges && <div className={css.actions}>
               {pending && <StateDot state="ongoing" />}
               <Button size="sm" variant={remote === '' ? 'primary' : 'outline'} disabled={!committable}
                 onClick={() => { commitSelected(false) }}>{t('git.commit')}</Button>
@@ -279,7 +298,7 @@ export function GitBranch({
                 onClick={() => { commitSelected(true) }}>{t('git.commitPush')}</Button>
             </div>}
           </div>
-        </>}
+        )}
       </div>
     </Modal>
   </>
