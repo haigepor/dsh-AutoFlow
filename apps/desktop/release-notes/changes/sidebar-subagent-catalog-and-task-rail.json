@@ -1,0 +1,8 @@
+{
+  "id": "sidebar-subagent-catalog-and-task-rail",
+  "category": "features",
+  "text": {
+    "en": "Open the subagent list from its count and return to the same position after viewing a history. Conversation task cards share space beside the right-edge scrollbar.",
+    "zh-CN": "点击子智能体数量可在右侧栏查看列表，查看详情后返回原位置。对话滚动条贴右，两种任务卡片可同时显示。"
+  }
+}

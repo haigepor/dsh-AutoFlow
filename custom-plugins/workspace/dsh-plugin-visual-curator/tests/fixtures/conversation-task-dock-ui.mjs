@@ -61,7 +61,12 @@ function Conversation() {
     useSession: select => select({}), useSessions: select => select({ byId: {} }), useSessionStatus: select => select(new Map()),
     useWorkspaces: select => select({ phase: 'ready', items: [] }), useInput: select => select({ draft: '' }), useComposerBlock: select => select(undefined),
     useFactorySlot: (name, fallback) => name === 'views' ? Views : name === 'widthControls' ? ConversationWidthControls : fallback,
-    renderSlot: name => name === 'conversation.body.overlay' ? h(React.Fragment, null, h(TodoPanel, { key: state.session, todos, t: todoT }), h(DockFixture)) : name === 'conversation.composer.bar' ? h('textarea', { className: 'fixture-composer', 'aria-label': '消息输入框', placeholder: '发送消息' }) : null,
+    renderSlot: (name, _owner, options) => {
+      if (name === 'conversation.hero.frame') return h('div', { 'data-slot': name, style: { display: 'contents' } }, options.children)
+      if (name === 'conversation.body.overlay') return h('div', { 'data-slot': name, style: { display: 'contents' } }, h(TodoPanel, { key: state.session, todos, t: todoT }), h(DockFixture))
+      if (name === 'conversation.composer.bar') return h('textarea', { className: 'fixture-composer', 'aria-label': '消息输入框', placeholder: '发送消息' })
+      return null
+    },
     renderSlotChain: (_name, _owner, options) => options.fallback, inputActions: { prefill: async () => {} }, selectWorkspace: async () => {},
   }))
 }

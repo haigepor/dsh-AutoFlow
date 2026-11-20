@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
@@ -29,6 +29,20 @@ export function ConversationContent(props: ConversationContentProps) {
   const Views = useFactorySlot('views', ConversationSessionView)
   const WidthControls = useFactorySlot('widthControls', NoConversationWidthControls)
   const [body, setBody] = useState<HTMLDivElement | null>(null)
+  const taskRail = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const rail = taskRail.current
+    if (body === null || rail === null) return
+    const observer = new ResizeObserver((entries) => {
+      for (const { contentRect: { width } } of entries) {
+        body.style.setProperty('--dsh-conversation-rail-clearance', width > 0
+          ? `calc(${width}px + var(--dsh-conversation-rail-gap))`
+          : '0px')
+      }
+    })
+    observer.observe(rail)
+    return () => { observer.disconnect() }
+  }, [body])
   const pendingInteraction = useSessionStatus(snapshot =>
     sessionId === undefined ? undefined : snapshot.get(sessionId)?.pendingInteraction)
   const inputState = useInput(s => s)
@@ -218,6 +232,7 @@ export function ConversationContent(props: ConversationContentProps) {
         ref={setBody}
         className={clsx(css.body, props.variant === 'embedded' && css.embeddedBody)}
         data-conversation-content=""
+        data-conversation-task-rail=""
         data-conversation-session={sessionId}
         data-conversation-region="chat"
         data-content-phase={phase}
@@ -230,7 +245,11 @@ export function ConversationContent(props: ConversationContentProps) {
             </div>
           ),
         })}
-        {sessionId !== undefined && <div className={css.bodyOverlay} data-conversation-body-overlay=""><div className={css.bodyOverlayStack}>{renderSlot('conversation.body.overlay', {})}</div></div>}
+        <div ref={taskRail} className={css.bodyOverlay} data-conversation-body-overlay="">
+          <div className={css.bodyOverlayStack}>
+            {sessionId !== undefined && renderSlot('conversation.body.overlay', {})}
+          </div>
+        </div>
         <WidthControls container={body} phase={phase} />
       </div>
     </div>

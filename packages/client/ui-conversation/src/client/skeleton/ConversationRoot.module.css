@@ -324,91 +324,6 @@
   min-height: 0;
 }
 
-/* Width handles: 10px col-resize strips beside the transcript, absolute in
-   .body (NOT the scrollport: an absolute strip there would extend the
-   scrollable range; NOT .root: a strip from the column top would paint its
-   glow through the header's transparent background). The inner edge sits
-   24px outside the content column and the strip extends 10px outward; the
-   outer edge is clamped to keep a 24px safe zone against the
-   column edges (sidebar side and scrollbar side stay drag-free). When the
-   margin cannot fit inset + strip + safe zone the computed width goes
-   negative and the strip resolves to zero — no mispositioned hit area on
-   narrow columns. Known half-scrollbar (~4px) centering offset vs the
-   gutter-reserved content box is accepted: it consumes part of the 10px
-   strip but remains within it. */
-.widthHandle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  /* Fixed in every state: concrete overflow content (z-index 1) and the
-     composer seat (z-index 9) stay above the strip, so the footer band is
-     never a resize target. Pointer capture keeps a drag active under it. */
-  z-index: 0;
-  width: min(
-    10px,
-    max(0px, calc((var(--dsh-conversation-column-width, 100%) - var(--dsh-chat-content-width)) / 2 - 48px))
-  );
-  cursor: col-resize;
-}
-
-.widthHandle[data-side='left'] {
-  left: max(24px, calc((var(--dsh-conversation-column-width, 100%) - var(--dsh-chat-content-width)) / 2 - 34px));
-}
-
-.widthHandle[data-side='right'] {
-  left: min(calc(var(--dsh-conversation-column-width, 100%) - 24px), calc((var(--dsh-conversation-column-width, 100%) + var(--dsh-chat-content-width)) / 2 + 24px));
-}
-
-/* The glow: a short 2px bar following the captured pointer's Y, centered in the strip
-   (29px from the content column), not a full-height rule — a 16px solid core
-   centered on the pointer
-   (published during drag as --dsh-width-handle-pointer-y), fading to
-   transparent over 28px each side (72px total). A solid CORE, not a single
-   solid stop: a lone peak washes out over the fade. The resting scrollbar
-   tint keeps this secondary affordance quiet in both themes. Before the first
-   drag move the fallback centers the glow at 50% height; hover leaves its position unchanged. */
-.widthHandle::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  border-radius: 2px;
-  background: linear-gradient(
-    to bottom,
-    transparent calc(var(--dsh-width-handle-pointer-y, 50%) - 36px),
-    var(--dsw-alias-scrollbar-bg-l1) calc(var(--dsh-width-handle-pointer-y, 50%) - 8px),
-    var(--dsw-alias-scrollbar-bg-l1) calc(var(--dsh-width-handle-pointer-y, 50%) + 8px),
-    transparent calc(var(--dsh-width-handle-pointer-y, 50%) + 36px)
-  );
-  opacity: 0;
-  pointer-events: none;
-}
-
-.widthHandle[data-side='left']::after {
-  right: 4px;
-}
-
-.widthHandle[data-side='right']::after {
-  left: 4px;
-}
-
-.widthHandle[data-dragging]::after {
-  opacity: 1;
-}
-
-@media (hover: hover) {
-  .widthHandle:hover::after {
-    opacity: 1;
-  }
-}
-
-/* Views that elect a composer overlay (trajectory etc.) own their full-bleed
-   scrollers; the strips would sit over their content and steal clicks. */
-.root:has([data-conversation-composer-overlay]) .widthHandle {
-  display: none;
-}
-
 /* Composer context stack (Figma 9:937): standalone dock cards share one
    rhythm above the input card. */
 .composerStack {
@@ -447,9 +362,6 @@
   flex: none;
 }
 
-/* Band below the header: the scrollport plus the width handles. Anchoring the
-   handles here keeps their full-height strips and glow under the header's
-   bottom edge at every header height. */
 .contentContainer {
   display: flex;
   flex: 1;
@@ -468,18 +380,19 @@
   min-height: 0;
   container-type: inline-size;
 
-  /* Shared width axis for the transcript, dock cards, composer, and takeover
-     cards. Main width controls publish the live body width and optional user
-     preference; embedded occurrences override this adaptive axis below. */
-  --dsh-chat-content-width: min(
-    max(0px, calc(var(--dsh-conversation-column-width, 100cqi) - 64px)),
-    var(
-    --dsh-chat-user-width,
-    clamp(520px, calc(var(--dsh-conversation-column-width, 0px) * 0.64), 920px)
-  ));
+  /* The transcript and composer share a reading width and leave room for
+     the turn navigator on desktop. Embedded conversations size their own column. */
+  --dsh-chat-column-gutter: clamp(48px, calc(var(--dsh-conversation-column-width, 100cqi) * 0.12), 112px);
+  --dsh-chat-content-width: clamp(
+    0px,
+    calc(var(--dsh-conversation-column-width, 100cqi) - var(--dsh-chat-column-gutter)),
+    920px
+  );
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
   --dsh-composer-dock-inset: 8px;
+  --dsh-conversation-rail-clearance: 0px;
+  --dsh-conversation-rail-gap: 24px;
 }
 
 .embeddedBody {
@@ -491,6 +404,7 @@
 }
 
 .scrollBody {
+  box-sizing: border-box;
   grid-column: 1;
   grid-row: 1;
   display: flex;
@@ -498,10 +412,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  /* The product-wide 2px scrollbar offset (ui-workspace WorkspaceBrowser
-     `.list`, ui-sidebar-files FilesBody `.body`): the bar sits 2px clear of
-     the column's edge instead of flush against it. */
-  margin-right: 2px;
+  padding-inline-end: var(--dsh-conversation-rail-clearance, 0px);
   overflow-y: auto;
   /* Reserved unconditionally: the composer seat rides this box's content box in
      Chat and its padding box under a view's composer overlay, so an `auto`
@@ -510,8 +421,7 @@
   scrollbar-gutter: stable;
 }
 
-/* The bar also stops 2px short of the scroller's ends, matching its 2px edge
-   offset. WebKit-only: the Firefox path has no track to inset. */
+/* Keep the track clear of the header and bottom edge. */
 .scrollBody::-webkit-scrollbar-track {
   margin: 2px;
 }
@@ -594,9 +504,9 @@
      engine where the resolved width differs from this fixed 8px the card
      drifts by half the difference — accepted residual risk, recorded in
      ([decision](../../../../../../.agents/notes/archived/bug-fix/2026-08-12-composer-overlay-seat-width-compensation.md)). */
-  right: var(--dsh-scrollbar-width);
+  inset-inline-end: calc(var(--dsh-scrollbar-width) + var(--dsh-conversation-rail-clearance, 0px));
   bottom: 0;
-  left: 0;
+  inset-inline-start: 0;
 }
 
 /* Hero phase: the composer stack (hero chrome + workspace row + card) is
@@ -701,24 +611,20 @@
   }
 }
 .bodyOverlay {
-  position: relative;
-  grid-column: 1;
-  grid-row: 1;
+  position: absolute;
+  inset-block: 12px;
+  inset-inline-end: 16px;
   display: none;
   align-items: flex-start;
   justify-content: flex-end;
   z-index: 8;
   min-width: 0;
   min-height: 0;
-  margin: 12px 16px 8px;
-  max-height: min(36vh, 320px);
+  width: max-content;
+  max-width: min(640px, calc(100cqi - 608px));
   pointer-events: none;
 }
 
-/* Slot wrappers remain mounted when their contributions render nothing. */
-.bodyOverlay:not(:has(.bodyOverlayStack > :not(:empty))) {
-  display: none;
-}
 .bodyOverlayStack {
   display: flex;
   flex: 1 1 auto;
@@ -738,21 +644,11 @@
   pointer-events: auto;
 }
 
-/* 520px of text + 64px of chat insets + a 300px task card + rail margins. */
+/* Reserve room for the transcript beside the task cards in a wide conversation. */
 @container conversation-layout (min-width: 920px) {
-  .body {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .bodyOverlay {
+  .bodyOverlay:has(.bodyOverlayStack > :not(:empty)) {
     display: flex;
-    grid-column: 2;
-    margin: 12px 16px 12px 8px;
-    max-width: min(640px, calc(100cqi - 608px));
-    max-height: none;
   }
-
-  .bodyOverlayStack { width: max-content; }
 }
 .root[data-phase='hero'] .composerSeat,
 .embeddedBody[data-content-phase='hero'] .composerSeat {

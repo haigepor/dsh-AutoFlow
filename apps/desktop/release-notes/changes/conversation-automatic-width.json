@@ -1,0 +1,8 @@
+{
+  "id": "conversation-automatic-width",
+  "category": "improvements",
+  "text": {
+    "en": "Conversation text and the composer now adjust to the available space as the window or sidebars change.",
+    "zh-CN": "调整窗口大小或打开侧栏时，对话正文和输入框会自动适配可用宽度。"
+  }
+}

@@ -5,13 +5,15 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ResourceProvider } from '@deepseek-ai/dsh-client-resources/client'
 import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type { SidebarRightTabDefinition, SidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import { Button, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  PropsRenderFactories, PropsRenderSlots, PropsRuntime, TranslateNS,
+  PropsLocale, PropsRenderFactories, PropsRenderSlots, PropsRuntime, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
-import type { NS } from '../locales.ts'
+import { NS } from '../locales.ts'
+import { SUBAGENT_CATALOG_KIND } from '../slots.ts'
 import css from './SidebarChat.module.css'
 
 /** Stable implementation identity for the Sidebar tab body. */
@@ -29,6 +31,13 @@ export interface SubagentChatResource {
 declare module '@deepseek-ai/dsh-api-session-controller/client' {
   interface SessionReferenceSourceMap {
     sidebarChat: unknown
+  }
+}
+
+declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
+  interface SidebarRightResourceParamsMap {
+    /** The originating catalog pane for an in-memory drill-down. */
+    subagentchat: { catalogPaneId: SidebarRightTabInfo['panel']['id'] }
   }
 }
 
@@ -146,14 +155,26 @@ export function ConversationSlotPanel({
 
 /** Props supplied to the parent-Session Sidebar tab body. */
 export type SidebarChatTabProps =
-  PropsRuntime<'sidebar.right.pane.tab'> & PropsRenderSlots<'sidebar.chat.conversation'>
+  PropsRuntime<'sidebar.right.pane.tab'> & PropsRenderSlots<'sidebar.chat.conversation'> & PropsLocale<typeof NS>
 
 /** Bind a chat resource's child reference around its Conversation slot. */
-export function SidebarChatTab({ useResource, useTabInfo, SessionProvider, renderSlot }: SidebarChatTabProps) {
+export function SidebarChatTab({ useResource, useTabInfo, SessionProvider, renderSlot, t }: SidebarChatTabProps) {
   const { tab } = useTabInfo()
   const resource = useResource<'subagentchat'>(tab.contentId)
+  const { params } = tab.navigation
   return (
     <div className={css.root} data-sidebar-chat="">
+      {params !== undefined && 'catalogPaneId' in params && (
+        <div className={css.navigation}>
+          <Button size="sm" variant="ghost" onClick={() => {
+            tab.actions.openTab(SUBAGENT_CATALOG_KIND, { paneId: params.catalogPaneId })
+            tab.actions.close()
+          }}>
+            <IconChevronLeftOutlineRegular size={14} />
+            {t('back')}
+          </Button>
+        </div>
+      )}
       {resource.value === undefined
         ? null
         : (
@@ -191,6 +212,7 @@ export function registerSidebarChat(ctx: Context, t: TranslateNS<typeof NS>): vo
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
     name: 'sidebar.right.pane.tab',
     key: SUBAGENT_CHAT_ID,
+    locale: NS,
     children: { 'sidebar.chat.conversation': { kind: 'single', scope: 'session' } },
   }, SidebarChatTab)), 'ui-subagent: Sidebar chat body')
   ctx.effect(() => ctx.slots.inject('sidebar.chat.conversation', () => ctx.slots.register({

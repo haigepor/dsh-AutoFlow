@@ -14,7 +14,7 @@ import type { Browser, Locator, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed, onTestFinished } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TIMED_WAIT_PARAMETER } from '@deepseek-ai/dsh-user-questions'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
@@ -915,22 +915,34 @@ describe('web e2e: resident question composer round trip', () => {
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('re-evaluates long copy when the chat column or the window changes width', async () => {
+})
+
+describe.skipIf(MODE === 'record')('web e2e: question composer width', () => {
+  const sessionId = SessionId('question-composer-width')
+  let seeded: SeededTranscript
+
+  beforeAll(async () => {
+    seeded = await openSeededTranscript(await readFile(FIXTURE, 'utf8'), sessionId)
+  }, 120_000)
+
+  afterAll(async () => {
+    await seeded?.browser.close()
+    await seeded?.scaffold.close()
+  })
+
+  it('re-evaluates long copy when the chat column or the window changes width', async () => {
+    const { page, scaffold, tripwire } = seeded
     onTestFailed(() => saveFailureShot(page, 'web-e2e-question-chat-width'))
-    const sessionId = answeredSession
-    expect(sessionId).toBeDefined()
-    const agent = scaffold.ctx.agents.get(sessionId as SessionId)
-    expect(agent).toBeDefined()
-    // Sized for the chat-width drag range: the question takes three lines or
-    // fewer in the widest chat column and more in the narrowest, and the staged
-    // description takes two lines or fewer and more.
+    const handle = await scaffold.ctx.agents.resume({ resumeSessionId: sessionId })
+    onTestFinished(() => handle.dispose())
+    // These texts fit within their line budgets on desktop and overflow on mobile.
     const question = `${Array.from({ length: 2 }, () => 'The rollout plan must name the release owner, the verification lanes that gate it, and the rollback path before the candidate is cut.').join(' ')} Which plan should we adopt?`
-    const staged = 'Stage the rollout behind the release channel first, keep the experimental client out of every shipped template, ask plugin authors to declare the dependency explicitly, and publish the upgrade note together with the cross-platform validation results.'
+    const staged = 'Stage the rollout in the release channel, document the dependency, and publish the validation results.'
     const explicit = Array.from({ length: 24 }, (_, index) =>
       `Step ${String(index + 1)} removes the experimental client from shipped templates and records the validation before rollout.`).join(' ')
     const controller = new AbortController()
     const asked = scaffold.ctx.userQuestions.ask({
-      agent: agent as NonNullable<typeof agent>,
+      agent: handle.agent,
       signal: controller.signal,
       questions: [{
         id: 'rollout',
@@ -994,49 +1006,34 @@ describe('web e2e: resident question composer round trip', () => {
         }).toBe(true)
         return await read()
       }
-      // The right transcript handle widens the content column by twice its
-      // outward travel. The composer seat covers the handle's lower part, so
-      // the gesture grabs it beside the transcript.
-      const dragChatWidth = async (travel: number) => {
-        const box = await page.locator('[data-width-handle="right"]').boundingBox()
-        if (box === null) throw new Error('The chat width handle is not rendered')
-        const x = box.x + box.width / 2
-        const y = box.y + 120
-        await page.mouse.move(x, y)
-        await page.mouse.down()
-        try {
-          await page.mouse.move(x + travel, y, { steps: 8 })
-        } finally {
-          await page.mouse.up()
-        }
-      }
-
       // Expanded copy is the user's choice and survives every width change below.
       const explicitToggle = await toggleFor(descriptionOf('Explicit install'))
       await explicitToggle.click()
       expect(await explicitToggle.getAttribute('aria-expanded')).toBe('true')
       expect(await composer.getByRole('radio', { name: 'Explicit install', exact: true }).getAttribute('aria-checked')).toBe('false')
 
-      await dragChatWidth(-400)
+      await page.setViewportSize({ width: 390, height: 800 })
       const narrow = await settle()
       expect(narrow.question).toEqual({ lines: 2, clipped: true, overflows: true, toggle: 'expand' })
       expect(narrow.staged).toEqual({ lines: 1, clipped: true, overflows: true, toggle: 'expand' })
 
-      await dragChatWidth(600)
+      await page.setViewportSize({ width: 1680, height: 1000 })
       const wide = await settle()
       expect(wide.card.width).toBeGreaterThan(narrow.card.width)
       expect(wide.question).toMatchObject({ clipped: false, overflows: false, toggle: undefined })
       expect(wide.staged).toEqual({ lines: 2, clipped: false, overflows: false, toggle: undefined })
       expect(wide.short).toEqual({ lines: 1, clipped: false, overflows: false, toggle: undefined })
 
-      // The right sidebar narrows the conversation column, and collapsing it restores the wide state.
+      // The sidebar reduces the available width in a window below the reading cap.
+      await page.setViewportSize({ width: 1160, height: 1000 })
+      const withoutSidebar = await settle()
       await page.getByRole('button', { name: 'Open right sidebar', exact: true }).click()
       const withSidebar = await settle()
-      expect(withSidebar.card.width).toBeLessThan(wide.card.width)
+      expect(withSidebar.card.width).toBeLessThan(withoutSidebar.card.width)
       await page.getByRole('button', { name: 'Collapse right sidebar', exact: true }).click()
-      expect(await settle()).toEqual(wide)
+      expect(await settle()).toEqual(withoutSidebar)
 
-      // A smaller window clamps the dragged width; restoring the window restores it.
+      // Resizing the window in both directions preserves the expanded copy.
       await page.setViewportSize({ width: 900, height: 700 })
       const smallWindow = await settle()
       expect(smallWindow.card.width).toBeLessThan(wide.card.width)
@@ -1052,22 +1049,17 @@ describe('web e2e: resident question composer round trip', () => {
       await composer.getByRole('button', { name: 'Submit', exact: true }).click()
       expect(await outcome).toEqual({ value: { answers: [{ id: 'rollout', selected: ['Stage the rollout'] }] } })
       await expect.poll(() => page.locator('[data-question-key]').count(), { timeout: 10_000 }).toBe(0)
+      expect(tripwire.pageErrors).toEqual([])
       bodyCompleted = true
     } finally {
       controller.abort()
-      // The dragged width is a persisted preference; dropping it and resizing republishes the default.
-      const cleanup = await Promise.allSettled([
-        outcome,
-        page.evaluate(() => { localStorage.removeItem('dsh.conversation.contentWidth') })
-          .then(() => page.setViewportSize(original)),
-      ])
+      const cleanup = await Promise.allSettled([outcome, page.setViewportSize(original)])
       if (bodyCompleted) {
         const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === 'rejected')
         if (failure !== undefined) throw failure.reason
       }
     }
   }, 90_000)
-
 })
 
 describe.skipIf(MODE === 'record')('web e2e: cancelled question transcript', () => {

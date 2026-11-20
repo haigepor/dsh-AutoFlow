@@ -78,9 +78,9 @@ class ResizeObserverStub {
 }
 
 /** Fires every recorded observer whose target list includes the element. */
-function fireResize(el: Element): void {
+function fireResize(el: Element, entries: ResizeObserverEntry[] = []): void {
   for (const entry of resizeObservers) {
-    if (entry.targets.includes(el)) entry.callback([], undefined as never)
+    if (entry.targets.includes(el)) entry.callback(entries, undefined as never)
   }
 }
 
@@ -1001,142 +1001,30 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
-  it('publishes the column width as a px variable for the shared width axis', () => {
+  it('uses the scrollport content width as the conversation column resizes', () => {
+    localStorage.setItem('dsh.conversation.contentWidth', '700')
     const b = mount(sessionSnapshotOf())
     const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
-    const root = content
     const scrollport = content.querySelector('[data-conversation-scroll]') as HTMLElement
-    Object.defineProperty(content, 'offsetWidth', { value: 1528, configurable: true })
-    Object.defineProperty(scrollport, 'offsetWidth', { value: 1200, configurable: true })
-    act(() => { fireResize(content) })
-    expect(root.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
-    // No dragged preference: the user-width override stays absent so the
-    // adaptive clamp term applies.
-    expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('')
-  })
 
-  it('drag → persist → window clamp round-trip on a width handle', () => {
-    const b = mount(sessionSnapshotOf())
-    const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
-    const root = content
-    const scrollport = content.querySelector('[data-conversation-scroll]') as HTMLElement
-    Object.defineProperty(content, 'offsetWidth', { value: 1920, configurable: true })
-    Object.defineProperty(scrollport, 'offsetWidth', { value: 1600, configurable: true })
-    act(() => { fireResize(content) })
-    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
-    expect(handle).not.toBeNull()
-    // jsdom lacks pointer capture: emulate per-element so hasPointerCapture
-    // gates pass; the finally block restores the original descriptors so the
-    // stubs cannot leak into later tests.
-    const names = ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const
-    const originals = names.map(name =>
-      [name, Object.getOwnPropertyDescriptor(Element.prototype, name)] as const)
-    const captured = new Set<Element>()
-    Element.prototype.setPointerCapture = function () { captured.add(this) }
-    Element.prototype.releasePointerCapture = function () { captured.delete(this) }
-    Element.prototype.hasPointerCapture = function () { return captured.has(this) }
-    try {
-      // Base resolves from the adaptive clamp: min(1600*0.64, 920) = 920.
-      // Dragging the right handle outward by 25px widens by 2×25 = 50 → 970,
-      // inside both bounds (max = 1600 − 176 = 1424 keeps the handles on-column).
-      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 825, clientY: 300 })
-      expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('300px')
-      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 825, clientY: 300 })
-      expect(handle.hasAttribute('data-dragging')).toBe(false)
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('970px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-      // Window shrinks: the displayed width re-clamps (900 − 176 = 724) but the
-      // preference stays.
-      Object.defineProperty(scrollport, 'offsetWidth', { value: 900, configurable: true })
-      act(() => { fireResize(content) })
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-      // A press without travel (a real double-click delivers two such
-      // press/release rounds) must not commit the clamped display value over
-      // the stored preference.
-      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
-      // No reset affordance on the handle: double-click leaves the preference alone.
-      fireEvent.doubleClick(handle)
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-    } finally {
-      for (const [name, descriptor] of originals) {
-        if (descriptor === undefined) Reflect.deleteProperty(Element.prototype, name)
-        else Object.defineProperty(Element.prototype, name, descriptor)
-      }
+    for (const width of [1200, 720, 1200]) {
+      const size = { inlineSize: width, blockSize: 480 }
+      act(() => {
+        fireResize(scrollport, [{
+          target: scrollport,
+          contentRect: new DOMRectReadOnly(0, 0, width, 480),
+          borderBoxSize: [size],
+          contentBoxSize: [size],
+          devicePixelContentBoxSize: [size],
+        }])
+      })
+      expect(content.style.getPropertyValue('--dsh-conversation-column-width')).toBe(`${width}px`)
+      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('')
     }
+    expect(b.view.container.querySelector('[data-width-handle]')).toBeNull()
   })
 
-  it('forwards wheel scrolling from a width handle to the transcript', () => {
-    const b = mount(sessionSnapshotOf())
-    const scrollport = b.view.container.querySelector('[data-conversation-scroll]') as HTMLElement
-    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
-    const scrollBy = vi.fn()
-    Object.defineProperty(scrollport, 'clientHeight', { value: 480, configurable: true })
-    Object.defineProperty(scrollport, 'scrollBy', { value: scrollBy, configurable: true })
-    scrollport.style.lineHeight = '20px'
-
-    fireEvent.wheel(handle, { deltaY: 120, deltaMode: 0 })
-    expect(scrollBy).toHaveBeenLastCalledWith({ top: 120 })
-
-    fireEvent.wheel(handle, { deltaY: 3, deltaMode: 1 })
-    expect(scrollBy).toHaveBeenLastCalledWith({ top: 60 })
-    scrollport.style.lineHeight = 'normal'
-    fireEvent.wheel(handle, { deltaY: 3, deltaMode: 1 })
-    expect(scrollBy).toHaveBeenLastCalledWith({ top: 48 })
-    fireEvent.wheel(handle, { deltaY: -1, deltaMode: 2 })
-    expect(scrollBy).toHaveBeenLastCalledWith({ top: -480 })
-    const calls = scrollBy.mock.calls.length
-    fireEvent.wheel(handle, { deltaY: 0, deltaMode: 0 })
-    fireEvent.wheel(handle, { ctrlKey: true, deltaY: 120, deltaMode: 0 })
-    expect(scrollBy).toHaveBeenCalledTimes(calls)
-  })
-
-  it('does not check capture, measure, style, or schedule width-handle moves before dragging', () => {
-    const b = mount(sessionSnapshotOf())
-    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
-    const capture = vi.fn(() => false)
-    Object.defineProperty(handle, 'hasPointerCapture', { value: capture })
-    const measure = vi.spyOn(handle, 'getBoundingClientRect')
-    const style = vi.spyOn(handle.style, 'setProperty')
-    const schedule = vi.spyOn(globalThis, 'requestAnimationFrame')
-    try {
-      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 802, clientY: 302 })
-      expect(capture).not.toHaveBeenCalled()
-      expect(measure).not.toHaveBeenCalled()
-      expect(style).not.toHaveBeenCalled()
-      expect(schedule).not.toHaveBeenCalled()
-    } finally {
-      schedule.mockRestore()
-      style.mockRestore()
-      measure.mockRestore()
-    }
-  })
-
-  it('starts width dragging only from the primary pointer button', () => {
-    const b = mount(sessionSnapshotOf())
-    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
-    const captured = new Set<number>()
-    Object.defineProperties(handle, {
-      setPointerCapture: { configurable: true, value: (pointerId: number) => { captured.add(pointerId) } },
-      releasePointerCapture: { configurable: true, value: (pointerId: number) => { captured.delete(pointerId) } },
-      hasPointerCapture: { configurable: true, value: (pointerId: number) => captured.has(pointerId) },
-    })
-    fireEvent.pointerDown(handle, { pointerId: 1, button: 1, clientX: 800, clientY: 300 })
-    expect(handle.hasAttribute('data-dragging')).toBe(false)
-    fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 800, clientY: 300 })
-    expect(handle.hasAttribute('data-dragging')).toBe(true)
-    fireEvent.pointerCancel(handle, { pointerId: 2 })
-    expect(handle.hasAttribute('data-dragging')).toBe(false)
-    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 825, clientY: 300 })
-    expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('')
-  })
-
-  it('hero phase renders no width handles (no transcript to size)', () => {
+  it('hero phase renders no width handles', () => {
     const b = mount(sessionSnapshotOf({ blank: true }))
     expect(b.view.container.querySelector('[data-width-handle]')).toBeNull()
   })

@@ -207,13 +207,17 @@ async function awaitTableLayout(target: Page): Promise<void> {
     if (element === null) return false
     const tracks = getComputedStyle(element).gridTemplateColumns.split(' ').map(Number.parseFloat)
     const body = element.querySelector<HTMLElement>('[data-conversation-content]')
-    const scrollport = body?.querySelector<HTMLElement>(':scope > [data-conversation-scroll]')
+    if (body === null) return false
+    const scrollport = body.querySelector<HTMLElement>('[data-conversation-scroll]')
+    if (scrollport === null) return false
+    const { paddingLeft, paddingRight } = getComputedStyle(scrollport)
+    const usableWidth = scrollport.clientWidth - Number.parseFloat(paddingLeft) - Number.parseFloat(paddingRight)
+    const measuredWidth = Number.parseFloat(body.style.getPropertyValue('--dsh-conversation-column-width'))
     // Desktop retains the rail; the mobile drawer leaves the whole width to the transcript.
     return tracks[0] === (element.hasAttribute('data-sidebar-drawer') ? 0 : 56) && tracks.at(-1) === 0
       && element.getAnimations().every(animation =>
         animation.playState === 'finished' || animation.playState === 'idle')
-      && body !== null && scrollport !== undefined && scrollport !== null
-      && body.style.getPropertyValue('--dsh-conversation-column-width') === `${String(scrollport.offsetWidth)}px`
+      && Math.abs(measuredWidth - usableWidth) <= 1
   }, undefined, { timeout: 10_000 })
 }
 
@@ -448,41 +452,43 @@ describe('web e2e: markdown tables remain in the column and scroll internally', 
     expect(tripwire.pageErrors).toEqual([])
   }, 120_000)
 
-  it('keeps the width handle reachable beside both wide and fitting tables', async () => {
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-width-handle-hit'))
-    await settleAt(1680)
-    const hitAtHandle = async (marker: string) => {
-      const wrapper = page.locator('[class*="tableScroll"]', { hasText: marker })
-      await wrapper.evaluate((element) => { element.scrollIntoView({ block: 'center', behavior: 'instant' }) })
-      return await page.evaluate((tableMarker) => {
-        const handle = document.querySelector<HTMLElement>('[data-width-handle="right"]')
-        const wrapper = [...document.querySelectorAll<HTMLElement>('[class*="tableScroll"]')]
-          .find(candidate => candidate.textContent?.includes(tableMarker) ?? false)
-        const table = wrapper?.querySelector('table') ?? null
-        if (handle === null || table === null) throw new Error(`missing hit-test geometry for ${tableMarker}`)
-        const handleRect = handle.getBoundingClientRect()
-        const tableRect = table.getBoundingClientRect()
-        const x = handleRect.left + handleRect.width / 2
-        const y = tableRect.top + tableRect.height / 2
-        const hit = document.elementFromPoint(x, y)
-        return {
-          tableCoversHandle: tableRect.left <= x && tableRect.right >= x,
-          hitTable: hit !== null && table.contains(hit),
-          hitHandle: hit !== null && handle.contains(hit),
-        }
-      }, marker)
+  it('adapts the transcript and composer as the available width changes', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-usable-width'))
+    const [full] = await settleAt(1680)
+    expect(full!.clientWidth).toBeLessThanOrEqual(920)
+    expect(await page.locator('[data-width-handle]').count()).toBe(0)
+    const scrollport = page.locator('[data-conversation-main] [data-conversation-scroll]').first()
+    const composer = scrollport.locator('[data-composer-card]')
+    const composerWidth = await composer.evaluate(element => element.clientWidth)
+    // A task card can reserve inline padding without resizing the scrollport's border box.
+    await scrollport.evaluate((element) => { element.style.paddingInlineEnd = '680px' })
+    try {
+      await awaitTableLayout(page)
+      const [fill, wide] = await readTables(page)
+      expect(fill!.clientWidth).toBeLessThan(full!.clientWidth)
+      expect(await composer.evaluate(element => element.clientWidth)).toBeLessThan(composerWidth)
+      expect(Math.abs(wide!.clientWidth - fill!.clientWidth)).toBeLessThan(1.5)
+      expect(fill!.overflow).toBeLessThanOrEqual(1)
+      expect(wide!.overflow).toBeGreaterThan(1)
+      expect(await scrollport.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+    } finally {
+      await scrollport.evaluate((element) => { element.style.paddingInlineEnd = '' })
     }
+    await awaitTableLayout(page)
+    expect((await readTables(page))[0]!.clientWidth).toBe(full!.clientWidth)
+    expect(await composer.evaluate(element => element.clientWidth)).toBe(composerWidth)
 
-    expect(await hitAtHandle(WIDE_MARKER)).toEqual({
-      tableCoversHandle: false,
-      hitTable: false,
-      hitHandle: true,
-    })
-    expect(await hitAtHandle(SHORT_MARKER)).toEqual({
-      tableCoversHandle: false,
-      hitTable: false,
-      hitHandle: true,
-    })
+    const [withoutSidebar] = await settleAt(1160)
+    await page.getByRole('button', { name: 'Open right sidebar', exact: true }).click()
+    await expect.poll(async () => (await readTables(page))[0]!.clientWidth).toBeLessThan(withoutSidebar!.clientWidth)
+    await page.getByRole('button', { name: 'Collapse right sidebar', exact: true }).click()
+    await awaitTableLayout(page)
+    expect((await readTables(page))[0]!.clientWidth).toBe(withoutSidebar!.clientWidth)
+
+    const [narrow] = await settleAt(390)
+    expect(narrow!.clientWidth).toBeGreaterThan(0)
+    expect(narrow!.clientWidth).toBeLessThan(390)
+    expect(await scrollport.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
     expect(tripwire.pageErrors).toEqual([])
   }, 120_000)
 

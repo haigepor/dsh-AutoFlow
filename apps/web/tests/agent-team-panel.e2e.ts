@@ -240,7 +240,7 @@ describe('web e2e: agent teamwork panel', () => {
     const task = await scaffold.ctx.agentTeams.createTask(agent, {
       subject: 'Plan before delegation', description: 'Prepare shared work before creating subagents',
     })
-    await page.getByRole('button', { name: '0 subagents', exact: true }).click()
+    await page.getByRole('button', { name: '0 subagents', exact: true }).press('ArrowDown')
     const board = page.locator('[data-team-panel]')
     await board.getByText(task.subject, { exact: true }).waitFor()
     const panel = page.locator('[data-subagent-panel]')
@@ -288,11 +288,11 @@ describe('web e2e: agent teamwork panel', () => {
       }
     })).toEqual({ display: 'flex', gap: '10px', presetOpacity: '1', presetParentOpacity: '1', sameColor: true })
     const countTrigger = countAction.getByRole('button', { name: /subagents?$/u })
-    await countTrigger.click()
-    await countTrigger.click()
+    await countTrigger.press('ArrowDown')
+    await page.keyboard.press('Escape')
     await page.locator('[data-subagent-panel]').waitFor({ state: 'detached' })
     expect(await countTrigger.evaluate(element => element === document.activeElement)).toBe(true)
-    await countTrigger.click()
+    await countTrigger.press('ArrowDown')
     const action = page.locator('[data-subagent-panel]')
     await action.getByRole('treeitem', { name: /Researcher/u }).waitFor()
     expect(await action.locator('[data-team-panel], [data-subagent-section-header]').count()).toBe(0)
@@ -440,7 +440,7 @@ describe('web e2e: agent teamwork panel', () => {
     await expect.poll(() => toggle.getAttribute('aria-checked')).toBe('false')
     expect(await page.locator('[data-subagent-action]').count()).toBe(1)
     await page.keyboard.press('Escape')
-    await page.locator('[data-subagent-action]').getByRole('button', { name: '1 subagent', exact: true }).click()
+    await page.locator('[data-subagent-action]').getByRole('button', { name: '1 subagent', exact: true }).press('ArrowDown')
     await page.getByRole('treeitem', { name: /Researcher/u }).waitFor()
     expect(await page.locator('[data-team-panel]').count()).toBe(0)
     expect(await page.locator('[data-subagent-panel]').evaluate(element => element.getBoundingClientRect().width)).toBe(360)
@@ -450,7 +450,7 @@ describe('web e2e: agent teamwork panel', () => {
     await toggle.click()
     await expect.poll(() => toggle.getAttribute('aria-checked')).toBe('true')
     await page.keyboard.press('Escape')
-    await page.locator('[data-subagent-action]').getByRole('button', { name: /subagents?$/u }).click()
+    await page.locator('[data-subagent-action]').getByRole('button', { name: /subagents?$/u }).press('ArrowDown')
     await page.locator('[data-subagent-panel]').getByText('Agent task', { exact: true }).waitFor()
     await page.keyboard.press('Escape')
   })
@@ -507,13 +507,13 @@ describe('web e2e: agent teamwork panel', () => {
       expect(await panel.count()).toBe(0)
       await countTooltip.waitFor({ state: 'visible' })
       expect(await panel.count()).toBe(0)
-      await trigger.click()
+      await trigger.press('ArrowDown')
       await panel.waitFor()
       expect(await trigger.getAttribute('aria-expanded')).toBe('true')
       expect(await page.getByRole('tooltip', { name: '1 subagent', exact: true }).count()).toBe(0)
       await panel.getByRole('treeitem', { name: /Researcher/u }).waitFor()
       await panel.locator('[data-team-task]').getByRole('button', { expanded: false }).waitFor()
-      await trigger.click()
+      await page.keyboard.press('Escape')
       await panel.waitFor({ state: 'detached' })
       expect(await trigger.getAttribute('aria-expanded')).toBe('false')
       await trigger.press('ArrowDown')
@@ -536,7 +536,7 @@ describe('web e2e: agent teamwork panel', () => {
     const panel = page.locator('[data-subagent-panel]')
     const trigger = page.locator('[data-subagent-action]').getByRole('button', { name: /subagents?$/u })
     const viewport = page.viewportSize()!
-    await trigger.click()
+    await trigger.press('ArrowDown')
     await panel.getByRole('heading', { name: /Shared tasks/u }).waitFor()
     try {
       for (const size of [{ width: 760, height: 540 }, { width: 600, height: 420 }, { width: 390, height: 700 }]) {
@@ -645,7 +645,7 @@ describe('web e2e: agent teamwork panel', () => {
     onTestFinished(() => page.setViewportSize(viewport))
     // Constrain the menu so closed and expanded task rows both exercise its scrollbar.
     await page.setViewportSize({ width: viewport.width, height: 540 })
-    await trigger.click()
+    await trigger.press('ArrowDown')
     await row.waitFor()
     expect(await panel.evaluate(element => element.getBoundingClientRect().width)).toBe(360)
     expect(await board.locator('[data-team-task-details], article').count()).toBe(0)
@@ -821,7 +821,7 @@ describe('web e2e: agent teamwork panel', () => {
 
   it('removes both section headings and the board divider when the last shared task is deleted', async () => {
     const agent = scaffold.ctx.agents.list()[0]!
-    await page.getByRole('button', { name: '1 subagent', exact: true }).click()
+    await page.getByRole('button', { name: '1 subagent', exact: true }).press('ArrowDown')
     const panel = page.locator('[data-subagent-panel]')
     await panel.locator('[data-team-panel]').waitFor()
     for (const task of scaffold.ctx.agentTeams.listTasks(agent).toReversed()) {

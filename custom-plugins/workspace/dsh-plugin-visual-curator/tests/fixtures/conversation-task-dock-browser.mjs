@@ -27,7 +27,10 @@ async (page) => {
   await resize.focus(); await page.keyboard.press('Home'); assert((await dock.boundingBox()).width === 280, 'The keyboard minimum must fit the side column')
   await page.keyboard.press('ArrowLeft'); assert((await dock.boundingBox()).width === 304, 'The rail must grow with the task width preference')
   await page.keyboard.press('End')
-  const resized = await page.evaluate(() => ({ task: document.querySelector('[data-conversation-task]').getBoundingClientRect().width, chat: document.querySelector('[data-conversation-scroll]').getBoundingClientRect().width }))
+  const resized = await page.evaluate(() => {
+    const scroll = document.querySelector('[data-conversation-scroll]')
+    return { task: document.querySelector('[data-conversation-task]').getBoundingClientRect().width, chat: scroll.clientWidth - parseFloat(getComputedStyle(scroll).paddingInlineEnd) }
+  })
   assert(resized.task === 640 && resized.chat >= 584, 'A wider rail must preserve the readable transcript width')
   await resize.dblclick()
   await dock.getByRole('button', { name: '收起结果', exact: true }).focus(); await page.keyboard.press('Escape')
@@ -86,8 +89,21 @@ async (page) => {
   assert(metricLayout.every(Boolean), 'Values must sit above labels without overlap')
   for (const width of [920, 1130, 1288]) {
     await page.setViewportSize({ width, height: 900 }); await dock.waitFor()
-    const columns = await page.evaluate(() => { const chat = document.querySelector('[data-conversation-scroll]'), rail = document.querySelector('[data-conversation-body-overlay]'); return { chat: chat.getBoundingClientRect(), rail: rail.getBoundingClientRect(), overflow: chat.scrollWidth > chat.clientWidth + 1 } })
-    assert(columns.chat.width >= 584 && columns.rail.width >= 280 && columns.chat.right <= columns.rail.left && !columns.overflow, 'Intermediate widths must fit both columns without hiding tasks or scrolling horizontally')
+    const layout = await page.evaluate(() => {
+      const scroll = document.querySelector('[data-conversation-scroll]')
+      const body = scroll.closest('[data-conversation-content]')
+      const rail = body.querySelector('[data-conversation-body-overlay]')
+      const bounds = scroll.getBoundingClientRect()
+      const usableWidth = scroll.clientWidth - parseFloat(getComputedStyle(scroll).paddingInlineEnd)
+      return {
+        usableWidth, railWidth: rail.getBoundingClientRect().width,
+        rightGap: body.getBoundingClientRect().right - bounds.right,
+        railGap: rail.getBoundingClientRect().left - (bounds.left + usableWidth),
+        overflow: scroll.scrollWidth > scroll.clientWidth + 1,
+      }
+    })
+    assert(layout.usableWidth >= 575 && layout.railWidth >= 280 && Math.abs(layout.rightGap) < 1
+      && layout.railGap >= 8 && !layout.overflow, 'Both task cards must fit beside the transcript with its scrollport at the right edge')
   }
   await resize.focus(); await page.keyboard.press('Home')
   assert((await dock.boundingBox()).width === 280, 'The minimum task width must remain usable')

@@ -37,14 +37,6 @@
   margin-inline: auto;
 }
 
-/* Only the painted table outranks Conversation's z-index 0 width handle. The
-   full-width scroll wrapper and its transparent alignment padding stay below,
-   so a fitting four-column table does not disable the surrounding gutter. */
-.body :global(.md-table-wide) > table {
-  position: relative;
-  z-index: 1;
-}
-
 /* hidden="until-found" keeps a zero-height reasoning box in flex layout, and
    so does the class-less wrapper of a reasoning block whose row renders
    nothing (signature-only reasoning has no display text). Cancel the one gap

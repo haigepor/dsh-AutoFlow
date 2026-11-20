@@ -3,11 +3,15 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { SubagentCatalogAction, SubagentHeaderLineage, type SubagentCatalogInjected, type SubagentCatalogActionInjected } from './SubagentHeaderLineage.tsx'
+import {
+  SubagentCatalogAction, SubagentCatalogFooter, SubagentCatalogSidebar, SubagentHeaderLineage,
+  type SubagentCatalogInjected, type SubagentCatalogActionInjected,
+} from './SubagentHeaderLineage.tsx'
 import {
   SubagentReadOnlyComposer, type SubagentReadOnlyMatch,
 } from './SubagentReadOnlyComposer.tsx'
 import { registerSidebarChat, subagentChatAddress } from './sidebar-chat/index.tsx'
+import { SUBAGENT_CATALOG_KIND } from './slots.ts'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -49,9 +53,6 @@ function selectReadOnlySubagent(owner: ComposerChainProps): SubagentReadOnlyMatc
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-subagent: dictionaries')
-  ctx.inject(['resources', 'sidebarRightTabs'], (scope) => {
-    registerSidebarChat(scope, ctx.locale.bind(NS))
-  })
   const catalogActions = (_parentSessionId: SessionId): SubagentCatalogInjected => ({
     openChild(address: SubagentAddress) {
       ctx.uiWorkspace.openSession(address)
@@ -61,6 +62,9 @@ export function apply(ctx: ClientContext): void {
         kind: 'subagentchat',
         preferNewPane: true,
       })
+    },
+    openCatalogSidebar() {
+      ctx.sidebarRight.openTab(SUBAGENT_CATALOG_KIND)
     },
     async prepareCatalog(parentSessionId: SessionId) {
       await ctx.sessions.refreshProjections(parentSessionId)
@@ -83,6 +87,29 @@ export function apply(ctx: ClientContext): void {
     getSnapshot: () => ctx.slots.entries('conversation.session.header.actions.subagent.footer').length > 0,
     subscribe: (listener: () => void) => ctx.slots.subscribe('conversation.session.header.actions.subagent.footer', listener),
   }
+  ctx.effect(() => ctx.slots.registerFactory({
+    name: 'subagent.catalog.footer',
+    scope: 'session',
+    children: { 'conversation.session.header.actions.subagent.footer': { kind: 'list', scope: 'session' } },
+  }, SubagentCatalogFooter), 'ui-subagent: shared catalog footer')
+  ctx.inject(['resources', 'sidebarRightTabs'], (scope) => {
+    const t = ctx.locale.bind(NS)
+    const id = `${SUBAGENT_CATALOG_KIND}/builtin`
+    registerSidebarChat(scope, t)
+    scope.effect(() => scope.sidebarRightTabs.register({
+      id,
+      kind: SUBAGENT_CATALOG_KIND,
+      priority: 'builtin',
+      title: () => t('section.title'),
+      keepMounted: true,
+    }), 'ui-subagent: sidebar catalog type')
+    scope.effect(() => scope.slots.inject('sidebar.right.pane.tab', () => scope.slots.register({
+      name: 'sidebar.right.pane.tab',
+      key: id,
+      locale: NS,
+      inject: sessionId => ({ prepareCatalog: catalogActions(sessionId).prepareCatalog }),
+    }, SubagentCatalogSidebar)), 'ui-subagent: sidebar catalog body')
+  })
   ctx.slots.inject(
     'conversation.session.header.lineage',
     () => ctx.slots.register({
@@ -102,7 +129,6 @@ export function apply(ctx: ClientContext): void {
       inject: (sessionId): SubagentCatalogActionInjected => ({
         ...catalogActions(sessionId), hooks: { footerAvailable },
       }),
-      children: { 'conversation.session.header.actions.subagent.footer': { kind: 'list', scope: 'session' } },
     }, SubagentCatalogAction),
   )
   ctx.slots.inject(

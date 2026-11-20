@@ -8,7 +8,7 @@ const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
 /**
  * Render the existing main Conversation frame around the extracted content.
  * @param props - the original `main.conversation` Slot props.
- * @returns the unchanged root, Header, content, and width-control subtree.
+ * @returns the main Header and content with automatic transcript sizing.
  */
 export function ConversationMainPanel(props: ConversationSlotProps) {
   const { sessionId, useSession, useSessions, useConversation, renderSlot, renderFactorySlot } = props

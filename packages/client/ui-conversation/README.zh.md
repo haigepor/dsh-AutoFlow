@@ -109,7 +109,7 @@ root 作用域的 `conversation.session.header.views.actions` list 有注册项�
 
 工作区选择使用 `uiWorkspace.openWorkspace` 准备目标并提交导航。草稿内容（包括结构化引用）和附件仅在该请求仍为当前请求、且没有在途提交时，通过它的同步准备回调搬移；后续导航、所有者释放或在途提交都会把原草稿留在它的 Session 中。
 
-本包占据 root 作用域 `main` 中的 `conversation` key。其 `main.conversation` 外壳将常驻的 `conversation.header` 放在可选 Session 的 `conversation.content` Component Factory 外。未选中 Session 时，头部仍承载根作用域导航；标题、操作和 View 标签保留在严格 Session 子组件中。Factory 拥有共享正文与 Composer，通过其标准 Hook 读取当前 Session，并公开 strict-Session `views` 与 root-scoped `widthControls` 两个局部位置。默认 adapter 渲染现有 `conversation.session` entry，主 occurrence 选择宽度拖拽条；嵌入式 occurrence 可以替换 `views`、省略拖拽条，且不渲染主 Header。共享正文与 Composer 注册 queue dock 和 Todo dock。Todo dock 在 composer 上方使用共享面板 elevation；其中的行分别以共享 idle、ongoing 与 done 标记表示待处理、进行中与已完成。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
+本包占据 root 作用域 `main` 中的 `conversation` key。其 `main.conversation` 外壳将常驻的 `conversation.header` 放在可选 Session 的 `conversation.content` Component Factory 外。未选中 Session 时，头部仍承载根作用域导航；标题、操作和 View 标签保留在严格 Session 子组件中。Factory 拥有共享正文与 Composer，通过其标准 Hook 读取当前 Session，并公开 strict-Session `views` 与 root-scoped `widthControls` 两个局部位置。默认 adapter 渲染现有 `conversation.session` entry，主对话自动调整宽度。嵌入式 occurrence 可以替换 `views`，并按自己的容器宽度布局。共享正文与 Composer 注册 queue dock 和 Todo dock。Todo dock 在 composer 上方使用共享面板 elevation；其中的行分别以共享 idle、ongoing 与 done 标记表示待处理、进行中与已完成。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
 
 blank Session 保留 header 的 leading 与 corner 控件，包括右侧栏展开入口，同时隐藏标题、actions、utilities 和 View tabs。选择 Workspace 会创建这些控件所需的 Session，无需先发送消息。没有选中 Session 时，strict header 不挂载；常驻 header 在 macOS 桌面保留 40px 的窗口顶条，由它自己作为拖拽行持有，在 Web、Windows 或 Linux 上不预留空白高度。侧栏各入口仍遵循自身的数据与执行环境要求。已开始的 Session 在可用 View 少于两个时使用单行标题栏；否则，面包屑左侧的箭头按钮通过共享主题动画收起或展开标签行。收起回收标签行高度，并让标签退出键盘与无障碍导航，不改变当前选中的 View 或正文。头部挂载时标签栏默认展开；减少动态效果时取消过渡。 标题与 actions 放不下时，标题区域会裁剪它们，并在 utilities 之前渐隐其末端；utilities 始终完整可见且可点击；标题与 actions slot 中的浮层通过 portal 渲染，不受该裁剪影响。
 
@@ -119,11 +119,9 @@ View 选择规则固定：有效且已注册的持久化选择优先，其次是
 
 Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染前读取持久化 View 偏好，激活已注册的偏好 View 或 Chat fallback，并在后续 tab 或 focus 选择写入 store 前先激活对应 target。blank Session 仍不渲染 `conversation.view` slot；未选中的 target 不会激活。
 
-主 occurrence 的活跃 transcript 只在未被内容覆盖的两侧沟槽中提供正文宽度拖拽条；嵌入式 occurrence 省略这些拖拽条。View 如果绘制进沟槽，只将具体的可见元素提到拖拽条上方；透明的全宽包装层保持在下方，不会占用空白沟槽。该规则要求此元素与 Conversation body 之间不能引入中间堆叠上下文；浏览器场景固定了交付 Chromium 的行为。Chat 将该规则用于表格元素，其限定在阅读列内的工具卡片无需提高层级。指针位于拖拽条上时，滚轮仍会滚动 transcript，Ctrl+滚轮则保留为浏览器缩放手势。拖拽条滚动的是 body 内第一个 `[data-conversation-scroll]` 元素；即使有 frame 层包在外面，它也是 body 自己的滚动区。粘滞 composer 拥有完整的底部区带，该区域不是宽度调整目标；已捕获的拖拽会在该区带和沟槽中的表格下方继续，此时指示线被它们遮住。在活跃 transcript 中，即使没有 View 撑满整列，composer 也停在滚动区底部；它在所有状态下保持同一层级，高于 transcript 的吸顶标题与“回到底部”按钮，因此它向上打开的菜单会盖住该按钮；它也从不作为滚动锚定目标。无论下方是什么内容，它都保持自己的合成层，因此成为 fixed 定位后代的包含块：向 `conversation.composer`、`conversation.composer.bar`、`conversation.composer.dock`、`conversation.input.dock` 以及其他 `conversation.input.*` slot 贡献的内容，必须把 fixed 浮层 portal 到 document body，例如使用 `Tooltip` 或 `Menu` 的 `portal`，或 `createPortal`（[拖动手柄与 composer 样式](src/client/skeleton/ConversationRoot.module.css)）。
+主对话按侧栏和任务卡片占位后剩余的滚动区宽度调整正文与输入框。在活跃 transcript 中，即使没有 View 撑满整列，composer 也停在滚动区底部；它在所有状态下保持同一层级，高于 transcript 的吸顶标题与“回到底部”按钮，因此它向上打开的菜单会盖住该按钮；它也从不作为滚动锚定目标。无论下方是什么内容，它都保持自己的合成层，因此成为 fixed 定位后代的包含块：向 `conversation.composer`、`conversation.composer.bar`、`conversation.composer.dock`、`conversation.input.dock` 以及其他 `conversation.input.*` slot 贡献的内容，必须把 fixed 浮层 portal 到 document body，例如使用 `Tooltip` 或 `Menu` 的 `portal`，或 `createPortal`（[composer 样式](src/client/skeleton/ConversationRoot.module.css)）。
 
-宽度拖拽条的指示线只在已捕获指针的拖拽期间跟随指针，普通悬停不改变其位置。
-
-任务清单胶囊通过 `conversation.body.overlay` 位于当前 Session 的 body 内，在正文滚动区域之外。宽度取决于右侧空白；该容器不足 280px 时隐藏，包括宽窗口中的窄嵌入会话。展开后保留完整任务文本并限制滚动高度；Escape 收起并恢复按钮焦点。切换 Session 会重置胶囊的本地展开状态。 外层侧边空白容器决定显示条件；内部靠右的纵向列占满可用 body 高度，各贡献者可分配剩余高度并保留独立宽度。任务胶囊最大保持 300px，纵向列的空白区域不拦截指针操作。
+宽度达到 920px 的对话会将 `conversation.body.overlay` 中可见的任务卡片靠右纵向排列。正文滚动条贴在对话区右边缘，滚动区内部按最宽的卡片预留空间。任务清单胶囊展开时保持宽度，列表可独立滚动。Escape 收起胶囊并恢复按钮焦点，切换 Session 会重置胶囊的展开状态。
 
 `conversation.input.dock` 保留插件条目。`conversation.input.context` 提供输入框上方的共享实色顶栏：QueueDock 的 order 为 0，GoalBar 为 100，目标始终在队列下方。容器复用首页工作区栏的内缩宽度、顶部圆角与背景，抵消 active composer 的堆栈间距并叠入卡片上沿 10px；空槽不占高度。队列正文限高 180px 并独立滚动，目标位于滚动区之外。展开和收起复用 `AnimatedCollapse` 的高度、透明度及箭头过渡，收起立即设置 `inert` 和 `aria-hidden`，退出完成后卸载正文；快速反转保留内容，减少动态效果时取消过渡。
 

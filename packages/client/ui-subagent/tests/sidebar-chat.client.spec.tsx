@@ -150,7 +150,7 @@ describe('Sidebar chat components', () => {
     const SessionProvider = vi.fn(({ children }: { children: ReactNode }) => <>{children}</>)
     const renderSlot = vi.fn(() => <span>child conversation</span>)
     const props = {
-      useTabInfo: () => ({ tab: { contentId: subagentChatAddress(ADDRESS) } }),
+      useTabInfo: () => ({ tab: { contentId: subagentChatAddress(ADDRESS), navigation: { params: undefined } } }),
       useResource: () => snapshot,
       SessionProvider,
       renderSlot,

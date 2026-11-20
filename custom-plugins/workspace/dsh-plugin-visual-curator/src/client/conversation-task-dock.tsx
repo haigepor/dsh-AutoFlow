@@ -54,7 +54,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
     const visible = !!task || !!launch || !!tasks?.error
     React.useLayoutEffect(() => {
       const node = card.current, body = node?.closest<HTMLElement>('[data-conversation-content]')
-      if (!node || !body) return
+      if (!node || !body || body.hasAttribute('data-conversation-task-rail')) return
       const property = '--vc-task-card-width', previous = body.style.getPropertyValue(property)
       let owned = ''
       const update = () => {

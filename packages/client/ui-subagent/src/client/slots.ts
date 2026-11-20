@@ -1,4 +1,7 @@
-/** Extension position below the root conversation's subagent catalog. */
+/** Catalog navigation and the shared footer contribution. */
+
+/** Right-sidebar page kind scoped to the parent Session. */
+export const SUBAGENT_CATALOG_KIND = 'subagentcatalog'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -8,6 +11,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session'
     }
   }
-}
 
-export {}
+  interface SlotFactoryMap {
+    /** Renders the same footer contributions in the preview and sidebar list. */
+    'subagent.catalog.footer': {
+      scope: 'session'
+      children: {
+        'conversation.session.header.actions.subagent.footer': { kind: 'list'; scope: 'session' }
+      }
+    }
+  }
+}

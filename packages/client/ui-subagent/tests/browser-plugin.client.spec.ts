@@ -115,11 +115,14 @@ describe('apply', () => {
     onTestFinished(() => ctx.fiber.dispose())
     ctx.slots.register({ name: 'conversation.session.header.actions.subagent.footer', id: 'test-content' }, () => null)
     const registerResource = vi.fn(() => () => {})
-    const registerTab = vi.fn(() => () => {})
+    const registerTab = vi.fn((_definition: object) => () => {})
     ctx.provide('resources', { register: registerResource } as never)
     ctx.provide('sidebarRightTabs', { register: registerTab } as never)
     await vi.waitFor(() => { expect(registerResource).toHaveBeenCalledOnce() })
-    expect(registerTab).toHaveBeenCalledOnce()
+    expect(registerTab.mock.calls).toEqual([
+      [expect.objectContaining({ kind: 'subagentchat' })],
+      [expect.objectContaining({ kind: 'subagentcatalog', keepMounted: true })],
+    ])
     expect(ctx.slots.entries('conversation.session.header.actions.subagent.footer')).toHaveLength(1)
   })
 

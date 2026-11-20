@@ -195,8 +195,21 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   --dsh-scrollbar-track-margin: 6px;
+}
+
+.sidebarCatalog {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 8px;
 }
 
 /* Keep the shared WebKit scrollbar in the menu's right inset, not its content column. */
@@ -388,10 +401,17 @@
   line-height: 15px;
   display: grid;
   grid-template-rows: 17px 15px;
-  flex: none;
+  flex: 0 0 min(76px, 26%);
+  min-width: 0;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+}
+
+.metricToken,
+.metricDuration {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metricToken {
@@ -416,6 +436,12 @@
   display: grid;
   place-items: center;
   color: var(--dsw-alias-label-primary);
+}
+
+.sidebarCatalog .sidebarSpace {
+  display: grid;
+  place-items: center;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .sidebarButton {

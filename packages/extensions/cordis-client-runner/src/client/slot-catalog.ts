@@ -2357,13 +2357,13 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     keyDomain: '',
     hookContext: '',
     slotInject: '',
-    declaredBy: 'an entry in \'conversation.session.header.actions\' (client-ui-subagent), so it exists while that entry is mounted',
+    declaredBy: 'factory \'subagent.catalog.footer\' (client-ui-subagent), so it exists while that definition is registered',
     occupants: [
       'client-ui-agent-team TeamBoard id \'agent-team\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.session.header.actions.subagent.footer\', () => ctx.slots.register(\n      { name: \'conversation.session.header.actions.subagent.footer\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-subagent/src/client/slots.ts:6',
+    source: 'packages/client/ui-subagent/src/client/slots.ts:9',
   },
   {
     key: 'conversation.session.header.corner',
@@ -4600,7 +4600,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.chat.conversation\', () => ctx.slots.register(\n      { name: \'sidebar.chat.conversation\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-subagent/src/client/sidebar-chat/index.tsx:42',
+    source: 'packages/client/ui-subagent/src/client/sidebar-chat/index.tsx:51',
   },
   {
     key: 'sidebar.footer.action',
@@ -4815,6 +4815,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-sidebar-files FilesBody',
       'client-ui-sidebar-right GuideBody',
       'client-ui-sidebar-terminal LazyTerminalBody',
+      'client-ui-subagent SubagentCatalogSidebar',
       'client-ui-subagent SidebarChatTab',
       'experimental-client-ui-forge ForgeTab',
       'experimental-client-ui-forge ChangesTab',
