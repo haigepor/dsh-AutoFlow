@@ -15,6 +15,7 @@ import { wallpaperRepairMask, wallpaperSourceRepairNeeded } from '../src/media/w
 const expected = JSON.parse(await readFile(new URL('./fixtures/wallpaper-source-intent-layout.expected.json', import.meta.url), 'utf8'))
 const source = { width: 1845, height: 3280 }
 const settings = wallpaperSettingsSchema.parse({ repairPolicy: {}, sourceFrameRepair: { enabled: true, marginPixels: 128 }, processing: resolveWallpaperProcessing() })
+const savedSettings = wallpaperSettingsSchema.parse({ ...settings, processing: { layoutInsetPixels: 24, reviewStages: 'final-only-v1', acceptance: { version: 'practical-v2' }, sourcePreservation: false } })
 const policy: WallpaperSourceLayout = { version: 'source-intent-v1', minimumSubjectScaleRatio: 0.9 }
 
 test('a small cropped painting fills more of the unchanged safe area while its original left and bottom cuts remain on the final frame', async () => {
@@ -234,8 +235,8 @@ test('a wide portrait can crop secondary background while centering the complete
   assert.ok(old.scale < 1.28 && old.left >= 0)
 })
 
-test('a final review rejects displacement inside the safe area and a body crossing it despite an inside focus', () => {
-  const settings = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: subjectFill })
+test('a saved final review rejects displacement inside the safe area and a body crossing it despite an inside focus', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...savedSettings, sourceIntentPolicy: subjectFill })
   const observed = widePortrait()
   const placement = fitWallpaperPlacement(wideSource, observed, settings, 'subject-first-v2', [], subjectFill)
   const reference = wallpaperPositionedLayout({ ...observed, placement }, wideSource, settings, subjectFill)
@@ -253,8 +254,8 @@ test('a final review rejects displacement inside the safe area and a body crossi
   assert.ok(measure(tenPercentOutside).includes('subject-overflow:Potter'))
 })
 
-test('a cropped portrait measures the same focus while its complete visible body stays protected', () => {
-  const settings = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: subjectFill })
+test('a saved cropped portrait measures the same focus while its complete visible body stays protected', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...savedSettings, sourceIntentPolicy: subjectFill })
   const plannedFocus = { x: 0.312, y: 0.429, width: 0.47, height: 0.242 }
   const body = { name: 'Potter', entityId: 'potter', role: 'subject' as const, scope: 'core' as const,
     rect: { x: 0.282, y: 0.441, width: 0.391, height: 0.271 }, layoutFocus: { x: 0.334, y: 0.441, width: 0.338, height: 0.269 } }
@@ -428,16 +429,16 @@ test('V2 size retention measures the main extent instead of treating a different
   assert.ok(wallpaperActualBoundary({ ...layout, regions: [shrunken] }, 'single', settings, current).hard.includes('subject-too-small:Violin'))
 })
 
-test('an original-only lighthouse measurement excludes planned grass without relaxing actual size, position, shape or safety', () => {
+test('a saved original-only lighthouse measurement excludes planned grass without relaxing actual size, position, shape or safety', () => {
   const entityId = 'lighthouse', name = 'Lighthouse'
   const source = { width: 1024, height: 1536 }, placement = { scale: 1.1098632339130314, left: 709, top: 1041 }
-  const planned = { x: 789.656 / settings.width, y: 1182.515 / settings.height, width: 264.688 / settings.width, height: 1384.46 / settings.height }
+  const planned = { x: 789.656 / savedSettings.width, y: 1182.515 / savedSettings.height, width: 264.688 / savedSettings.width, height: 1384.46 / savedSettings.height }
   const initial = { ...protectedFill, expectedSubjects: [{ entityId, rect: planned, wholeRect: planned }] }
   const rect = { x: 0.439, y: 0.362, width: 0.126, height: 0.306 }
   const original = { entityId, name, role: 'primary' as const, safetyClass: 'general' as const, rect: { x: 0.071, y: 0.083, width: 0.233, height: 0.812 }, sourceEdges: [], sourceIntent: { ...visible, framing: 'whole' as const, visibility: 'visible' as const }, evidence: 'A complete white tower on the coast.' }
   const actual = { entityId, name, rect, role: 'subject' as const, scope: 'core' as const, safetyClass: 'general' as const }
   const layout = { imageVersionId: 'final', regions: [actual] }
-  const failed = wallpaperActualBoundary(layout, 'single', settings, initial).hard
+  const failed = wallpaperActualBoundary(layout, 'single', savedSettings, initial).hard
   assert.deepEqual(failed, ['subject-too-small:Lighthouse', 'subject-center-drift:4,-186'])
   const targets = wallpaperSourceMeasurementTargets({ objectRoles: [original] }, initial, failed)
   assert.deepEqual(targets, [{ entityId, name }])
@@ -449,19 +450,19 @@ test('an original-only lighthouse measurement excludes planned grass without rel
   assert.equal(schema.safeParse({ sourceImageVersionId: 'final', measurements: [measurement] }).success, false)
   assert.equal(schema.safeParse({ sourceImageVersionId: 'original', measurements: [{ ...measurement, entityId: 'grass' }] }).success, false)
   const evidence = schema.parse({ sourceImageVersionId: 'original', measurements: [measurement] })
-  const corrected = wallpaperMeasuredSourceLayout(initial, evidence, source, placement, settings)
+  const corrected = wallpaperMeasuredSourceLayout(initial, evidence, source, placement, savedSettings)
   assert.notEqual(corrected, initial)
-  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, corrected).hard, [])
-  const assess = (rect: typeof actual.rect) => wallpaperActualBoundary({ ...layout, regions: [{ ...actual, rect }] }, 'single', settings, corrected).hard
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', savedSettings, corrected).hard, [])
+  const assess = (rect: typeof actual.rect) => wallpaperActualBoundary({ ...layout, regions: [{ ...actual, rect }] }, 'single', savedSettings, corrected).hard
   assert.ok(assess({ ...rect, x: rect.x + rect.width / 4, y: rect.y + rect.height / 4, width: rect.width / 2, height: rect.height / 2 }).includes('subject-too-small:Lighthouse'))
   assert.ok(assess({ ...rect, x: rect.x + 0.09 }).some(code => code.startsWith('subject-center-drift:')))
   assert.ok(assess({ ...rect, width: 0.06 }).includes('subject-aspect-changed:Lighthouse'))
   assert.ok(assess({ ...rect, y: 0.24 }).includes('subject-overflow:Lighthouse'))
   const unknown = schema.parse({ sourceImageVersionId: 'original', measurements: [{ entityId, result: 'unknown', reason: 'The base is obscured.' }] })
-  assert.equal(wallpaperMeasuredSourceLayout(initial, unknown, source, placement, settings), initial)
+  assert.equal(wallpaperMeasuredSourceLayout(initial, unknown, source, placement, savedSettings), initial)
   const unrelated = schema.parse({ sourceImageVersionId: 'original', measurements: [{ ...measurement, rect: { x: 0.7, y: 0.1, width: 0.2, height: 0.5 } }] })
-  assert.equal(wallpaperMeasuredSourceLayout(initial, unrelated, source, placement, settings), initial)
-  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, initial).hard, failed)
+  assert.equal(wallpaperMeasuredSourceLayout(initial, unrelated, source, placement, savedSettings), initial)
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', savedSettings, initial).hard, failed)
 })
 
 test('source remeasurement attributes size and aspect failures to the affected frozen subjects', () => {
@@ -489,7 +490,7 @@ test('source remeasurement attributes size and aspect failures to the affected f
   assert.deepEqual(targets([`subject-relative-scale:${pair}`]), [])
 })
 
-test('mixed size and boundary failures remeasure the same dessert without counting its independent serving plate', () => {
+test('saved mixed size and boundary failures remeasure the same dessert without counting its independent serving plate', () => {
   const sourceIntent = { ...visible, framing: 'whole' as const, visibility: 'visible' as const }
   const subject = { name: 'Jelly', entityId: 'jelly', role: 'primary' as const, safetyClass: 'general' as const,
     evidence: 'Two molded desserts sit on a scalloped dish.', sourceIntent, sourceEdges: [], rect: { x: 0.57, y: 0.58, width: 0.34, height: 0.2 } }
@@ -499,7 +500,7 @@ test('mixed size and boundary failures remeasure the same dessert without counti
   const measured = { ...attributed, rect: body }
   const planned = { ...protectedFill, expectedSubjects: [{ entityId: subject.entityId, rect: subject.rect, wholeRect: subject.rect }] }
   const plan = { objectRoles: [subject] }
-  const assess = (region: typeof measured, reference: WallpaperSourceLayout = planned) => wallpaperActualBoundary({ imageVersionId: 'candidate', regions: [region] }, 'single', settings, reference).hard
+  const assess = (region: typeof measured, reference: WallpaperSourceLayout = planned) => wallpaperActualBoundary({ imageVersionId: 'candidate', regions: [region] }, 'single', savedSettings, reference).hard
   const failures = assess(coarse)
   assert.ok(failures.includes('subject-too-small:Dessert'))
   assert.ok(failures.includes('subject-overflow:Dessert'))
@@ -509,7 +510,7 @@ test('mixed size and boundary failures remeasure the same dessert without counti
   assert.deepEqual(wallpaperSourceMeasurementTargets(plan, planned, ['subject-overflow:Dessert'], [coarse], true), [])
   assert.deepEqual(wallpaperSourceMeasurementTargets(plan, planned, [...failures, 'automobile-outside:Car'], [coarse], true), [])
   const evidence = wallpaperSourceMeasurementSchema('source', targets).parse({ sourceImageVersionId: 'source', measurements: [{ entityId: subject.entityId, result: 'measured', rect: body, reason: 'The fruit jelly ends before the outer lip of the serving dish.' }] })
-  const confirmed = wallpaperMeasuredSourceLayout(planned, evidence, settings, { scale: 1, left: 0, top: 0 }, settings)
+  const confirmed = wallpaperMeasuredSourceLayout(planned, evidence, savedSettings, { scale: 1, left: 0, top: 0 }, savedSettings)
   assert.notEqual(confirmed, planned)
   assert.deepEqual(assess(measured, confirmed), [])
   assert.ok(assess(coarse, confirmed).includes('subject-overflow:Dessert'), 'Source recalibration cannot clear actual output overflow')
@@ -566,15 +567,15 @@ test('one source measurement can recalibrate both a primary and its visible acti
   assert.equal(layout.expectedActionParts[0]?.rect.width, fruit.rect.width)
 })
 
-test('actual output focus drives new layout checks while full bodies and complete automobiles remain independently recorded', () => {
+test('actual output focus drives saved layout checks while full bodies and complete automobiles remain independently recorded', () => {
   const layoutFocus = { x: 0.3, y: 0.42, width: 0.25, height: 0.3 }
   const person = { name: 'Person', entityId: 'person', role: 'subject' as const, scope: 'core' as const, rect: { x: 0.2, y: 0.25, width: 0.65, height: 0.7 }, layoutFocus }
   const layout = { imageVersionId: 'output', regions: [person] }, before = structuredClone(layout)
-  assert.ok(wallpaperActualBoundary(layout, 'single', settings).hard.includes('subject-overflow:Person'))
-  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, { ...policy, expectedSubjects: [{ entityId: 'person', rect: layoutFocus }] }).hard, [])
+  assert.ok(wallpaperActualBoundary(layout, 'single', savedSettings).hard.includes('subject-overflow:Person'))
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', savedSettings, { ...policy, expectedSubjects: [{ entityId: 'person', rect: layoutFocus }] }).hard, [])
   assert.deepEqual(layout, before)
   const car = { ...person, name: 'Automobile', safetyClass: 'automobile' as const }
-  assert.ok(wallpaperActualBoundary({ imageVersionId: 'output', regions: [car] }, 'single', settings, policy).hard.includes('automobile-outside:Automobile'))
+  assert.ok(wallpaperActualBoundary({ imageVersionId: 'output', regions: [car] }, 'single', savedSettings, policy).hard.includes('automobile-outside:Automobile'))
 })
 
 test('new source intent authorizes only confirmed whole damaged structures, not partial views, occlusion or unknown source facts', () => {

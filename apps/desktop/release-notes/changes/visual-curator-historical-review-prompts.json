@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-historical-review-prompts",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator resumes saved wallpaper jobs with their original review instructions and measures whole-subject placements using the planned outline.",
+    "zh-CN": "视觉策展恢复历史壁纸任务时沿用原有复审提示词。按完整主体定位的历史任务会按同一轮廓核对中心。"
+  }
+}

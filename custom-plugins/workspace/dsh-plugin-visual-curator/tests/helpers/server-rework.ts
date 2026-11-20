@@ -15,8 +15,9 @@ export function serverReworkScenario(root: string) {
     return saved
   }
   llm.startImageGeneration = async request => {
-    assert.equal(request.references?.length, 3)
-    assert.ok(request.id && request.mask)
+    assert.equal(request.references?.length, 1)
+    assert.equal(request.mask, undefined)
+    assert.ok(request.id)
     assert.equal(generations.has(request.id), false)
     const bytes = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: generations.size ? '#536f53' : '#1c3020' } }).png().toBuffer()
     const original = await attachments.saveFile({ data: bytes, name: 'isolated-background.png' })

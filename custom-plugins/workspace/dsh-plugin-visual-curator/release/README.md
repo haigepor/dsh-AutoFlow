@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Visual Curator 0.2.31 measures attached foliage, tails, bumpers and table bases during wallpaper review. Rework checks whether the original framing fits the safe area, and reviewing a saved candidate uses the selected image.
+Visual Curator 0.2.32 resumes saved wallpaper jobs with their original review instructions. When a saved placement uses the whole subject, review measures its center using the same outline. New jobs check the entire image for seams and include attached foliage, tail tips and bumpers in safe-area measurements.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

@@ -61,8 +61,9 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
       else if (Math.abs(x) > driftX || Math.abs(y) > driftY) warnings.push(finding)
     }
     const planned = sourceLayout.expectedSubjects ?? []
+    const centerRegions = expansion ? focus : core
     const observed = planned.flatMap(expected => {
-      const region = focus.find(region => region.role === 'subject' && region.entityId === expected.entityId)
+      const region = centerRegions.find(region => region.role === 'subject' && region.entityId === expected.entityId)
       return region ? [region.rect] : []
     })
     const targetGroup = wallpaperEnclosingRect(planned.map(expected => expected.rect))

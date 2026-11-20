@@ -120,6 +120,14 @@ test('historical complete-canvas prompt text is byte-identical unless source-int
   }
 })
 
+test('expansion review checks soft-edged collage seams outside the subject', () => {
+  const settings = wallpaperSettingsSchema.parse({ repairPolicy: {}, processing: resolveWallpaperProcessing() })
+  const review = completeCanvasWallpaperPrompts(settings).review.text
+  assert.match(review, /检查整幅实际像素，包括主体之外的承托、陪衬和背景/)
+  assert.match(review, /矩形或软边贴片/)
+  assert.match(review, /major collage-seam标出实际位置/)
+})
+
 test('current complete-canvas observation and review each receive the same source-intent requirements once', () => {
   for (const original of snapshot.legacyPromptHashes) {
     const legacy = completeCanvasWallpaperPrompts(original.settings), current = completeCanvasWallpaperPrompts(original.settings, true)
@@ -177,7 +185,7 @@ test('staged props stay visible without receiving safety geometry, while indepen
 })
 
 test('a seated singer requires an independent actual gesture box even when the measured person and microphone pass', () => {
-  const settings = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1', fill: { relativeLayout: {} } } })
+  const settings = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1', fill: { relativeLayout: {} } } })
   const prompts = completeCanvasWallpaperPrompts(settings, true, true)
   assert.equal(prompts.plan.version, 'wallpaper-plan-v12')
   assert.equal(completeCanvasWallpaperPrompts(settings, true).plan.version, 'wallpaper-plan-v8')
@@ -223,7 +231,7 @@ test('a seated singer requires an independent actual gesture box even when the m
   const output = (right: number, handRight: number) => ({
     reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v2', sourceImageVersionId: 'source', outputImageVersionId: 'finished', mode: 'single', subject: 'Seated singer',
     actualLayout: { regions: [
-      { entityId: 'singer', name: singer.name, role: 'subject', scope: 'core', rect: { x: 0.11, y: 0.43, width: 0.82, height: 0.57 }, layoutFocus: { x: 0.16, y: 0.43, width: right - 0.16, height: 0.3 } },
+      { entityId: 'singer', name: singer.name, role: 'subject', scope: 'core', rect: { x: 0.15, y: 0.38, width: right - 0.15, height: 0.44 }, layoutFocus: { x: 0.27, y: 0.43, width: 0.42, height: 0.3 } },
       { entityId: 'mic', name: mic.name, role: 'critical', scope: 'core', rect: { x: 0.34, y: 0.54, width: 0.16, height: 0.18 } },
       { entityId: 'free-hand', name: hand.name, role: 'critical', scope: 'core', rect: { x: 0.72, y: 0.5, width: handRight - 0.72, height: 0.16 } },
     ] }, defects: [], uncertainties: [], sourceStyle: check,
@@ -238,9 +246,9 @@ test('a seated singer requires an independent actual gesture box even when the m
   const slight = wallpaperActualBoundary({ ...inspect(0.87).actualLayout, imageVersionId: 'finished' }, plan.mode, settings, settings.sourceIntentPolicy)
   assert.deepEqual(slight.hard, [])
   assert.ok(slight.warnings.includes('core-outside:Seated singer'))
-  const handOutside = wallpaperActualBoundary({ ...inspect(0.84, 0.9).actualLayout, imageVersionId: 'finished' }, plan.mode, settings, settings.sourceIntentPolicy)
+  const handOutside = wallpaperActualBoundary({ ...inspect(0.87, 0.87).actualLayout, imageVersionId: 'finished' }, plan.mode, settings, settings.sourceIntentPolicy)
   assert.deepEqual(handOutside.hard, ['critical-outside:Open hand'])
-  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(inspect(0.84, 0.9), false, settings, settings.sourceIntentPolicy)), 'reject')
+  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(inspect(0.87, 0.87), false, settings, settings.sourceIntentPolicy)), 'reject')
   assert.equal(wallpaperVerdict(applyWallpaperSourceReview(inspect(0.87), false, settings, settings.sourceIntentPolicy)), 'pass')
 })
 

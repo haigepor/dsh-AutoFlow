@@ -1,3 +1,13 @@
+## Visual Curator 0.2.32
+
+- Resuming a wallpaper job uses the review instructions saved with its policy. New jobs continue to check the full image for seams and measure the complete visible subject.
+- Saved whole-subject placements compare planned and measured centers using the same outline.
+
+## Visual Curator 0.2.32 更新说明
+
+- 恢复历史壁纸任务时沿用原有复审提示词。新任务继续检查整幅图的拼接痕迹，并按主体完整可见轮廓核对安全区。
+- 历史规划按完整主体定位时，复审使用同一轮廓计算中心，避免将焦点偏移误判为主体移位。
+
 ## Visual Curator 0.2.31
 
 - Review checks the visible ends of each subject and preserves the stricter vehicle safety requirement. Rework checks framing before consuming an image edit.
