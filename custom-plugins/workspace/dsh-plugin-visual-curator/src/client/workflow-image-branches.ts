@@ -1,5 +1,5 @@
 /** Planning cards share one bounded page; immutable image identities survive navigation and task continuation. */
-import { wallpaperAttemptReview, wallpaperFailedStep, wallpaperVerdict, type WallpaperItem } from '../shared/wallpaper.ts'
+import { wallpaperAttemptReview, wallpaperCanProcessNative, wallpaperFailedStep, wallpaperVerdict, type WallpaperItem } from '../shared/wallpaper.ts'
 import type { WorkflowPhase } from './workflow-node-state.ts'
 import type { WallpaperStep } from './workflow-node-state.ts'
 import { wallpaperCanDecide } from './wallpaper-recovery.ts'
@@ -130,7 +130,7 @@ export function imageWorkflowStageReached(stage: ImageWorkflowStage, item: Wallp
   if (stage === 'planning') return !!attempt || item.status === 'planning' || failed === 'planning'
   if (stage === 'geometry') return !!attempt
   if (stage === 'rendering') return !!attempt && (!!attempt.canvasId || !!attempt.generation || !!attempt.outputId || !!attempt.nativeReviewCandidate || item.status === 'rendering' || failed === 'rendering')
-  if (stage === 'clarity') return !!attempt?.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' || !!imageWorkflowClarity(attempt) && !attempt?.preResolutionReview
+  if (stage === 'clarity') return wallpaperCanProcessNative(attempt) || !!imageWorkflowClarity(attempt) && !attempt?.preResolutionReview
   if (stage === 'reviewing') return !!attempt && (!!attempt.review || !!attempt.simulationId || !!attempt.nativeReviewCandidate || item.status === 'reviewing' || failed === 'reviewing')
   const review = wallpaperAttemptReview(attempt)
   return !!attempt?.outputId && !!review && wallpaperVerdict(review) === 'pass' && (!attempt.preResolutionReview || attempt.preResolutionReview.finalId === attempt.outputId)
@@ -246,7 +246,7 @@ export function imageWorkflowWindow(item: WallpaperItem | undefined, attempt = i
   const current: ImageWorkflowStage = !item?.originalId || failed === 'downloading' ? 'original'
     : failed === 'planning' || item.status === 'planning' || !attempt || attempt.checks.length || attempt.plan.mode === 'uncertain' ? 'planning'
     : item.status === 'reviewing' && boundaryPending || attempt.postResolutionReview && item.status !== 'passed' ? 'reviewing'
-    : attempt.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' && !attempt.preResolutionReview.finalId ? 'clarity'
+    : wallpaperCanProcessNative(attempt) && !attempt.preResolutionReview.finalId ? 'clarity'
     : attempt.clarity?.originalOutputId && !['not-needed', 'passed'].includes(attempt.clarity.status) ? 'clarity'
     : item.status === 'reviewing' && attempt.simulationId && !review ? 'reviewing'
     : failed === 'rendering' || item.status === 'rendering' && !attempt.preResolutionReview || !attempt.outputId && !attempt.preResolutionReview ? 'rendering'

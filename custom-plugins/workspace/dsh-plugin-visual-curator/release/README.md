@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Visual Curator 0.2.30 anchors outpainting to the planned canvas from the first request. A safety-area confirmation measures the same finished image with its safety guide. Final review accounts for the accepted subject scale when measuring a faithfully preserved action prop. Restart after active tasks finish to load the matching Host and Client.
+Visual Curator 0.2.31 measures attached foliage, tails, bumpers and table bases during wallpaper review. Rework checks whether the original framing fits the safe area, and reviewing a saved candidate uses the selected image.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

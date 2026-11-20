@@ -1,5 +1,5 @@
 /** The task bar and step dialog use the same current-image recovery decision. */
-import { wallpaperHasRendered, wallpaperImageWorkStatus, wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, wallpaperCompositionEligible, wallpaperReworkCount, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
+import { wallpaperHasRendered, wallpaperImageWorkStatus, wallpaperPendingDecision, wallpaperFailedStep, wallpaperReviewReworkAvailable, wallpaperCompositionEligible, wallpaperGenerationOutcomeUnknown, wallpaperGenerationRetryAvailable, wallpaperGenerationUnsent, applyWallpaperRecoveryLimits, type WallpaperItem, type WallpaperView } from '../shared/wallpaper.ts'
 import { wallpaperCanReinspectPlan } from '../shared/wallpaper-detail.ts'
 
 /** Recovery never targets an older selected revision. */
@@ -10,6 +10,13 @@ export function wallpaperCanQueueRetry(recovery: WallpaperRecovery, item: Wallpa
   if (!item || value.status !== 'running' && value.status !== 'created' || !['download', 'retry', 'receipt'].includes(recovery.kind)) return false
   return item.status === 'technical-failed' || item.status === 'needs-review' && recovery.kind === 'receipt' ||
     wallpaperImageWorkStatus(value, item.imageVersionId) === 'paused' && ['queued', 'downloading', 'planning', 'rendering', 'reviewing'].includes(item.status)
+}
+
+/** @param value Batch summary and per-image actionability from the Host. @returns Whether continuing can advance any image. */
+export function wallpaperBatchCanContinue(value: WallpaperView): boolean {
+  const unfinished = ['queued', 'downloading', 'planning', 'rendering', 'reviewing', 'technical-failed']
+  return value.itemIndex?.some(item => item.canContinue ?? unfinished.includes(item.status))
+    ?? unfinished.some(status => (value.counts[status] ?? 0) > 0)
 }
 
 /** Manual decisions target one current blocked source and never replace receipt or saved-review recovery.
@@ -52,8 +59,10 @@ export function wallpaperRecovery(value: WallpaperView, item: WallpaperItem | un
   if (item.status === 'rejected') return { kind: attempt?.outputId ? 'edit' : 'none' }
   if (attempt?.generation && !attempt.outputId && ['needs-review', 'technical-failed', 'cancelled', 'rendering'].includes(item.status)) {
     const receipt = value.generationReceipts?.[attempt.generation.id]
+    if (receipt === 'outcome-unknown' || receipt === undefined && wallpaperGenerationOutcomeUnknown(item)) return { kind: 'none' }
     if (receipt === 'failed' || receipt === 'cancelled') {
-      return item.edits < value.settings.maxEditsPerImage && wallpaperReworkCount(item) < value.settings.maxReworks ? { kind: 'retry', step: 'rendering' } : { kind: 'none' }
+      const unsent = receipt === 'cancelled' && wallpaperGenerationUnsent(attempt.generationFailure?.code ?? item.errorCode)
+      return wallpaperGenerationRetryAvailable(item, value.settings, value.generationRetryLimit ?? 0, unsent) ? { kind: 'retry', step: 'rendering' } : { kind: 'none' }
     }
     return { kind: 'receipt' }
   }

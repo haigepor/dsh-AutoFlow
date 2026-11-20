@@ -83,7 +83,7 @@ test('direct import requires no collection, retains selection after failure and 
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
   const accepted = Promise.withResolvers()
   let fail = true, pendingGallery, pickedCalls = 0
-  const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 2000, deadlineMs: 60000, requestTimeoutMs: 10000, maxGalleryReferenceFiles: 1000 }, source: { unsplash: { accounts: [{ id: 'account', label: 'Gallery account' }], defaultAccountId: 'account' } } }
+  const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, maxClientRequestBytes: 64 * 1024, pollIntervalMs: 2000, deadlineMs: 60000, requestTimeoutMs: 10000, maxGalleryReferenceFiles: 1000 }, source: { unsplash: { accounts: [{ id: 'account', label: 'Gallery account' }], defaultAccountId: 'account' } } }
   const actions = { directScope: () => 'profile-a', directCrop: async (operation, args, signal) => { signal?.throwIfAborted(); calls.push({ operation, args, signal }); if (operation === 'direct-crop-list') return { batches: [], total: 0 }; if (operation === 'wallpaper-options') return imageOptions; if (operation === 'direct-crop-start') { if (fail) throw new Error('Isolated network interruption'); return accepted.promise } throw new Error('Unexpected operation') }, pickLocalReferences: async (_kind, signal, title) => {
     signal.throwIfAborted(); assert.equal(title, zh.directCropChoosePhotos)
     if (++pickedCalls === 1) throw { code: 'capability-unavailable', stage: 'local-reference' }
@@ -103,7 +103,7 @@ test('direct import requires no collection, retains selection after failure and 
     await act(async () => rendered.render(React.createElement(React.StrictMode, null, React.createElement(Page, { configuration, actions, t: key => zh[key], onBack() {} }))))
     assert(document.body.textContent.includes(zh.directCropEmpty))
     await act(async () => button(zh.directCropAddImages).click())
-    assert.deepEqual([...document.querySelectorAll('[role="menuitem"]')].map(item => item.textContent), [zh.directCropLocal, zh.directCropGallery, zh.serverQueue])
+    assert.deepEqual([...document.querySelectorAll('[role="menuitem"]')].map(item => item.textContent), [zh.directCropLocal, zh.directCropLocalFolders, zh.directCropGallery, zh.serverQueue])
     await act(async () => menuItem(zh.directCropLocal).click())
     assert.equal(document.querySelector('[role="alert"]').textContent.replace(zh.retry, ''), expected.pickerError)
     await act(async () => button(zh.retry).click())
@@ -130,7 +130,7 @@ test('direct import requires no collection, retains selection after failure and 
     fail = false
     await act(async () => button(zh.retry).click())
     assert.deepEqual({ dialogOpen: !!document.querySelector('[role="dialog"]'), label: document.querySelector('[data-import-admission] [role="status"]').textContent, selectedCountVisible: document.querySelector('[data-import-admission]').textContent.includes(zh.directCropSelected + ' 1'), inTable: !!document.querySelector('.vc-direct-batch-table [data-import-admission]'), separateCard: !!document.querySelector('.vc-direct-import-progress') }, expected.importing)
-    assert.equal(calls.filter(call => call.operation === 'direct-crop-start').at(-1).signal.aborted, false, 'Closing the confirmation must not cancel original acquisition')
+    assert.equal(calls.filter(call => call.operation === 'direct-crop-start').at(-1).signal?.aborted ?? false, false, 'Closing the confirmation must not cancel original acquisition')
     await act(async () => accepted.resolve({ runId: 'accepted' }))
     const starts = calls.filter(call => call.operation === 'direct-crop-start')
     assert.equal(starts.length, 2); assert.equal(starts[0].args.operationId, starts[1].args.operationId)
@@ -168,6 +168,108 @@ test('direct import requires no collection, retains selection after failure and 
     assert.equal(calls.filter(call=>call.operation==='direct-crop-start').length,2)
     await act(async()=>button(zh.cancel).click())
   } finally {
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
+
+test('appending folders keeps the import draft and accepts more originals than one processing batch', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui)
+  const configuration = { ...imageConfig, revision: 'folder-test', visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 4, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  const file = name => ({ path: 'C:/isolated/' + name, name, size: 1024, readable: true })
+  const late = Promise.withResolvers(), requests = []
+  const replies = [
+    { files: [file('one.png'), file('two.jpg')] },
+    { files: [file('one.png'), file('three.webp')] },
+    { files: [file('four.png'), file('five.png')] },
+    { files: [file('four.png')] },
+    { files: [], cancelled: true },
+    late.promise,
+  ]
+  const actions = {
+    directScope: () => 'folder-test',
+    directCrop: async operation => operation === 'direct-crop-list' ? { batches: [], total: 0 } : imageOptions,
+    pickLocalReferences: async (kind, signal) => { requests.push({ kind, signal }); return replies.shift() },
+  }
+  const click = async (label, selector = 'button') => act(async () => [...document.querySelectorAll(selector)].find(element => element.textContent === label).click())
+  const selectedNames = () => [...document.querySelectorAll('.vc-direct-file > span')].map(element => element.textContent)
+  try {
+    await act(async () => rendered.render(React.createElement(Page, { configuration, actions, t: key => zh[key], onBack() {} })))
+    await click(zh.directCropAddImages)
+    await click(zh.directCropLocalFolders, '[role="menuitem"]')
+    assert.deepEqual(selectedNames(), ['one.png', 'two.jpg'])
+    const name = document.querySelector('.vc-direct-name input').value
+    await click(zh.directCropAddLocalFolders)
+    await click(zh.directCropAddLocalFolders)
+    assert.deepEqual(selectedNames(), ['one.png', 'two.jpg', 'three.webp', 'four.png', 'five.png'])
+    assert(document.querySelector('[role="dialog"]').textContent.includes(zh.directCropQueueHint))
+    await click(zh.directCropAddLocalFiles)
+    await click(zh.directCropAddLocalFiles)
+    assert.deepEqual(selectedNames(), ['one.png', 'two.jpg', 'three.webp', 'four.png', 'five.png'])
+    assert.equal(document.querySelector('.vc-direct-name input').value, name)
+    await click(zh.directCropAddLocalFolders)
+    assert(document.querySelector('[role="dialog"] [role="status"]').textContent.includes(zh.directCropReadingLocal))
+    await click(zh.cancel)
+    assert.equal(requests.at(-1).signal.aborted, true)
+    await act(async () => late.resolve({ files: [file('late.png')] }))
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.deepEqual(requests.map(({ kind }) => kind), ['folders', 'folders', 'folders', 'file', 'file', 'folders'])
+  } finally {
+    await act(async () => rendered.unmount()); dom.window.close()
+    for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
+  }
+})
+
+test('67 local originals enter bounded requests in order and a failed request leaves the following groups queued', async () => {
+  const keys = ['window', 'document', 'HTMLElement', 'HTMLButtonElement', 'MutationObserver', 'Element', 'getComputedStyle', 'IS_REACT_ACT_ENVIRONMENT'], old = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://isolated.example/', pretendToBeVisual: true })
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, HTMLButtonElement: dom.window.HTMLButtonElement, MutationObserver: dom.window.MutationObserver, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui)
+  const configuration = { ...imageConfig, revision: 'bulk-import-test', visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, maxClientRequestBytes: 4096, pollIntervalMs: 60000 }, source: { unsplash: { accounts: [] } } }
+  const originals = Array.from({ length: 67 }, (_, index) => ({
+    path: 'C:/isolated/' + (index < 30 ? '' : '测试目录/'.repeat(30)) + index + '.png',
+    name: index + '.png',
+  }))
+  const starts = [], first = Promise.withResolvers()
+  const actions = {
+    directScope: () => 'bulk-import-test',
+    pickLocalReferences: async () => ({ files: originals }),
+    directCrop: async (operation, args) => {
+      if (operation === 'direct-crop-list') return { batches: [], total: 0 }
+      if (operation === 'wallpaper-options') return imageOptions
+      assert.equal(operation, 'direct-crop-start')
+      starts.push(args)
+      if (starts.length === 1) await first.promise
+      if (starts.length === 2) throw new Error('One isolated group failed to import')
+      return { runId: 'accepted-' + starts.length }
+    },
+  }
+  const click = async label => act(async () => [...document.querySelectorAll('button')].find(element => element.textContent === label).click())
+  try {
+    await act(async () => rendered.render(React.createElement(Page, { configuration, actions, t: key => zh[key], onBack() {} })))
+    await click(zh.directCropLocalFolders)
+    assert.equal(document.querySelectorAll('.vc-direct-file').length, 67)
+    await click(zh.directCropStart)
+    assert.equal(starts.length, 1)
+    assert(document.querySelector('[data-admission-state="queued"]').textContent.includes(zh.directCropQueued))
+    await act(async () => first.resolve())
+    assert.equal(starts[0].source.files.length, 30)
+    assert(starts.length > 3, 'Long Unicode paths reach the request byte limit before the per-group image count')
+    assert.deepEqual(starts.flatMap(args => args.source.files), originals)
+    for (const [index, args] of starts.entries()) {
+      assert(args.source.files.length <= configuration.limits.maxImportFiles)
+      assert(Buffer.byteLength(JSON.stringify({ operation: 'direct-crop-start', args })) <= configuration.limits.maxClientRequestBytes)
+      assert(args.name.endsWith(`(${index + 1}/${starts.length})`))
+    }
+    const failedOperation = starts[1].operationId
+    await click(zh.retry)
+    assert.equal(starts.at(-1).operationId, failedOperation)
+    assert.deepEqual(starts.at(-1).source, starts[1].source)
+  } finally {
+    first.resolve()
     await act(async () => rendered.unmount()); dom.window.close()
     for (const key of keys) { const descriptor = old.get(key); if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] }
   }

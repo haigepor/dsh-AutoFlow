@@ -3,17 +3,50 @@ import { z } from 'zod'
 
 /** @param descriptor Actual compatible-vision request text. @param output Independently scripted fixture findings. @returns The same findings with required current protocol metadata. */
 function fixtureResponse(descriptor: unknown, output: unknown): unknown {
-  const schema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()), required: z.array(z.string()).optional(), $defs: z.record(z.string(), z.unknown()).optional() }) }).parse(descriptor).outputSchema
+  const request = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()), required: z.array(z.string()).optional(), $defs: z.record(z.string(), z.unknown()).optional() }), input: z.unknown().optional() }).parse(descriptor)
+  const schema = request.outputSchema
   const properties = Object.fromEntries(Object.entries(schema.properties).map(([name, value]) => {
     const reference = z.object({ $ref: z.string().startsWith('#/$defs/') }).safeParse(value)
     return [name, reference.success ? schema.$defs?.[reference.data.$ref.slice('#/$defs/'.length)] : value]
   }))
   const row = z.record(z.string(), z.unknown()).parse(output)
+  if (schema.required?.includes('boundaryCrops')) {
+    const rect = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
+    const input = z.object({ images: z.array(z.object({ imageVersionId: z.string(), role: z.string().optional() })), usage: z.object({
+      borderlineRegions: z.array(z.object({ entityId: z.string().optional(), name: z.string(), role: z.string(), edge: z.enum(['left', 'right', 'top', 'bottom']), outsideOnly: z.boolean().optional() })),
+      imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceRect: rect.optional() })),
+    }) }).parse(request.input)
+    const review = properties.review ? fixtureResponse({ input: request.input, outputSchema: { ...z.object({ properties: z.record(z.string(), z.unknown()), required: z.array(z.string()).optional() }).parse(properties.review), $defs: schema.$defs } }, output) : undefined
+    const actual = z.object({ actualLayout: z.object({ regions: z.array(z.object({ entityId: z.string().optional(), name: z.string(), role: z.string(), rect })) }) }).parse(review ?? output).actualLayout.regions
+    const crops = input.images.filter(image => image.role === 'actual-wallpaper-detail-only')
+    return { ...(review === undefined ? {} : { review }), boundaryCrops: input.usage.borderlineRegions.map((target, index) => {
+      const cropImageVersionId = crops[index]?.imageVersionId
+      const source = input.usage.imageRepresentations.find(view => view.imageVersionId === cropImageVersionId)?.sourceRect
+      const subject = actual.find(region => region.role === target.role && (target.entityId ? target.entityId === region.entityId : target.name === region.name))?.rect
+      const base = { cropImageVersionId, edge: target.edge }
+      if (!source || !subject) return { ...base, status: 'unknown' }
+      const x = target.edge === 'left' ? subject.x : target.edge === 'right' ? subject.x + subject.width : subject.x + subject.width / 2
+      const y = target.edge === 'top' ? subject.y : target.edge === 'bottom' ? subject.y + subject.height : subject.y + subject.height / 2
+      if (target.outsideOnly && (target.edge === 'right' && x <= source.x || target.edge === 'left' && x >= source.x + source.width || target.edge === 'bottom' && y <= source.y || target.edge === 'top' && y >= source.y + source.height)) return { ...base, status: 'clear' }
+      const point = { x: (x - source.x) / source.width, y: (y - source.y) / source.height }
+      return [point.x, point.y].every(value => value >= 0 && value <= 1) ? { ...base, status: 'measured', point } : { ...base, status: 'unknown' }
+    }) }
+  }
   if (properties.editPrompt && properties.reason && properties.imageVersionId && !properties.objectRoles && !properties.regions) return z.object({ imageVersionId: z.string(), editPrompt: z.string(), reason: z.string() }).parse(row)
   if (schema.required?.includes('sourceMedium')) {
-    const observed = z.object({ objectRoles: z.array(z.object({ name: z.string(), evidence: z.string() }).passthrough()) }).parse(row)
+    const observed = z.object({ objectRoles: z.array(z.object({ entityId: z.string(), name: z.string(), role: z.string(), evidence: z.string() }).passthrough()) }).parse(row)
     return { ...row, sourceMedium: row.sourceMedium ?? 'photograph', ...(schema.required.includes('actionPartIds') ? { actionPartIds: row.actionPartIds ?? [] } : {}),
+      ...(schema.required.includes('handAssessments') ? { handAssessments: row.handAssessments ?? observed.objectRoles.filter(object => object.role === 'primary').map(object => ({ entityId: object.entityId, kind: 'non-person' })) } : {}),
+      ...(schema.required.includes('presentationAssessments') ? { presentationAssessments: row.presentationAssessments ?? observed.objectRoles.filter(object => object.role === 'primary').map(object => ({ entityId: object.entityId, kind: 'independent', evidence: object.evidence })) } : {}),
       objectRoles: observed.objectRoles.map(object => ({ ...object, sourceIntent: object.sourceIntent ?? { framing: 'whole', visibility: 'visible', preserve: [object.evidence], relationships: [] } })) }
+  }
+  if (JSON.stringify(schema).includes('"extrema"') && (row.protocol === 'practical-v1' || row.protocol === 'practical-v2')) {
+    const layout = z.object({ regions: z.array(z.object({ name: z.string(), rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }) }).passthrough()) }).parse(row.actualLayout)
+    row.actualLayout = { regions: layout.regions.map(region => ({ ...region, extrema: region.extrema ?? {
+      left: { part: region.name, coordinate: region.rect.x }, right: { part: region.name, coordinate: region.rect.x + region.rect.width },
+      top: { part: region.name, coordinate: region.rect.y }, bottom: { part: region.name, coordinate: region.rect.y + region.rect.height },
+    } })) }
+    if (row.protocol === 'practical-v2') return row
   }
   if (z.object({ const: z.string().optional() }).safeParse(properties.protocol).data?.const === 'practical-v2' && row.protocol === 'practical-v1') {
     const usage = z.object({ input: z.object({ usage: z.object({ objectPolicy: z.object({ objectRoles: z.array(z.object({ entityId: z.string(), role: z.string() })) }) }) }) }).parse(descriptor).input.usage

@@ -31,6 +31,7 @@ import { createReferencePreview } from './reference-preview.tsx'
 import { createReferenceEditor } from './reference-edit.tsx'
 import { createReferenceVirtualGrid } from './reference-virtual-grid.ts'
 import { createTaskReferenceDialog } from './task-reference-dialog.tsx'
+import { createServerReferenceDialog } from './server-reference-dialog.tsx'
 import { analysisActive } from '../shared/analysis-process.ts'
 import { analysisPhaseLabel, createAnalysisDialog } from './analysis-dialog.tsx'
 import { createTaskDialog } from './task-dialog.tsx'
@@ -73,10 +74,11 @@ export interface WorkbenchProps extends PropsRenderFactories {
     loadVisionModels(): Promise<void>
     reloadVisionModels(): void
     openModelSettings(): void
-    pickLocalReferences(kind: 'file' | 'folder' | 'references', signal: AbortSignal, title?: string): Promise<unknown>
+    pickLocalReferences(kind: 'file' | 'folder' | 'folders' | 'references', signal: AbortSignal, title?: string): Promise<unknown>
     listLocalReferences(path: string, kind: 'file' | 'folder', signal: AbortSignal): Promise<unknown>
     galleryRead(operation: string, args: import('./contract.ts').ActionArgs, signal: AbortSignal, options?: { refresh?: boolean }): Promise<unknown>
     readTaskReferences(args: import('./contract.ts').ActionArgs, signal: AbortSignal): Promise<unknown>
+    serverReference(operation: 'server-reference-list' | 'server-reference-import', args: import('./contract.ts').ActionArgs, signal: AbortSignal): Promise<unknown>
   }
 }
 
@@ -101,6 +103,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
   }
   const ReferencePreview = createReferencePreview(React, ui), ImageGallery = createImageGallery(React, ui), ReferenceEditor = createReferenceEditor(React, ui)
   const TaskReferenceDialog = createTaskReferenceDialog(React, ui)
+  const ServerReferenceDialog = createServerReferenceDialog(React, ui)
   const { GalleryLoadMore, GallerySkeleton } = createGalleryMedia(React, ui)
   const AnalysisDialog = createAnalysisDialog(React, ui)
   function AnalysisDialogRegion({ useWorkbench, actions, t, renderFactorySlot, onReanalyze }: Pick<WorkbenchProps, 'useWorkbench' | 'actions' | 't' | 'renderFactorySlot'> & { onReanalyze(styleId: string): void }) {
@@ -331,6 +334,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     React.useEffect(() => { if (canvasAction?.kind === 'references') { setCanvasReferencesOpen(true); if (!scopeSessionId) void actions.loadReferences(style.styleId) } else if (canvasAction?.kind === 'profile') setDatasetOpen(true) }, [canvasAction?.serial])
     const [galleryOpen, setGalleryOpen] = React.useState(false)
     const [taskReferenceOpen, setTaskReferenceOpen] = React.useState(false)
+    const [serverReferenceOpen, setServerReferenceOpen] = React.useState(false)
     const [dismissedRecoveryId, setDismissedRecoveryId] = React.useState<string | null>(null)
     const [previewId, setPreviewId] = React.useState<string | null>(null)
     const closePreview = React.useCallback(() => setPreviewId(null), [])
@@ -464,8 +468,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
             { type: 'label', id: 'import-role', text: t('role') },
             ...(['positive', 'negative'] as const).map(value => ({ id: `role:${value}`, label: t(value) })),
             { type: 'separator', id: 'role-separator' },
-            { id: 'local', label: t('referenceLocal'), disabled: busy || referencing }, { id: 'gallery', label: t('galleryReference'), disabled: busy }, { id: 'task', label: t('taskReferenceTitle'), disabled: busy || referencing }, { id: 'path', label: t('referenceByPath'), disabled: busy || referencing },
-          ]} onSelect={value => { if (value === 'role:positive' || value === 'role:negative') { setRole(value === 'role:positive' ? 'positive' : 'negative'); return }; setImportMenuOpen(false); if (value === 'path') { importTrigger.current?.focus({ preventScroll: true }); setPathError(''); setPathOpen(true) } else if (value === 'gallery') openGalleryFromMenu(); else if (value === 'task') setTaskReferenceOpen(true); else if (value === 'local') openPaths() }}
+            { id: 'local', label: t('referenceLocal'), disabled: busy || referencing }, { id: 'gallery', label: t('galleryReference'), disabled: busy }, { id: 'server', label: t('serverReferenceTitle'), disabled: busy || referencing }, { id: 'task', label: t('taskReferenceTitle'), disabled: busy || referencing }, { id: 'path', label: t('referenceByPath'), disabled: busy || referencing },
+          ]} onSelect={value => { if (value === 'role:positive' || value === 'role:negative') { setRole(value === 'role:positive' ? 'positive' : 'negative'); return }; setImportMenuOpen(false); if (value === 'path') { importTrigger.current?.focus({ preventScroll: true }); setPathError(''); setPathOpen(true) } else if (value === 'gallery') openGalleryFromMenu(); else if (value === 'server') setServerReferenceOpen(true); else if (value === 'task') setTaskReferenceOpen(true); else if (value === 'local') openPaths() }}
             anchor={<ui.Tooltip portal side="bottom" label={t('importMaterials')} disabled={importMenuOpen}><Button ref={importTrigger} variant="ghost" className="vc-toolbar-action vc-add-reference" aria-label={t('importMaterials')} disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} /><span>{t('importMaterials')}</span></Button></ui.Tooltip>} />
         </>}
           {onDirectCrop && <ui.Tooltip portal side="bottom" label={t('directCrop')}><Button variant="ghost" className="vc-toolbar-action vc-find-action" aria-label={t('directCrop')} onClick={onDirectCrop}><ui.IconEditOutlineRegular size={16} /><span>{t('directCrop')}</span></Button></ui.Tooltip>}
@@ -530,6 +534,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       {editingReference && <ReferenceEditor key={editingReference.referenceId} image={editingReference} style={style} actions={actions} t={t} onClose={() => setEditingReference(null)} />}
       <ImageGallery key={scopeSessionId ?? ''} images={previewRefs.flatMap(image => { const path = resource(image.previewPath); return path ? [{ id: image.referenceId ?? image.imageVersionId, path, name: image.name }] : [] })} selectedId={referencesView || canvasReferencesOpen ? previewId : null} onSelect={setPreviewId} onClose={closePreview} t={t} />
       {taskReferenceOpen && <TaskReferenceDialog key={scopeSessionId ?? ''} style={style} role={role} onRole={setRole} maxFiles={snapshot.configuration.limits.maxImportFiles} cachePolicy={{ ttlMs: snapshot.configuration.limits.batchCacheTtlMs ?? 0, maxViews: snapshot.configuration.limits.batchCacheMaxViews ?? 0, resourceTtlMs: snapshot.configuration.limits.sessionGrantTtlMs ?? 0 }} actions={actions} t={t} onClose={() => { setTaskReferenceOpen(false); importTrigger.current?.focus({ preventScroll: true }) }} />}
+      {serverReferenceOpen && <ServerReferenceDialog key={style.styleId + ':' + (scopeSessionId ?? '')} style={style} role={role} onRole={setRole} pageSize={snapshot.configuration.limits.pageSize} maxFiles={snapshot.configuration.limits.maxImportFiles} actions={actions} t={t} onClose={() => { setServerReferenceOpen(false); importTrigger.current?.focus({ preventScroll: true }) }} />}
       <Modal open={inspectorModalOpen && referencesView} onClose={() => setInspectorModalOpen(false)} title={t('profileInspector')} closeLabel={t('close')} className="vc-profile-modal" contentClassName="vc-profile-modal-scroll"><div className="vc-profile-content">{profileContent}</div></Modal>
       <Modal open={canvasReferencesOpen} onClose={() => setCanvasReferencesOpen(false)} title={t('workflowReferenceDialog')} closeLabel={t('close')} className="vc-canvas-reference-modal" contentClassName="vc-canvas-reference-content"
         footer={<div className="vc-canvas-reference-footer">

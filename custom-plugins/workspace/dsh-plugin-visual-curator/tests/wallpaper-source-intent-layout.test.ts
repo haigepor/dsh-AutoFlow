@@ -6,8 +6,9 @@ import sharp from 'sharp'
 import { wallpaperPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys } from '../src/shared/wallpaper.ts'
 import { wallpaperPracticalReviewOutputSchema } from '../src/shared/wallpaper-practical.ts'
 import { resolveWallpaperProcessing } from '../src/shared/wallpaper-policy.ts'
-import { fitWallpaperPlacement, wallpaperCandidatePlacement, wallpaperGeometry, wallpaperLayoutRegions, wallpaperPlacementScaleOptions, wallpaperPositionedLayout, wallpaperSourceContinuationTargets, wallpaperSourceExtensionEdges, type WallpaperSourceLayout } from '../src/shared/wallpaper-geometry.ts'
+import { fitWallpaperPlacement, wallpaperCandidatePlacement, wallpaperGeometry, wallpaperLayoutRegions, wallpaperPlacementScaleOptions, wallpaperPositionedLayout, wallpaperSourceContinuationTargets, wallpaperSourceExtensionEdges, WallpaperFramingConflictError, type WallpaperSourceLayout } from '../src/shared/wallpaper-geometry.ts'
 import { wallpaperActualBoundary } from '../src/host/wallpaper-boundary.ts'
+import { wallpaperMeasuredSourceLayout, wallpaperSourceMeasurementSchema, wallpaperSourceMeasurementTargets } from '../src/host/wallpaper-source-measurement.ts'
 import { renderWallpaper } from '../src/media/wallpaper-render.ts'
 import { wallpaperRepairMask, wallpaperSourceRepairNeeded } from '../src/media/wallpaper-repair.ts'
 
@@ -60,6 +61,34 @@ const product = () => wallpaperPlanSchema.parse({ version: 1, imageVersionId: 's
   placement: { scale: 1, left: 0, top: 0 }, reason: 'Keep the original lead prominent.' })
 
 const wideSource = { width: 1448, height: 1086 }
+
+test('a scene primary retains opposing original frame contacts at their exact proportional scale', () => {
+  const source = { width: 1536, height: 1024 }
+  const current = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: protectedFill })
+  const { placement: _placement, ...base } = product()
+  const original = { ...base, mode: 'scene', subject: 'Mountain ridge in a wide valley', evidence: 'The ridge deliberately continues beyond the original side edges.', sourceMedium: 'photograph', regions: [], editPrompt: 'Keep the ridge silhouette and the wide valley.' }
+  const ridge = { entityId: 'ridge', name: 'Mountain ridge', role: 'primary', safetyClass: 'general', evidence: original.evidence, sourceEdges: [],
+    rect: { x: 0, y: 0.36, width: 1, height: 0.37 }, sourceIntent: { ...visible, framing: 'partial', visibility: 'frame-cropped', layoutFocus: { x: 0.3, y: 0.42, width: 0.4, height: 0.22 } } }
+  const schema = wallpaperRoleObservationOutputSchema(undefined, true, true, true)
+  const scene = schema.parse({ ...original, objectRoles: [ridge] })
+  const placement = fitWallpaperPlacement(source, scene, current, 'subject-first-v2', [], protectedFill)
+  const geometry = wallpaperGeometry(source, { ...scene, placement }, current, protectedFill)
+  assert.equal(placement.scale, current.width / source.width)
+  assert.equal(placement.left, 0)
+  assert.equal(geometry.width, current.width)
+  assert.equal(geometry.backgroundCrop, false)
+  assert.deepEqual(geometry.checks, [])
+
+  const impossible = schema.parse({ ...original, objectRoles: [{ ...ridge, rect: { ...ridge.rect, y: 0, height: 1 } }] })
+  assert.throws(() => fitWallpaperPlacement(source, impossible, current, 'subject-first-v2', [], protectedFill), (error: unknown) => {
+    assert.ok(error instanceof WallpaperFramingConflictError)
+    assert.deepEqual([...error.diagnostics.edges].sort(), ['bottom', 'left', 'right', 'top'])
+    return true
+  })
+
+  const contained = schema.parse({ ...original, objectRoles: [{ ...ridge, rect: { x: 0.16, y: 0.36, width: 0.69, height: 0.37 }, sourceIntent: visible }] })
+  assert.equal(fitWallpaperPlacement(source, contained, current, 'subject-first-v2', [], protectedFill).scale, 1)
+})
 
 test('the original watercolor ribbon joins the centered protection plan and has independent final evidence', () => {
   const dancer = { entityId: 'dancer', name: 'Dancer', role: 'primary' as const, safetyClass: 'general' as const, evidence: 'Visible dancing pose', rect: { x: 0.008, y: 0.012, width: 0.521, height: 0.94 }, sourceEdges: [], sourceIntent: visible }
@@ -118,6 +147,21 @@ test('automatic placement keeps at least forty percent of both rasterized axes a
   assert.deepEqual(onePixelLarger.checks, ['source-background-context'])
 })
 
+test('automobile placement descends past a rounded half pixel or an axis already clamped to one pixel', () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: protectedFill })
+  const rect = { x: 0.045, y: 0.523, width: 0.935, height: 0.238 }
+  const car = { entityId: 'car', name: 'Sports car', rect, safetyClass: 'automobile' as const }
+  const plan = wallpaperPlanSchema.parse({ ...product(), subject: car.name,
+    regions: [{ ...car, role: 'subject' }], objectRoles: [{ ...car, role: 'primary', evidence: 'The complete car remains visible.', sourceEdges: [], sourceIntent: visible }] })
+
+  for (const [source, expectedHeight] of [[{ width: 1024, height: 1536 }, 2054], [{ width: 4096, height: 1 }, 1]] as const) {
+    const placement = fitWallpaperPlacement(source, plan, current, 'subject-first-v2', [], protectedFill)
+    const raster = wallpaperGeometry(source, { ...plan, placement }, current, protectedFill)
+    assert.deepEqual([raster.width, raster.height], [1369, expectedHeight])
+    assert.deepEqual(raster.checks, [], 'The complete car must still fit within the frozen safety area')
+  }
+})
+
 test('confirmed grape clusters retain extent across both axes while shortened and distorted parts fail', () => {
   const current = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing(), sourceIntentPolicy: protectedFill })
   const subjects = [
@@ -137,6 +181,8 @@ test('confirmed grape clusters retain extent across both axes while shortened an
   assert.deepEqual(measure([445.704, 280.384], [322.875, 295.2], false), ['action-part-too-small:Held prop'])
   assert.deepEqual(measure([445.704, 280.384], [322.875, 490], true), ['subject-aspect-changed:Held prop'])
   assert.deepEqual(measure([600, 44], [404, 44], true), ['action-part-too-small:Held prop'])
+  assert.deepEqual(measure([740, 28], [715, 48], true), [])
+  assert.deepEqual(measure([740, 28], [715, 172], true), ['subject-aspect-changed:Held prop'])
 })
 
 test('the final gate checks pairwise size, position and the aspect of complete subjects', () => {
@@ -203,7 +249,8 @@ test('a final review rejects displacement inside the safe area and a body crossi
   }] }, 'single', settings, policy).hard
   assert.deepEqual(measure(0), [])
   assert.deepEqual(measure(200), ['subject-center-drift:0,200'])
-  assert.ok(measure(-360).includes('critical-outside:Potter'))
+  const tenPercentOutside = settings.safe.top - (body.rect.y + body.rect.height * 0.1) * settings.height
+  assert.ok(measure(tenPercentOutside).includes('subject-overflow:Potter'))
 })
 
 test('a cropped portrait measures the same focus while its complete visible body stays protected', () => {
@@ -217,7 +264,19 @@ test('a cropped portrait measures the same focus while its complete visible body
   assert.deepEqual(measure(body), [])
   assert.deepEqual(measure({ ...body, rect: { x: 0.195, y: 0.445, width: 0.535, height: 0.262 }, layoutFocus: { x: 0.198, y: 0.448, width: 0.525, height: 0.248 } }), [])
   assert.ok(measure({ ...body, layoutFocus: { ...body.layoutFocus, width: 0.3, height: 0.23 } }).includes('subject-too-small:Potter'))
-  assert.ok(measure({ ...body, rect: { ...body.rect, x: 0.1, width: 0.58 } }).includes('critical-outside:Potter'))
+  assert.ok(measure({ ...body, rect: { ...body.rect, x: 0.1, width: 0.58 } }).includes('subject-overflow:Potter'))
+})
+
+test('complete-body review allows small ordinary overhang and still blocks indispensable detail and vehicles', () => {
+  const current = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing() })
+  const { safe, width, height } = current
+  const rect = { x: (safe.left - 20) / width, y: (safe.top + 80) / height, width: 800 / width, height: 700 / height }
+  const measured = { name: 'Visible body', role: 'subject' as const, scope: 'core' as const, rect, safetyClass: 'general' as const }
+  const review = (region: Parameters<typeof wallpaperActualBoundary>[0]['regions'][number]) =>
+    wallpaperActualBoundary({ imageVersionId: 'final', regions: [region] }, 'single', current, { ...policy, reviewWholeSubjects: true })
+  assert.deepEqual(review(measured), { hard: [], warnings: ['core-outside:Visible body'] })
+  assert.ok(review({ ...measured, role: 'critical' }).hard.includes('critical-outside:Visible body'))
+  assert.deepEqual(review({ ...measured, safetyClass: 'automobile' }).hard, ['automobile-outside:Visible body'])
 })
 
 test('supporting edge repairs stay local and cannot reduce the main product layout, while old tasks retain their frozen placement', () => {
@@ -367,6 +426,144 @@ test('V2 size retention measures the main extent instead of treating a different
   assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, current).hard, [])
   const shrunken = { ...violin, rect: { ...violin.rect, width: 0.3, height: 0.06 } }
   assert.ok(wallpaperActualBoundary({ ...layout, regions: [shrunken] }, 'single', settings, current).hard.includes('subject-too-small:Violin'))
+})
+
+test('an original-only lighthouse measurement excludes planned grass without relaxing actual size, position, shape or safety', () => {
+  const entityId = 'lighthouse', name = 'Lighthouse'
+  const source = { width: 1024, height: 1536 }, placement = { scale: 1.1098632339130314, left: 709, top: 1041 }
+  const planned = { x: 789.656 / settings.width, y: 1182.515 / settings.height, width: 264.688 / settings.width, height: 1384.46 / settings.height }
+  const initial = { ...protectedFill, expectedSubjects: [{ entityId, rect: planned, wholeRect: planned }] }
+  const rect = { x: 0.439, y: 0.362, width: 0.126, height: 0.306 }
+  const original = { entityId, name, role: 'primary' as const, safetyClass: 'general' as const, rect: { x: 0.071, y: 0.083, width: 0.233, height: 0.812 }, sourceEdges: [], sourceIntent: { ...visible, framing: 'whole' as const, visibility: 'visible' as const }, evidence: 'A complete white tower on the coast.' }
+  const actual = { entityId, name, rect, role: 'subject' as const, scope: 'core' as const, safetyClass: 'general' as const }
+  const layout = { imageVersionId: 'final', regions: [actual] }
+  const failed = wallpaperActualBoundary(layout, 'single', settings, initial).hard
+  assert.deepEqual(failed, ['subject-too-small:Lighthouse', 'subject-center-drift:4,-186'])
+  const targets = wallpaperSourceMeasurementTargets({ objectRoles: [original] }, initial, failed)
+  assert.deepEqual(targets, [{ entityId, name }])
+  assert.deepEqual(wallpaperSourceMeasurementTargets({ objectRoles: [original] }, initial, ['subject-overflow:Lighthouse']), [])
+  assert.deepEqual(wallpaperSourceMeasurementTargets({ objectRoles: [{ ...original, safetyClass: 'automobile' }] }, initial, failed), [])
+
+  const schema = wallpaperSourceMeasurementSchema('original', targets)
+  const measurement = { result: 'measured', entityId, rect: { x: 0.0977, y: 0.0874, width: 0.203, height: 0.587 }, reason: 'The lantern top, shaft and concrete base end before the grass.' }
+  assert.equal(schema.safeParse({ sourceImageVersionId: 'final', measurements: [measurement] }).success, false)
+  assert.equal(schema.safeParse({ sourceImageVersionId: 'original', measurements: [{ ...measurement, entityId: 'grass' }] }).success, false)
+  const evidence = schema.parse({ sourceImageVersionId: 'original', measurements: [measurement] })
+  const corrected = wallpaperMeasuredSourceLayout(initial, evidence, source, placement, settings)
+  assert.notEqual(corrected, initial)
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, corrected).hard, [])
+  const assess = (rect: typeof actual.rect) => wallpaperActualBoundary({ ...layout, regions: [{ ...actual, rect }] }, 'single', settings, corrected).hard
+  assert.ok(assess({ ...rect, x: rect.x + rect.width / 4, y: rect.y + rect.height / 4, width: rect.width / 2, height: rect.height / 2 }).includes('subject-too-small:Lighthouse'))
+  assert.ok(assess({ ...rect, x: rect.x + 0.09 }).some(code => code.startsWith('subject-center-drift:')))
+  assert.ok(assess({ ...rect, width: 0.06 }).includes('subject-aspect-changed:Lighthouse'))
+  assert.ok(assess({ ...rect, y: 0.24 }).includes('subject-overflow:Lighthouse'))
+  const unknown = schema.parse({ sourceImageVersionId: 'original', measurements: [{ entityId, result: 'unknown', reason: 'The base is obscured.' }] })
+  assert.equal(wallpaperMeasuredSourceLayout(initial, unknown, source, placement, settings), initial)
+  const unrelated = schema.parse({ sourceImageVersionId: 'original', measurements: [{ ...measurement, rect: { x: 0.7, y: 0.1, width: 0.2, height: 0.5 } }] })
+  assert.equal(wallpaperMeasuredSourceLayout(initial, unrelated, source, placement, settings), initial)
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, initial).hard, failed)
+})
+
+test('source remeasurement attributes size and aspect failures to the affected frozen subjects', () => {
+  const sign = { entityId: 'sign', name: 'Road sign', role: 'primary' as const, safetyClass: 'general' as const, evidence: 'Complete roadside sign.', rect: { x: 0.2, y: 0.44, width: 0.18, height: 0.24 }, sourceEdges: [], sourceIntent: { ...visible, framing: 'whole' as const, visibility: 'visible' as const } }
+  const traveler = { ...sign, entityId: 'traveler', name: 'Traveler', evidence: 'Visible traveler.', rect: { x: 0.54, y: 0.44, width: 0.18, height: 0.24 } }
+  const partial = { ...traveler, sourceIntent: { ...traveler.sourceIntent, framing: 'partial' as const, layoutFocus: traveler.rect } }
+  const actual = [
+    { entityId: 'sign', name: 'Reflective sign', role: 'subject' as const, scope: 'core' as const },
+    { entityId: 'traveler', name: 'Seated person', role: 'subject' as const, scope: 'core' as const },
+  ]
+  const plan = { objectRoles: [sign, partial] }
+  const mixed = { ...protectedFill, expectedSubjects: [{ entityId: sign.entityId, rect: sign.rect, wholeRect: sign.rect }, { entityId: partial.entityId, rect: partial.rect, focus: partial.rect }] }
+  const targets = (checks: string[]) => wallpaperSourceMeasurementTargets(plan, mixed, checks, actual)
+  assert.deepEqual(targets(['subject-too-small:Seated person']), [])
+  assert.deepEqual(targets(['subject-center-drift:140,0']), [])
+  assert.deepEqual(targets(['subject-center-drift:140,0', 'subject-aspect-changed:Reflective sign']), [{ entityId: 'sign', name: 'Road sign' }])
+  const whole = { ...protectedFill, expectedSubjects: [sign, traveler].map(subject => ({ entityId: subject.entityId, rect: subject.rect, wholeRect: subject.rect })) }
+  assert.deepEqual(wallpaperSourceMeasurementTargets({ objectRoles: [sign, traveler] }, whole, ['subject-center-drift:140,0'], actual).map(subject => subject.entityId), ['sign', 'traveler'])
+  assert.deepEqual(targets(['subject-too-small:Reflective sign']), [{ entityId: 'sign', name: 'Road sign' }])
+  const pair = 'Reflective sign · Seated person'
+  const pairTargets = (checks: string[]) => wallpaperSourceMeasurementTargets({ objectRoles: [sign, traveler] }, whole, checks, actual).map(subject => subject.entityId)
+  assert.deepEqual(pairTargets(['subject-too-small:Reflective sign', `subject-relative-scale:${pair}`]), ['sign', 'traveler'])
+  assert.deepEqual(pairTargets([`subject-relative-position:${pair}`]), ['sign', 'traveler'])
+  assert.deepEqual(pairTargets([`subject-relative-scale:${pair}`, 'subject-overflow:Reflective sign']), [])
+  assert.deepEqual(targets([`subject-relative-scale:${pair}`]), [])
+})
+
+test('mixed size and boundary failures remeasure the same dessert without counting its independent serving plate', () => {
+  const sourceIntent = { ...visible, framing: 'whole' as const, visibility: 'visible' as const }
+  const subject = { name: 'Jelly', entityId: 'jelly', role: 'primary' as const, safetyClass: 'general' as const,
+    evidence: 'Two molded desserts sit on a scalloped dish.', sourceIntent, sourceEdges: [], rect: { x: 0.57, y: 0.58, width: 0.34, height: 0.2 } }
+  const body = { x: 0.64, y: 0.64, width: 0.18, height: 0.084 }
+  const attributed = { name: 'Dessert', entityId: subject.entityId, role: 'subject' as const, scope: 'core' as const, safetyClass: subject.safetyClass }
+  const coarse = { ...attributed, rect: { x: 0.596, y: 0.656, width: 0.292, height: 0.091 } }
+  const measured = { ...attributed, rect: body }
+  const planned = { ...protectedFill, expectedSubjects: [{ entityId: subject.entityId, rect: subject.rect, wholeRect: subject.rect }] }
+  const plan = { objectRoles: [subject] }
+  const assess = (region: typeof measured, reference: WallpaperSourceLayout = planned) => wallpaperActualBoundary({ imageVersionId: 'candidate', regions: [region] }, 'single', settings, reference).hard
+  const failures = assess(coarse)
+  assert.ok(failures.includes('subject-too-small:Dessert'))
+  assert.ok(failures.includes('subject-overflow:Dessert'))
+  assert.deepEqual(wallpaperSourceMeasurementTargets(plan, planned, failures, [coarse]), [])
+  const targets = wallpaperSourceMeasurementTargets(plan, planned, failures, [coarse], true)
+  assert.deepEqual(targets, [{ entityId: subject.entityId, name: subject.name }])
+  assert.deepEqual(wallpaperSourceMeasurementTargets(plan, planned, ['subject-overflow:Dessert'], [coarse], true), [])
+  assert.deepEqual(wallpaperSourceMeasurementTargets(plan, planned, [...failures, 'automobile-outside:Car'], [coarse], true), [])
+  const evidence = wallpaperSourceMeasurementSchema('source', targets).parse({ sourceImageVersionId: 'source', measurements: [{ entityId: subject.entityId, result: 'measured', rect: body, reason: 'The fruit jelly ends before the outer lip of the serving dish.' }] })
+  const confirmed = wallpaperMeasuredSourceLayout(planned, evidence, settings, { scale: 1, left: 0, top: 0 }, settings)
+  assert.notEqual(confirmed, planned)
+  assert.deepEqual(assess(measured, confirmed), [])
+  assert.ok(assess(coarse, confirmed).includes('subject-overflow:Dessert'), 'Source recalibration cannot clear actual output overflow')
+})
+
+test('a visible handbag chain stays inside the canvas without expanding the safe-area body measurement', () => {
+  const body = { x: 0.298, y: 0.279, width: 0.488, height: 0.307 }
+  const chain = { x: 0.244, y: 0.313, width: 0.598, height: 0.543 }
+  const sourceIntent = { ...visible, framing: 'whole', visibility: 'visible', preserve: ['Keep both visible attachments and the chain that loops back over the surface.'] }
+  const bag = { name: 'Handbag', entityId: 'bag', role: 'primary', safetyClass: 'general', evidence: 'A single featured bag rests above its draped chain.', rect: body, sourceIntent, sourceEdges: [] }
+  const { placement: _placement, ...observation } = product()
+  const raw = { ...observation, editPrompt: 'Keep the bag and the complete visible chain in a fresh composition.', objectRoles: [bag], regions: [], sourceMedium: 'photograph', actionPartIds: [], handAssessments: [{ entityId: 'bag', kind: 'non-person' }] }
+  const original = wallpaperRoleObservationOutputSchema(undefined, true, true, true, undefined, true, true)
+  const current = wallpaperRoleObservationOutputSchema(undefined, true, true, true, undefined, true, true, true)
+  const observed = { ...raw, objectRoles: [{ ...bag, sourceIntent: { ...sourceIntent, visibleAccessoryExtent: chain } }] }
+  assert.equal(original.safeParse(observed).success, false)
+  assert.equal(current.safeParse({ ...observed, objectRoles: [{ ...observed.objectRoles[0], safetyClass: 'automobile' }] }).success, false)
+  assert.equal(current.safeParse({ ...observed, objectRoles: [{ ...bag, sourceIntent: { ...sourceIntent, visibleAccessoryExtent: { ...chain, height: 0.8 } } }] }).success, false)
+  const plan = current.parse(observed)
+  const oldPlacement = { scale: 1.2185830429732867, left: -303, top: 158 }
+  assert.deepEqual(wallpaperGeometry(source, { ...original.parse(raw), placement: oldPlacement }, settings, protectedFill).checks, [])
+  assert.ok(wallpaperGeometry(source, { ...plan, placement: oldPlacement }, settings, protectedFill).checks.includes('source-clipped:Handbag'))
+  const placement = fitWallpaperPlacement(source, plan, settings, 'subject-first-v2', [], protectedFill)
+  const projectedBottom = (where: typeof placement, end: number) => where.top + end * Math.round(source.height * where.scale)
+  const unpadded = fitWallpaperPlacement(source, plan, { ...settings, sourceFrameRepair: { enabled: true, marginPixels: 0 } }, 'subject-first-v2', [], protectedFill)
+  assert.ok(projectedBottom(unpadded, chain.y + chain.height) <= settings.height)
+  assert.ok(projectedBottom(unpadded, 0.881) > settings.height, 'The measured lower edge underestimated the visible return.')
+  const geometry = wallpaperGeometry(source, { ...plan, placement }, settings, protectedFill)
+  assert.ok(projectedBottom(placement, chain.y + chain.height) <= settings.height - 128)
+  assert.ok(projectedBottom(placement, 0.881) <= settings.height)
+  assert.ok(projectedBottom(placement, chain.y + chain.height) > settings.safe.top + settings.safe.height, 'The visible chain can extend below the safety area.')
+  assert.deepEqual(geometry.checks, [])
+  assert.deepEqual(geometry.regions.map(region => region.rect), [body])
+
+  const clippedView = current.parse({ ...raw, objectRoles: [{ ...bag, sourceEdges: ['bottom'], sourceIntent: { ...sourceIntent, framing: 'partial', visibility: 'frame-cropped', layoutFocus: body, visibleAccessoryExtent: { ...chain, height: 1 - chain.y } } }] })
+  const clippedPlacement = fitWallpaperPlacement(source, clippedView, settings, 'subject-first-v2', [], protectedFill)
+  assert.equal(projectedBottom(clippedPlacement, 1), settings.height, 'Keep the real input frame cut when slack would make the layout impossible.')
+  assert.deepEqual(wallpaperGeometry(source, { ...clippedView, placement: clippedPlacement }, settings, protectedFill).checks, [])
+})
+
+test('one source measurement can recalibrate both a primary and its visible action part', () => {
+  const sourceIntent = { ...visible, framing: 'whole' as const, visibility: 'visible' as const }
+  const subject = { name: 'Bear', entityId: 'bear', role: 'primary' as const, safetyClass: 'general' as const, rect: { x: 0.24, y: 0.4, width: 0.32, height: 0.38 }, sourceEdges: [], evidence: 'Whole visible bear.', sourceIntent }
+  const fruit = { name: 'Held fruit', entityId: 'fruit', role: 'critical-part' as const, rect: { x: 0.38, y: 0.57, width: 0.18, height: 0.17 }, sourceEdges: [], evidence: 'Whole visible fruit.', sourceIntent }
+  const layout = { ...protectedFill, expectedSubjects: [{ entityId: subject.entityId, rect: subject.rect, wholeRect: subject.rect }], expectedActionParts: [{ entityId: fruit.entityId, name: fruit.name, rect: fruit.rect }] }
+  const targets = wallpaperSourceMeasurementTargets({ objectRoles: [subject, fruit] }, layout, ['subject-too-small:Bear', 'action-part-too-small:Held fruit'])
+  assert.deepEqual(targets.map(target => target.entityId), ['bear', 'fruit'])
+  const correctedFruit = { ...fruit.rect, x: 0.4, width: 0.14 }
+  const baseline = wallpaperMeasuredSourceLayout(layout, { sourceImageVersionId: 'source', measurements: [
+    { entityId: subject.entityId, result: 'measured', rect: subject.rect, reason: 'Same visible body.' },
+    { entityId: fruit.entityId, result: 'measured', rect: correctedFruit, reason: 'The hand is separate from the visible fruit.' },
+  ] }, settings, { scale: 1, left: 0, top: 0 }, settings)
+  assert.equal(baseline?.expectedActionParts?.[0]?.rect.width, correctedFruit.width)
+  assert.equal(layout.expectedActionParts[0]?.rect.width, fruit.rect.width)
 })
 
 test('actual output focus drives new layout checks while full bodies and complete automobiles remain independently recorded', () => {

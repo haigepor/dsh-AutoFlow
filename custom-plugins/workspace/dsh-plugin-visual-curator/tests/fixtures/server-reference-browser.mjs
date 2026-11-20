@@ -1,0 +1,45 @@
+/** Exercise the production workbench picker with an isolated rating window. */
+import assert from 'node:assert/strict'
+
+export default async page => {
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVV0AAAAASUVORK5CYII=', 'base64')
+  await page.route('**/api/visual-curator/resource**', route => route.fulfill({ status: 200, contentType: 'image/png', body: png }))
+  await page.setViewportSize({ width: 1360, height: 900 })
+  await page.reload()
+  await page.waitForFunction(() => Boolean(window.feedbackFixture))
+  await page.evaluate(() => { window.feedbackFixture.setMode('workbench'); window.feedbackFixture.setScenario('task-reference') })
+  const menu = page.getByRole('button', { name: '添加引用', exact: true })
+  await menu.click()
+  await page.getByRole('menuitem', { name: '引用服务器图片', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '引用服务器图片' })
+  await dialog.getByLabel('Token').fill('isolated-browser-fixture')
+  await dialog.getByRole('button', { name: '连接', exact: true }).click()
+  await dialog.getByRole('button', { name: '全部图片 · 4', exact: true }).waitFor()
+  assert.deepEqual(await dialog.locator('.vc-server-reference-group h4').allTextContents(), ['S 1', 'A 2', '未评级 1'])
+  await dialog.locator('[data-preview-state="ready"]').first().waitFor()
+  await dialog.getByRole('button', { name: 'S · 1', exact: true }).click()
+  await dialog.getByRole('checkbox', { name: '评级样图 · 2' }).check()
+  await dialog.getByRole('button', { name: 'A · 2', exact: true }).click()
+  assert.deepEqual(await dialog.locator('figcaption > small').allTextContents(), ['均分 8.9', '均分 8.1'])
+  await dialog.getByRole('checkbox', { name: '评级样图 · 3' }).check()
+  await dialog.getByRole('button', { name: '未评级 · 1', exact: true }).click()
+  assert.equal(await dialog.locator('.vc-server-reference-footer strong').innerText(), '2')
+  await dialog.getByRole('button', { name: '反例参考', exact: true }).click()
+  for (const dark of [true, false]) {
+    await page.evaluate(value => window.feedbackFixture.theme(value), dark)
+    await page.setViewportSize({ width: dark ? 1360 : 390, height: 844 })
+    assert.equal(await dialog.evaluate(node => node.getBoundingClientRect().right <= innerWidth && node.getBoundingClientRect().left >= 0 && node.scrollWidth <= node.clientWidth), true)
+    assert.equal(await dialog.getByRole('button', { name: '添加反例参考', exact: true }).isEnabled(), true)
+  }
+  await dialog.getByRole('button', { name: '添加反例参考', exact: true }).click()
+  await dialog.getByText('已添加 2 · 已存在 0 · 失败 0', { exact: true }).waitFor()
+  const request = await page.evaluate(() => window.feedbackFixture.state.runCommands.find(([operation]) => operation === 'server-reference-import')?.[1])
+  assert.equal(request.role, 'negative')
+  assert.deepEqual(request.keys, ['2'.repeat(64), '3'.repeat(64)])
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
+  assert.equal(await menu.evaluate(node => document.activeElement === node), true)
+  assert.deepEqual(errors, [])
+}

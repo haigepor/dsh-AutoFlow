@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-full-subject-recheck",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator measures attached foliage, tails, bumpers and table bases during wallpaper review. Rework checks whether the original framing fits the safe area, and reviewing a saved candidate uses the selected image.",
+    "zh-CN": "视觉策展在壁纸复审时核对相连枝叶、尾梢、保险杠和边几底座。返工前检查原图取景与安全区能否同时满足，点选已保存的候选会复审该张图片。"
+  }
+}

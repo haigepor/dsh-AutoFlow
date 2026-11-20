@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assessmentSchema, requestSchema, type Json } from '../src/shared/model.ts'
+import { assessmentSchema, requestSchema, selectionSchema, type Json } from '../src/shared/model.ts'
 import { chooseSearchQuery } from '../src/host/search-query-plan.ts'
 import { planSearch } from '../src/host/search-planning.ts'
 import { searchQueryGuidance, searchQueryPlanningGuidance } from '../src/host/search-guidance.ts'
@@ -9,7 +9,7 @@ import { CuratorDomain } from '../src/domain/curator.ts'
 import { resolveConfig } from '../src/host/config.ts'
 import { RunEngine, dataOf, specOf, toJson, type ExecutionSpec } from '../src/host/runtime.ts'
 import { CompatibleVisionProvider, type VisionInput } from '../src/media/vision.ts'
-import { FixtureJobs } from './helpers/service-fixture.ts'
+import { FixtureJobs, serviceFixture } from './helpers/service-fixture.ts'
 import { z } from 'zod'
 
 function assessment(imageId: string, taskRelevance: 'relevant' | 'irrelevant' | 'unknown', subjectFocusVerdict?: 'matched' | 'not-matched' | 'unknown') {
@@ -29,6 +29,60 @@ test('a matched v3 subject also requires relevant task evidence and preserves le
 
 test('unseen directions outrank a fetched page with no new source identities', () => {
   assert.equal(chooseSearchQuery({ pages: [{ index: 0, ids: [], done: [], empty: true }, { index: 1, ids: [], done: [], empty: false }], nextQuery: 0, queryCount: 2, imageId: () => undefined, assessments: [], selections: [] }), 1)
+})
+
+test('measured page yield replaces the legacy empty guess and compares new eligible candidates per page', () => {
+  const pages = [
+    { index: 0, ids: [], done: [], empty: true, sourceYield: { examinedPages: 2, eligibleCandidates: 20, lastPageEligible: 9 } },
+    { index: 1, ids: [], done: [], empty: false, sourceYield: { examinedPages: 1, eligibleCandidates: 4, lastPageEligible: 4 } },
+  ]
+  const input = { pages, nextQuery: 1, queryCount: 2, imageId: () => undefined, assessments: [], selections: [] }
+  assert.equal(chooseSearchQuery(input), 0)
+  pages[0]!.sourceYield = { examinedPages: 1, eligibleCandidates: 0, lastPageEligible: 0 }
+  assert.equal(chooseSearchQuery(input), 1, 'A direction with zero eligible IDs loses to a productive page')
+})
+
+test('a new direction gets a probe before a winning direction deepens, then confirmed matches outweigh source volume', () => {
+  const qualified = { ...assessment('known', 'relevant', 'matched'), verdict: 'pass' as const }
+  const selected = selectionSchema.parse({ schemaVersion: 1, profileId: 'query-test', id: 'selected', createdAt: qualified.createdAt, kind: 'selection', runId: qualified.runId, imageVersionId: qualified.imageVersionId, assessmentId: qualified.id, qualification: 'auto-qualified', rank: 0, warnings: [] })
+  const pages = [
+    { index: 0, ids: ['known'], done: ['known'], empty: false, sourceYield: { examinedPages: 1, eligibleCandidates: 16, lastPageEligible: 16 } },
+    { index: 1, ids: [], done: [], empty: false, sourceYield: { examinedPages: 0, eligibleCandidates: 0, lastPageEligible: 0 } },
+  ]
+  const input = { pages, nextQuery: 0, queryCount: 2, imageId: (id: string) => id, assessments: [qualified], selections: [selected] }
+  assert.equal(chooseSearchQuery(input), 1)
+  pages[1]!.sourceYield = { examinedPages: 1, eligibleCandidates: 20, lastPageEligible: 20 }
+  assert.equal(chooseSearchQuery({ ...input, nextQuery: 1 }), 0)
+})
+
+test('a duplicate-only direction cannot displace a direction whose first results failed coarse screening', () => {
+  const coarseRejections = Array.from({ length: 6 }, (_, index) => `coarse-${index}`)
+  const pages = [
+    { index: 0, ids: coarseRejections, done: coarseRejections, empty: false, sourceYield: { examinedPages: 1, eligibleCandidates: 20, lastPageEligible: 20 } },
+    { index: 1, ids: [], done: [], empty: false, sourceYield: { examinedPages: 1, eligibleCandidates: 0, lastPageEligible: 0 } },
+  ]
+  assert.equal(chooseSearchQuery({ pages, nextQuery: 1, queryCount: 2, imageId: () => undefined, assessments: [], selections: [] }), 0)
+})
+
+test('accepted Unsplash queries preserve first spelling and order and spend their page budget only after merging duplicates', async () => {
+  const f = await serviceFixture(undefined, { maxSearchPages: 2 }, {}, { provider: 'unsplash' })
+  try {
+    await f.service.initialize()
+    const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'query-style', name: 'Query fixture' }))
+    await f.action('reference-import', { operationId: 'query-reference', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    await f.action('reference-analyze', { operationId: 'query-analysis', styleId: style.id, buildDataset: true }); await f.jobs.drain()
+    const profile = f.repository.list('modelProfile')[0]!
+    const args = { kind: 'search', releaseId: profile.id, sourceId: 'unsplash', taskBrief: 'Find green landscapes.', targetCount: 1, output: { kind: 'original' }, queries: ['  Forest  road ', 'forest road', 'Green valley', 'GREEN VALLEY'] }
+    const checked = z.object({ status: z.literal('ready'), normalizedInput: z.record(z.string(), z.json()), preparationDigest: z.string() }).parse(await f.action('task-prepare', args))
+    assert.deepEqual(checked.normalizedInput.queries, ['Forest road', 'Green valley'])
+    const blocked = z.object({ status: z.literal('blocked'), error: z.object({ code: z.literal('invalid-input'), stage: z.literal('search-query-plan') }) })
+    blocked.parse(await f.action('task-prepare', { ...args, queries: [...args.queries, 'Open meadow'] }))
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('search-start', { ...checked.normalizedInput, preparationDigest: checked.preparationDigest, operationId: 'query-search' }))
+    await f.jobs.drain()
+    const spec = specOf(f.domain.require('run', runId))
+    assert.deepEqual(spec.input.queries, ['Forest road', 'Green valley'])
+    assert.equal(spec.fixed.searchScreeningSchedule, 1)
+  } finally { await f.cleanup() }
 })
 
 async function planningFixture(legacy?: 'receipt' | 'checkpoint' | 'wrong-task' | 'wrong-digest' | 'missing-receipt' | 'changed-checkpoint' | 'uncommitted-checkpoint' | 'malformed-receipt', queries = ['car forest', 'car mountain road']) {

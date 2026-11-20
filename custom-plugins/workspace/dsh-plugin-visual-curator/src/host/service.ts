@@ -34,7 +34,7 @@ import { readAnalysisDetail } from './analysis-detail.ts'
 import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, styleStandardSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot, type StyleStandard, type RunRecord } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
 import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, searchScreeningPolicySchema, type CuratorConfig } from './config.ts'
-import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, taskTiming, type ExecutionSpec, type Worker } from './runtime.ts'
+import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, taskTiming, readRunContinuation, type ExecutionSpec, type Worker } from './runtime.ts'
 import { ProviderFactory, sourceIdentity } from './providers.ts'
 import { GalleryService } from './gallery.ts'
 import { GalleryReferenceTasks } from './gallery-tasks.ts'
@@ -49,7 +49,7 @@ import type { UnsplashApi } from '../media/unsplash.ts'
 import { decodeUpload, importedRecords } from './imports.ts'
 import { listLocalReferences } from './local-references.ts'
 import { pickNativeDirectory } from '@deepseek-ai/dsh-host-directory-picker-native'
-import { pickNativeImages, pickNativeReferences } from '@deepseek-ai/dsh-host-directory-picker-native/native-picker'
+import { pickNativeDirectories, pickNativeImages, pickNativeReferences } from '@deepseek-ai/dsh-host-directory-picker-native/native-picker'
 import { createCropWorker, createCropProcessor } from './crop-workflow.ts'
 import { createSearchWorker } from './search-workflow.ts'
 import { createDataWorker } from './data-workflows.ts'
@@ -65,17 +65,19 @@ import { searchOutputSchema } from '../shared/search-launch.ts'
 import { ReferenceOrganization } from './reference-organization.ts'
 import { WorkflowHistory } from './workflow-history.ts'
 import { SearchLaunches } from './search-launch.ts'
+import { normalizeUnsplashQueries } from './search-query-plan.ts'
 import { freezeSearchExclusions, searchHistoryRuns } from './search-exclusions.ts'
 import { createPreviewReads, remotePreviewLocation } from './preview-cache.ts'
 import { createAnalysisTaskReads } from './analysis-task-reads.ts'
 import { nativeSearchSessions, type NativeSearchSessions } from './native-search-session.ts'
 import { originalSearchResult } from './search-results.ts'
 import { ServerQueue } from './server-queue.ts'
+import { ServerReferences } from './server-references.ts'
 import { DirectCropTasks, isDirectCropRun } from './direct-crop.ts'
 import { openOfficialImageProvider } from './official-image-provider.ts'
 import { WallpaperWorkflows, isWallpaperRun } from './wallpaper-workflow.ts'
 import { WallpaperExperienceStore } from './wallpaper-experience.ts'
-import { wallpaperCanCancel, wallpaperPendingDecision, wallpaperWorkImage, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { wallpaperCanCancel, wallpaperPendingDecision, wallpaperWorkImage, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperAttemptReview, wallpaperVerdict } from '../shared/wallpaper.ts'
 import { wallpaperBatch, wallpaperAcceptsWork, canReadWallpaperChild, wallpaperRunState } from './wallpaper-state.ts'
 import type {} from '@deepseek-ai/dsh-compaction'
 
@@ -88,9 +90,10 @@ export interface CuratorServiceDependencies {
   nativeSessions?: NativeSearchSessions
   openDomain?: (files: AssetFiles) => Promise<CuratorDomain>
   providers?: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
-  pickLocalPaths?: (kind: 'file' | 'folder' | 'references', title: string, signal: AbortSignal) => Promise<string[] | null>
+  pickLocalPaths?: (kind: 'file' | 'folder' | 'folders' | 'references', title: string, signal: AbortSignal) => Promise<string[] | null>
   galleryApi?: (config: CuratorConfig, accountId?: string, provisionalRef?: string, provisionalCookie?: string) => Promise<UnsplashApi>
   galleryMedia?: import('../media/index.ts').HttpClient
+  serverReferenceHttp?: import('../media/index.ts').HttpClient
   launchGalleryLogin?: (config: CuratorConfig, signal: AbortSignal) => Promise<GalleryLoginBrowser>
 }
 /** Minimal Host capabilities used by this provider; Cordis owns their actual implementations. */
@@ -110,7 +113,7 @@ export interface CuratorHost {
 
 interface ResolvedTask { kind: 'search' | 'crop'; normalized: Record<string, Json>; fixed: Record<string, Json>; config: CuratorConfig }
 
-const sessionReadOperations = new Set(['task-reference-list', 'snapshot', 'style-list', 'style-get', 'run-get', 'conversation-runs', 'analysis-detail', 'analysis-input', 'reference-state', 'references-list', 'datasets-list', 'dataset-get', 'profile-current', 'gallery-reference-tasks', 'search-batches'])
+const sessionReadOperations = new Set(['server-reference-list', 'task-reference-list', 'snapshot', 'style-list', 'style-get', 'run-get', 'conversation-runs', 'analysis-detail', 'analysis-input', 'reference-state', 'references-list', 'datasets-list', 'dataset-get', 'profile-current', 'gallery-reference-tasks', 'search-batches'])
 
 /** One provider owns one profile writer; it never changes the default bundle composition. */
 export class CuratorService {
@@ -131,6 +134,7 @@ export class CuratorService {
   private galleryValue: GalleryService | undefined
   private galleryTasks: GalleryReferenceTasks | undefined
   private readonly files: AssetFiles
+  private readonly serverReferences: ServerReferences
   private readonly providers: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
   private galleryProviders: ProviderFactory | undefined
   private officialImages: { close(): Promise<void> } | undefined
@@ -152,6 +156,7 @@ export class CuratorService {
     this.profileId = createHash('sha256').update(resolve(ctx.profileContext.dir)).digest('hex')
     const l = this.config.limits
     this.files = new AssetFiles(join(ctx.profileContext.dir, 'visual-curator'), { maxFileBytes: l.maxImportBytes, maxPixels: l.maxPixels, maxDimension: l.maxDimension, previewMaxDimension: l.previewMaxDimension, maxStorageBytes: l.maxStorageBytes })
+    this.serverReferences = new ServerReferences(() => this.domain, this.files, ctx.credentials, () => this.config, dependencies.serverReferenceHttp)
     this.storageMigration = new ImageStorageMigration({ profileId: this.profileId, defaultDirectory: this.files.root, repository: () => this.domain.repository, readUsage: () => this.imageStorageUsage(), files: this.files, jobs: ctx.jobs, signal: this.lifetime.signal, settled: async () => {
       if (!this.stopping && !this.storageMigration.active) { const recovery = this.delayedStorageRecovery; this.delayedStorageRecovery = undefined; if (recovery) await recovery() }
     } })
@@ -238,7 +243,13 @@ export class CuratorService {
     const organization = this.organizationValue, launches = this.launchesValue, serverQueue = this.serverQueueValue
     const recovery = async () => {
       await this.engine.resumeAnalyses(this.worker('analyze'))
-      for (const run of this.domain.repository.list('run')) if (run.status === 'interrupted' && dataOf(run).autoResume === true && (isWallpaperRun(run) ? wallpaperAcceptsWork(this.domain, run) : specOf(run).fixed.wallpaperLearning === true)) await this.engine.control(run.id, 'resume', { kind: 'human', id: 'profile-owner', profileId: this.profileId }, this.worker(specOf(run).kind), false)
+      const interrupted = this.domain.repository.list('run').filter(run => run.status === 'interrupted' && dataOf(run).autoResume === true
+        && (isWallpaperRun(run) ? wallpaperAcceptsWork(this.domain, run) : specOf(run).fixed.wallpaperLearning === true))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      for (const run of interrupted) {
+        if (!readRunContinuation(run, this.domain.repository).allowed) continue
+        await this.engine.control(run.id, 'resume', { kind: 'human', id: 'profile-owner', profileId: this.profileId }, this.worker(specOf(run).kind), false)
+      }
       await this.wallpaperValue!.recoverRetries(this.lifetime.signal)
       await organization.recover()
       launches.recover()
@@ -532,7 +543,7 @@ export class CuratorService {
         if (operation === 'search-launch-stop') return toJson(await launches.stop(z.object({ id: z.string().uuid() }).parse(args).id))
         throw new CuratorError('invalid-input', 'search-launch', 'Unknown search launch operation.')
       }
-      if (['style-archive', 'style-rename', 'reference-edit', 'reference-analyze', 'reference-import', 'reference-local-import', 'task-reference-import', 'gallery-import', 'draft-save'].includes(operation) && typeof args.styleId === 'string' && this.galleryTasks?.busy(args.styleId)) throw new CuratorError('constraint-conflict', 'gallery-task', 'Wait for this collection reference task to finish or stop it first.')
+      if (['style-archive', 'style-rename', 'reference-edit', 'reference-analyze', 'reference-import', 'reference-local-import', 'server-reference-import', 'task-reference-import', 'gallery-import', 'draft-save'].includes(operation) && typeof args.styleId === 'string' && this.galleryTasks?.busy(args.styleId)) throw new CuratorError('constraint-conflict', 'gallery-task', 'Wait for this collection reference task to finish or stop it first.')
       if (actor.kind === 'agent' && !Object.values(agentOperations).includes(operation as (typeof agentOperations)[keyof typeof agentOperations])) throw new CuratorError('owner-denied', 'tool', 'This operation is unavailable to Agent tools.')
       if (['search-start', 'crop-start', 'manual-crop-confirm', 'reference-analyze', 'evaluate-start', 'export-start'].includes(operation) && typeof args.operationId === 'string') {
         const id = contentDigest({ profileId: effectiveActor.profileId, sessionId: effectiveActor.sessionId ?? null, operationId: args.operationId }).slice(10)
@@ -758,6 +769,17 @@ export class CuratorService {
           return toJson(projectRun(this.domain, await this.engine.control(runId, command, effectiveActor, this.worker(specOf(run).kind), waitForCompletion), effectiveActor))
         }
         case 'reference-import': this.human(actor); return await this.importReferences(args, actor, signal)
+        case 'server-reference-list': {
+          this.human(effectiveActor)
+          z.strictObject({}).parse(args)
+          const catalog = await this.serverReferences.list(effectiveActor, signal)
+          const token = typeof sessionToken === 'string' ? sessionToken : undefined
+          return toJson({ ...catalog, items: catalog.items.map(item => ({ ...item, previewPath: this.withSessionResources(item.previewPath, effectiveActor, token) })) })
+        }
+        case 'server-reference-import': {
+          this.human(effectiveActor)
+          return toJson(await this.serverReferences.import(args, effectiveActor, signal))
+        }
         case 'task-reference-list': {
           this.human(effectiveActor)
           const input = taskReferenceReadSchema.parse(args)
@@ -787,7 +809,7 @@ export class CuratorService {
         case 'local-files-list': {
           this.human(actor)
           const input = z.strictObject({ path: z.string().min(1), kind: z.enum(['file', 'folder']) }).parse(args)
-          return toJson({ files: await listLocalReferences(input.path, input.kind, this.config.limits.maxLocalReferenceFiles, signal) })
+          return toJson({ files: await listLocalReferences([input.path], input.kind, this.config.limits.maxLocalReferenceFiles, signal) })
         }
         case 'reference-local-import': this.human(actor); return await this.referenceLocalFiles(args, actor, signal)
         case 'local-reference-pick': this.human(actor); return await this.pickLocalReferences(args, signal)
@@ -896,7 +918,8 @@ export class CuratorService {
       if (!attempt?.outputId) return []
       const image = this.domain.authorizedImage(attempt.outputId, actor).image
       const source = this.domain.authorizedImage(item.imageVersionId, actor).asset
-      const review = attempt.review ? wallpaperVerdict(attempt.review) : null
+      const latestReview = wallpaperAttemptReview(attempt)
+      const review = latestReview ? wallpaperVerdict(latestReview) : null
       const selection = selected.get(image.id), saved = selection ? this.domain.repository.get('assessment', selection.assessmentId) : undefined
       const assessment = saved?.runId === run.id && saved.imageVersionId === image.id ? saved : undefined
       const inherited = z.object({ reusedQualification: z.object({ runId: z.string(), assessmentId: z.string(), selectionId: z.string() }) }).safeParse(assessment?.data)
@@ -971,19 +994,20 @@ export class CuratorService {
   }
   private async pickLocalReferences(args: Record<string, Json>, signal: AbortSignal): Promise<Json> {
     const label = z.string().min(1).max(120).regex(/^[^\r\n\0]+$/)
-    const input = z.discriminatedUnion('kind', [z.strictObject({ kind: z.enum(['file', 'folder']), title: label }), z.strictObject({ kind: z.literal('references'), title: label, folderLabel: label, imagesLabel: label })]).parse(args)
+    const input = z.discriminatedUnion('kind', [z.strictObject({ kind: z.enum(['file', 'folder', 'folders']), title: label }), z.strictObject({ kind: z.literal('references'), title: label, folderLabel: label, imagesLabel: label })]).parse(args)
     if (this.selectingLocalFiles) throw new CuratorError('capability-unavailable', 'local-picker', 'A local selection window is already open.')
     this.selectingLocalFiles = true
     try {
       const selected = this.dependencies.pickLocalPaths ? await this.dependencies.pickLocalPaths(input.kind, input.title, signal)
         : input.kind === 'references' ? await pickNativeReferences(signal, input)
           : input.kind === 'file' ? await pickNativeImages(signal, input.title)
+          : input.kind === 'folders' ? await pickNativeDirectories(signal, input.title)
           : await pickNativeDirectory(signal, {}, input.title).then(path => path ? [path] : null)
       signal.throwIfAborted()
       if (selected === null) return { files: [], cancelled: true }
-      if (selected.length > this.config.limits.maxLocalReferenceFiles) throw new CuratorError('invalid-input', 'local-picker', 'The selection exceeds the configured local reference count.')
-      const files = []
-      for (const path of new Set(selected)) files.push(...await listLocalReferences(path, input.kind, this.config.limits.maxLocalReferenceFiles - files.length, signal))
+      const maxFiles = input.kind === 'references' || input.kind === 'folder' ? this.config.limits.maxLocalReferenceFiles : undefined
+      if (maxFiles !== undefined && selected.length > maxFiles) throw new CuratorError('invalid-input', 'local-picker', 'The selection exceeds the configured local reference count.')
+      const files = await listLocalReferences(selected, input.kind, maxFiles, signal)
       return toJson({ files, cancelled: false })
     } finally { this.selectingLocalFiles = false }
   }
@@ -1053,7 +1077,7 @@ export class CuratorService {
     const usage = task.fixed.usage ? z.object({ presetId: z.string() }).parse(task.fixed.usage) : undefined
     const currentUsage = usage && !task.fixed.searchLaunchId ? this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null : null
     // Search history is sampled at Run admission; new results do not change the checked task or rules.
-    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), ...(task.fixed.searchScreeningSchedule === 1 ? { searchScreeningSchedule: 1 } : {}), ...(task.fixed.searchHardScreening === 1 ? { searchHardScreening: 1 } : {}), ...(task.fixed.previewPixelIdentity === 1 ? { previewPixelIdentity: 1 } : {}), currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
   }
   private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
     const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -1093,10 +1117,12 @@ export class CuratorService {
       const profile = z.object({ id: z.string() }).parse(launched.fixed.release)
       if (input.releaseId !== profile.id || input.taskBrief !== launched.input.taskBrief || (input.targetCount !== undefined && input.targetCount !== launched.input.targetCount) || (input.output !== undefined && contentDigest(input.output) !== contentDigest(launched.fixed.output))) throw new CuratorError('constraint-conflict', 'search-launch', 'Use this conversation launch’s frozen profile, task, quantity and output.')
       const preview = searchOutputSchema.parse(launched.fixed.output).kind === 'preview'
-      if (preview && !input.queries?.length || input.queries && input.queries.length > launched.config.limits.maxSearchPages) throw new CuratorError('invalid-input', 'search-query-plan', 'Use explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
-      launched.fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(styleStandardSchema.parse(launched.fixed.release), launched.fixed.executionRecipe), actor, input.taskBrief, true, launched.config.limits.requestTimeoutMs)
+      const unsplash = launched.config.source.provider === 'unsplash'
+      const queries = unsplash && input.queries ? normalizeUnsplashQueries(input.queries) : input.queries
+      if (preview && !queries?.length || queries && (queries.length > launched.config.limits.maxSearchPages || unsplash && (!queries.length || queries.includes('')))) throw new CuratorError('invalid-input', 'search-query-plan', 'Use explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
+      launched.fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(styleStandardSchema.parse(launched.fixed.release), launched.fixed.executionRecipe), actor, launched, true)
       launched.fixed.invocationDigest = contentDigest({ operation, args })
-      return { kind: 'search', normalized: { ...launched.input, ...(input.queries ? { queries: input.queries } : {}) }, fixed: launched.fixed, config: launched.config }
+      return { kind: 'search', normalized: { ...launched.input, ...(queries ? { queries } : {}) }, fixed: launched.fixed, config: launched.config }
     }
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
     if (release.kind === 'modelProfile' && !release.rules.some(isMatchingRule)) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
@@ -1145,14 +1171,19 @@ export class CuratorService {
       await this.providers.source(config)
       const targetCount = input.budgets?.targetCount ?? input.targetCount ?? 10
       if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Target count exceeds the candidate budget.')
-      const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
-      const queries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
-      Object.assign(normalized, { queries, targetCount })
+      const unsplash = config.source.provider === 'unsplash'
+      const hints = unsplash && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
+      const requestedQueries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
+      const queries = unsplash ? normalizeUnsplashQueries(requestedQueries) : requestedQueries
+      if (unsplash && input.queries && queries.length > limits.maxSearchPages) throw new CuratorError('invalid-input', 'search-query-plan', 'Use explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
+      Object.assign(normalized, { queries: unsplash && input.queries === undefined ? queries.slice(0, limits.maxSearchPages) : queries, targetCount })
+      if (unsplash && output.kind === 'preview') fixed.previewPixelIdentity = 1
       if (config.searchScreening && config.searchScreening.enabled !== false) {
         const { enabled: _enabled, ...screening } = config.searchScreening
         fixed.searchScreening = toJson(searchScreeningPolicySchema.parse({ version: 1, ...screening }))
+        if (unsplash) Object.assign(fixed, { searchScreeningSchedule: 1, searchHardScreening: 1 })
       }
-      fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(release, fixed.executionRecipe), actor, input.taskBrief, allowCollectionHistory, config.limits.requestTimeoutMs)
+      fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(release, fixed.executionRecipe), actor, { config, input: normalized, fixed }, allowCollectionHistory)
     } else {
       const ids = input.imageVersionIds ?? (input.imageVersionId ? [input.imageVersionId] : [])
       if (!ids.length || ids.length > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Choose authorized saved image versions.')
@@ -1167,9 +1198,9 @@ export class CuratorService {
     }
     return { kind, normalized, fixed, config }
   }
-  private async searchHistoryPolicy(standard: StyleStandard, actor: DomainActor, taskBrief: string, allowCollectionHistory: boolean, timeoutMs: number): Promise<Json> {
+  private async searchHistoryPolicy(standard: StyleStandard, actor: DomainActor, task: Pick<ExecutionSpec, 'config' | 'input' | 'fixed'>, allowCollectionHistory: boolean): Promise<Json> {
     const history: { run: import('../shared/model.ts').RunRecord; actor: DomainActor }[] = [], readable = new Map<string, boolean>()
-    const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(timeoutMs)])
+    const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(task.config.limits.requestTimeoutMs)])
     for (const run of searchHistoryRuns(this.domain, standard.styleId)) {
       let reader = actor
       if (run.owner.kind === 'profile') { if (actor.kind !== 'human' && !allowCollectionHistory) continue; reader = { ...actor, kind: 'human' } }
@@ -1182,7 +1213,7 @@ export class CuratorService {
       }
       this.engine.get(run.id, reader); history.push({ run, actor: reader })
     }
-    return toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, standard, actor, history, taskBrief)))
+    return toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, standard, actor, history, task)))
   }
   private async saveLibrary(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
     const { imageVersionId, operationId } = z.object({ imageVersionId: z.string(), operationId: z.string() }).parse(args)
@@ -1315,6 +1346,12 @@ export class CuratorService {
       const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId'), galleryUrl = url.searchParams.get('galleryUrl'), selectionId = url.searchParams.get('selectionId')
       const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }
       const serverImageId = url.searchParams.get('serverImageId'), serverSnapshotId = url.searchParams.get('serverSnapshotId')
+      const serverReferenceSnapshot = url.searchParams.get('serverReferenceSnapshot'), serverReferenceKey = url.searchParams.get('serverReferenceKey')
+      if (serverReferenceSnapshot || serverReferenceKey) {
+        if (!serverReferenceSnapshot || !serverReferenceKey || serverImageId || serverSnapshotId || imageId || exportId || galleryUrl || selectionId) return new Response(null, { status: 400 })
+        const preview = await this.serverReferences.preview(serverReferenceSnapshot, serverReferenceKey, actor, resourceSignal)
+        return new Response(request.method === 'HEAD' ? null : new Uint8Array(preview.bytes), { headers: { ...headers, 'content-type': preview.mime, 'content-length': String(preview.bytes.length), 'referrer-policy': 'no-referrer' } })
+      }
       if (serverImageId || serverSnapshotId) {
         if (!serverImageId || !serverSnapshotId || imageId || exportId || galleryUrl || selectionId) return new Response(null, { status: 400 })
         const preview = await this.serverQueueValue!.preview(serverImageId, serverSnapshotId, actor, resourceSignal)
@@ -1372,7 +1409,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['image-storage-read', 'image-storage-clean', 'image-storage-directory-pick', 'image-storage-migrate', 'image-storage-migration-resume', 'server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
+    return await this.workspaceData(request, ['server-reference-list', 'server-reference-import', 'image-storage-read', 'image-storage-clean', 'image-storage-directory-pick', 'image-storage-migrate', 'image-storage-migration-resume', 'server-queue-read', 'server-queue-configure', 'server-queue-pull', 'server-queue-start', 'server-queue-import-retry', 'server-queue-import-delete', 'server-queue-retry', 'server-queue-recheck', 'direct-crop-start', 'direct-crop-replace', 'direct-crop-list', 'direct-crop-delete', 'direct-crop-export', 'wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {

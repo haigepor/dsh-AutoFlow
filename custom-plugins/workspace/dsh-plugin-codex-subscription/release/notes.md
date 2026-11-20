@@ -1,3 +1,11 @@
+## Codex Subscription 0.2.10
+
+- Image tasks retain available network failure and response details when a stream ends unexpectedly.
+
+## Codex Subscription 0.2.10 更新说明
+
+- 生图响应中断时，任务保留可用的网络错误与响应信息，便于核对请求。
+
 ## Codex Subscription 0.2.9
 
 Generated image previews and call details appear in one collapsible row at the original request in the conversation.

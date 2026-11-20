@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { wallpaperCompleteCanvasPrompt } from '../src/media/wallpaper-generation.ts'
 import { applyWallpaperCriticalDetail, applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { wallpaperPracticalReviewOutputSchema, wallpaperPracticalReviewSchema, type WallpaperPracticalReview } from '../src/shared/wallpaper-practical.ts'
-import { wallpaperItemSchema, wallpaperPlanSchema, wallpaperReviewReworkAvailable, wallpaperRoleObservationOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { wallpaperItemSchema, wallpaperPlanSchema, wallpaperReviewOutputSchema, wallpaperReviewReworkAvailable, wallpaperRoleObservationOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 
 type CurrentReview = Extract<WallpaperPracticalReview, { protocol: 'practical-v2' }>
 const settings = wallpaperSettingsSchema.parse({ processing: { acceptance: { version: 'practical-v2' } }, sourceIntentPolicy: { version: 'source-intent-v1' }, repairPolicy: {} })
@@ -160,6 +160,29 @@ test('new layout focus cannot replace the full subject rectangle or escape its v
   assert.equal(schema.safeParse(escaped).success, false)
   const parsed = wallpaperPracticalReviewSchema.parse(schema.parse(current))
   assert.equal(parsed.actualLayout.regions[0]?.rect.height, 0.65)
+})
+
+test('scene review enforces a frozen landmark size without promoting distant supporting people', () => {
+  const expected = { x: 0.28, y: 0.38, width: 0.4, height: 0.24 }
+  const actual = { x: 0.38, y: 0.44, width: 0.2, height: 0.12 }
+  const arch = { entityId: 'arch', name: 'Natural arch', role: 'primary' as const, safetyClass: 'general' as const }
+  const hiker = { entityId: 'hiker', name: 'Distant hiker', role: 'supporting' as const, rect: { x: 0.2, y: 0.55, width: 0.005, height: 0.009 }, sourceEdges: [], evidence: 'A distant figure provides scale in the valley.' }
+  const satisfied = { result: 'satisfied' as const, reason: 'The original sea arch and coastal setting remain recognizable.' }
+  const sourceLayout = { version: 'source-intent-v2' as const, minimumSubjectScaleRatio: 0.9 }
+  const reviewScene = wallpaperPracticalReviewOutputSchema('original', 'final', [arch], 'scene', true)
+  const output: CurrentReview = { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v2', sourceImageVersionId: 'original', outputImageVersionId: 'final', mode: 'scene', subject: 'Natural arch in the wider seascape.',
+    actualLayout: { regions: [{ entityId: arch.entityId, name: arch.name, role: 'subject', scope: 'core', rect: actual }] }, defects: [], uncertainties: [], sourceStyle: satisfied,
+    sourcePreservation: [{ entityId: arch.entityId, framing: satisfied, appearance: satisfied, relationships: satisfied }] }
+  const target = { ...sourceLayout, expectedSubjects: [{ entityId: arch.entityId, rect: expected }] }
+  const reduced = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(reviewScene.parse(output), false, settings, target))
+  assert.equal(wallpaperVerdict(reduced), 'reject')
+  assert.deepEqual(reduced.layoutChecks, ['subject-too-small:Natural arch'])
+  const naturalSize = reviewScene.parse({ ...output, actualLayout: { regions: [{ ...output.actualLayout.regions[0], rect: expected }] } })
+  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(naturalSize, false, settings, target)), 'pass')
+
+  const reviewLandscape = wallpaperReviewOutputSchema('wallpaper-review-source-v4', [], ['final', 'original'], 'final', 'original', true, [hiker], false, true, 'scene', true)
+  const landscape = reviewLandscape.parse({ ...output, subject: 'Wide valley with a tiny distant hiker.', actualLayout: { regions: [] }, sourcePreservation: [] })
+  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(landscape, false, settings, { ...sourceLayout, expectedSubjects: [] })), 'pass')
 })
 
 test('an empty defect list cannot qualify generated anatomy, changed animal markings, product labels or lost relationships', () => {

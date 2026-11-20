@@ -9,7 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { pickWin32Directory, pickWin32Images, pickWin32References, type Win32DialogInternals, type Win32DialogWorkerLike } from '../src/win32-dialog.ts'
+import { pickWin32Directories, pickWin32Directory, pickWin32Images, pickWin32References, type Win32DialogInternals, type Win32DialogWorkerLike } from '../src/win32-dialog.ts'
 import type { Win32DialogWorkerMessage } from '../src/win32-dialog-worker.ts'
 
 class FakeWorker extends EventEmitter implements Win32DialogWorkerLike {
@@ -94,6 +94,17 @@ describe('pickWin32Directory', () => {
     const cancelled = pickWin32Directory(live(), second.internals)
     second.worker.post({ kind: 'done', path: null })
     await expect(cancelled).resolves.toBeNull()
+  })
+
+  it('passes folder multi-selection to the worker and requires an array outcome', async () => {
+    const first = harness(), spawnWorker = vi.fn(() => first.worker)
+    const picked = pickWin32Directories(live(), '选择文件夹', { ...first.internals, spawnWorker })
+    first.worker.post({ kind: 'images-done', paths: ['C:\\图库\\第一批', 'C:\\图库\\第二批'] })
+    await expect(picked).resolves.toEqual(['C:\\图库\\第一批', 'C:\\图库\\第二批'])
+    expect(spawnWorker).toHaveBeenCalledWith({ title: '选择文件夹', kind: 'folders' })
+    const second = harness(), wrongReply = pickWin32Directories(live(), 'Folders', second.internals)
+    second.worker.post({ kind: 'done', path: 'C:\\图库' })
+    await expect(wrongReply).rejects.toThrow('single-path reply')
   })
 
   it('rejects on a reported dialog failure, a worker crash, and a silent exit', async () => {

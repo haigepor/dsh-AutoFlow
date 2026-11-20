@@ -14,6 +14,7 @@ import { settingsSchema, type Limits } from './config.ts'
 import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate, type AnalysisStreamFrame, type AnalysisContinuation } from '../shared/analysis-process.ts'
 import { updateAnalysisProcess } from './analysis-process.ts'
 import { wallpaperSettingsSchema } from '../shared/wallpaper.ts'
+import { directCropMetadataSchema } from '../shared/direct-crop.ts'
 
 declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: 'visual-curator' } }
 const countersSchema = z.strictObject({ vision: z.number().int().nonnegative(), search: z.number().int().nonnegative(), downloadBytes: z.number().int().nonnegative(), deadlineAt: z.number().finite() })
@@ -78,6 +79,14 @@ export const executionSchema = z.strictObject({
   input: z.record(z.string(), jsonSchema), fixed: z.record(z.string(), jsonSchema), specDigest: z.string(),
 })
 export type ExecutionSpec = z.infer<typeof executionSchema>
+
+type QueueLane = 'analysis' | 'local-crop'
+
+function queueLane(spec: ExecutionSpec): QueueLane | undefined {
+  if (spec.kind === 'analyze') return 'analysis'
+  if (spec.input.workflow === 'wallpaper-direct-v1' && directCropMetadataSchema.safeParse(spec.fixed.directCrop).data?.origin === 'local') return 'local-crop'
+}
+
 const runDataSchema = z.strictObject({
   jobId: z.string().optional(), attemptId: z.string(), attempts: z.number().int().positive(),
   budget: countersSchema, checkpoint: z.record(z.string(), jsonSchema), counts: z.record(z.string(), z.number()),
@@ -86,6 +95,11 @@ const runDataSchema = z.strictObject({
   error: z.strictObject({ code: z.string(), stage: z.string(), retryable: z.boolean(), safeMessage: z.string(), suggestedAction: z.string(), storage: storageFailureSchema.optional() }).optional(),
 })
 export type RunData = z.infer<typeof runDataSchema>
+
+function unstartedLocalCrop(run: RunRecord, spec: ExecutionSpec, data: RunData): boolean {
+  return data.jobId === undefined && spec.input.sourceRunId === run.id && queueLane(spec) === 'local-crop'
+}
+
 /** @param value JSON-compatible internal value. @returns Detached validated JSON. */
 export function toJson(value: unknown): Json { return jsonSchema.parse(JSON.parse(JSON.stringify(value))) }
 /** Unknown errors never expose provider bodies or authentication fields. */
@@ -184,7 +198,7 @@ function runContinuationWithRequests(run: RunRecord, requests: (data: RunData) =
   if (run.status === 'completed') return { allowed: spec.kind === 'search' && data.checkpoint.postProcessingFailure !== undefined, reason: spec.kind === 'search' && data.checkpoint.postProcessingFailure !== undefined ? 'ready' : 'completed' }
   if (!['paused', 'interrupted', 'failed'].includes(run.status)) return { allowed: false, reason: 'unavailable' }
   if (run.status === 'failed' && (spec.kind !== 'search' || !data.error?.retryable)) return { allowed: false, reason: 'not-retryable' }
-  if (taskTiming(spec) === 'bounded' && now >= data.budget.deadlineAt) return { allowed: false, reason: 'deadline' }
+  if (taskTiming(spec) === 'bounded' && now >= data.budget.deadlineAt && !unstartedLocalCrop(run, spec, data)) return { allowed: false, reason: 'deadline' }
   const unknown = requests(data).some(request => {
     if (request.runId !== run.id || !['reserved', 'outcome-unknown'].includes(request.state)) return false
     const saved = continuationRequestSchema.safeParse(request.data)
@@ -218,7 +232,7 @@ export type Worker = (context: WorkContext) => Promise<NonNullable<RunRecord['ou
 export class RunEngine {
   private readonly live = new Map<string, LiveRun>()
   private readonly chains = new Map<string, Promise<void>>()
-  private readonly queued = new Map<string, Worker>()
+  private readonly queued = new Map<string, { worker: Worker; lane: QueueLane }>()
   private readonly processes = new Map<string, AnalysisProcess>()
   private readonly processLimits = new Map<string, Limits>()
   private readonly processListeners = new Map<string, Set<(frame: AnalysisStreamFrame) => void>>()
@@ -318,9 +332,10 @@ export class RunEngine {
     this.broadcast(run, false)
   }
   private async enqueue(run: RunRecord, worker: Worker): Promise<void> {
-    if (specOf(run).kind !== 'analyze') { this.schedule(run, worker); return }
-    this.report(run.id, { phase: 'queued' })
-    this.queued.set(run.id, worker)
+    const lane = queueLane(specOf(run))
+    if (!lane) { this.schedule(run, worker); return }
+    if (lane === 'analysis') this.report(run.id, { phase: 'queued' })
+    this.queued.set(run.id, { worker, lane })
     await this.drain()
   }
   private drain(): Promise<void> {
@@ -330,16 +345,23 @@ export class RunEngine {
   }
   private async drainNow(): Promise<void> {
     if (this.closed) return
-    for (const [id, worker] of this.queued) {
+    const active: Record<QueueLane, number> = { analysis: 0, 'local-crop': 0 }
+    for (const task of this.live.values()) {
+      const lane = queueLane(specOf(task.run))
+      if (lane) active[lane]++
+    }
+    const blocked = new Set<QueueLane>()
+    for (const [id, { worker, lane }] of this.queued) {
       if (this.closed) break
+      if (blocked.has(lane)) continue
       const run = this.repository.get('run', id)!
-      const active = [...this.live.keys()].filter(key => specOf(this.repository.get('run', key)!).kind === 'analyze').length
-      if (active >= (this.capacity?.maxConcurrentAnalyses ?? specOf(run).config.limits.maxConcurrentAnalyses)) break
+      const capacity = lane === 'local-crop' ? 1 : this.capacity?.maxConcurrentAnalyses ?? specOf(run).config.limits.maxConcurrentAnalyses
+      if (active[lane] >= capacity) { blocked.add(lane); continue }
       this.queued.delete(id)
-      try { this.schedule(run, worker) }
+      try { this.schedule(run, worker); active[lane]++ }
       catch (error) {
         // 调度拒绝只终结对应任务；后续排队项及已完成任务不承担这个失败。
-        this.report(id, { phase: 'failed' })
+        if (lane === 'analysis') this.report(id, { phase: 'failed' })
         await this.update(id, old => ({ run: ['cancelled', 'completed', 'failed'].includes(old.status) ? old : { ...old, status: 'failed', data: toJson({ ...dataOf(old), autoResume: false, error: safeFailure(error), process: this.process(old) }) } }))
         this.processes.delete(id); this.processLimits.delete(id); this.stopIntents.delete(id)
       }
@@ -423,7 +445,12 @@ export class RunEngine {
   private async execute(id: string, worker: Worker, handle: JobHandle, live: LiveRun): Promise<JobOutcome> {
     let activeLedger: BudgetLedger | undefined
     try {
-      await this.update(id, old => ({ run: { ...old, status: 'running', data: toJson({ ...dataOf(old), jobId: handle.id }) } }))
+      await this.update(id, old => {
+        const data = dataOf(old), spec = specOf(old)
+        // 排队时间不消耗新批次的执行窗口，恢复已有执行时保留原预算。
+        const budget = unstartedLocalCrop(old, spec, data) ? new BudgetLedger(spec.config.limits, undefined, Date.now, taskTiming(spec)).snapshot() : data.budget
+        return { run: { ...old, status: 'running', data: toJson({ ...data, budget, jobId: handle.id }) } }
+      })
       const saved = this.repository.get('run', id)!, spec = specOf(saved), ledger = new BudgetLedger(spec.config.limits, dataOf(saved).budget, Date.now, taskTiming(spec))
       activeLedger = ledger
       const remaining = ledger.remainingTimeMs()

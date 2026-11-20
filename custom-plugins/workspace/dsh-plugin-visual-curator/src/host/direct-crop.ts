@@ -13,13 +13,13 @@ import { claritySettingsSchema } from '../shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 import { wallpaperDecisionSettingsSchema } from '../shared/wallpaper-decision.ts'
 import { resolveWallpaperProcessing, wallpaperPracticalAcceptance, wallpaperRepairPolicySchema, wallpaperGenerativeRepair, wallpaperRepairInstructions } from '../shared/wallpaper-policy.ts'
-import { applyWallpaperEspcn, applyOfficialImageResolution, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperCompositionEligible, wallpaperDisplayState, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { applyWallpaperEspcn, applyOfficialImageResolution, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperCompositionEligible, wallpaperDisplayState, wallpaperSettingsSchema, wallpaperAttemptReview, wallpaperVerdict } from '../shared/wallpaper.ts'
 import { wallpaperPracticalInstructions, completeCanvasWallpaperPrompts, wallpaperBaseSkill } from '../shared/wallpaper-prompts.ts'
 import { assetSchema, imageVersionSchema, type DomainActor, type CuratorRecord, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { remoteReferenceBlob } from '../media/remote-reference.ts'
 import type { AssetFiles } from '../media/assets.ts'
-import type { CuratorConfig } from './config.ts'
+import { withWallpaperBatchVisionBudget, type CuratorConfig } from './config.ts'
 import { dataOf, executionSchema, RunEngine, specOf, toJson } from './runtime.ts'
 import { wallpaperBatch, wallpaperRunState } from './wallpaper-state.ts'
 import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
@@ -133,17 +133,18 @@ export class DirectCropTasks {
     if (practical) {
       const policy = settings.sourceIntentPolicy
       if (!policy || policy.alignment === 'subject-fill-v1') settings.sourceIntentPolicy = wallpaperSettingsSchema.shape.sourceIntentPolicy.unwrap().parse({
-        version: 'source-intent-v2', alignment: 'subject-fill-v1', ...policy,
+        version: 'source-intent-v2', alignment: 'subject-fill-v1', ...policy, wholeSubjectSafety: 'extrema-v1', peripheralFrameAdaptation: 'verified-v4',
         fill: { ...policy?.fill, relativeLayout: policy?.fill.relativeLayout ?? {} },
       })
     }
     else if (settings.sourceIntentPolicy) throw new CuratorError('invalid-input', 'direct-crop', 'Source-intent preservation requires the practical review policy.')
-    const prompts = completeCanvasWallpaperPrompts(settings, !!settings.sourceIntentPolicy)
+    const prompts = completeCanvasWallpaperPrompts(settings, !!settings.sourceIntentPolicy, true, practical)
     applyWallpaperConcurrency(settings); applyWallpaperEspcn(settings); applyOfficialImageResolution(settings)
     const normalized = { workflow: 'wallpaper-direct-v1', operationId: input.operationId, sourceRunId: runId, imageVersionIds: images, targetCount: images.length, taskBrief: practical ? wallpaperPracticalInstructions : wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : '忠于指定原图；保留现有主体、关键结构、颜色、材质和标识；允许经局部核实的画框边缘自然扩图，新增部位必须独立复审；严格遵守主体安全区与画面质量要求' }
     const fixed = { finalReviewPolicy: 'final-output-v1', reviewOrder: 'generation-before-resolution-v1', generationPrompt: toJson(wallpaperGenerationBriefPrompt), generationPromptPolicy: toJson(wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {})), directCrop: toJson({ version: 'direct-crop-v1', name: input.name, origin: input.source.kind, inputDigest }), directPolicy: toJson({ version: wallpaperGenerativeRepair(settings) ? 'subject-repair-v1' : 'source-faithful-v2', promptDigest: contentDigest(prompts) }), prompts: toJson(prompts), promptDigest: contentDigest(prompts), wallpaper: toJson(settings), skill: { id: 'direct-original-base-v1', content: practical ? wallpaperPracticalInstructions : wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : wallpaperBaseSkill } }
-    const pipeline = { ...fixed, completeCanvasPolicy: 'provider-canvas-v1', reviewOrder: !practical && settings.processing.reviewStages === 'native-and-final-v1' ? 'generation-before-resolution-v1' : 'final-output-only-v1', generationPromptPolicy: toJson({ ...wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {}), enabled: false }) }
-    const spec = executionSchema.parse({ kind: 'crop', config, input: normalized, fixed: pipeline, specDigest: contentDigest({ kind: 'crop', config, input: normalized, fixed: pipeline }) })
+    const pipeline = { ...fixed, completeCanvasPolicy: 'provider-canvas-v1', reviewOrder: !practical && settings.processing.reviewStages === 'native-and-final-v1' ? 'generation-before-resolution-v1' : 'final-output-only-v1', ...(practical ? { completeCanvasInputPolicy: 'sole-original-v1', nativeSeamScreen: 'positioned-edge-v4', adaptedFramingReviewGuide: 'same-pixels-v1', criticalBoundaryReview: 'localized-v1', scenePlacementRule: 'focal-target-v3', redrawPlacementCrop: 'single-core-v1' } : {}), generationPromptPolicy: toJson({ ...wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {}), enabled: false }) }
+    const frozenConfig = withWallpaperBatchVisionBudget(config, settings, images.length)
+    const spec = executionSchema.parse({ kind: 'crop', config: frozenConfig, input: normalized, fixed: pipeline, specDigest: contentDigest({ kind: 'crop', config: frozenConfig, input: normalized, fixed: pipeline }) })
     return { runId: (await this.deps.engine.create(spec, owner, this.deps.wallpaper.worker(), input.operationId)).id }
   }
 
@@ -199,13 +200,14 @@ export class DirectCropTasks {
     const run = this.deps.engine.get(runId, actor)
     if (actor.kind !== 'human' || !isDirectCropRun(run)) throw new CuratorError('owner-denied', 'direct-crop-output', 'Choose a direct-original task owned by this profile.')
     const state = wallpaperRunState(this.deps.domain, run), item = state.items.find(item => item.imageVersionId === imageVersionId), attempt = item?.attempts.at(-1)
-    if (!item || !item.originalId || item.status !== 'passed' || !attempt?.review || wallpaperVerdict(attempt.review) !== 'pass' || attempt.checks.length || !attempt.outputId || attempt.preResolutionReview && attempt.preResolutionReview.finalId !== attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has no matching generated-image review and completed processing evidence.')
+    const review = wallpaperAttemptReview(attempt)
+    if (!item || !item.originalId || item.status !== 'passed' || !attempt || !review || wallpaperVerdict(review) !== 'pass' || attempt.checks.length || !attempt.outputId || attempt.preResolutionReview && attempt.preResolutionReview.finalId !== attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has no matching generated-image review and completed processing evidence.')
     if (!wallpaperCompositionEligible(attempt)) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'Source-pasted compositions cannot qualify or export. Regenerate one complete provider canvas; historical files remain available for inspection.')
     const latest = this.deps.domain.repository.list('run').filter(row => isDirectCropRun(row) && specOf(row).input.sourceRunId === state.sourceRunId).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
     if (latest?.id !== run.id) throw new CuratorError('revision-conflict', 'direct-crop-output', 'A newer task owns this image; inspect its latest result.')
     const image = this.deps.domain.authorizedImage(attempt.outputId, actor).image, settings = wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper)
     const source = this.deps.domain.authorizedImage(item.originalId, actor).image
-    if (attempt.finalReviewRequired) {
+    if (attempt.finalReviewRequired || attempt.preResolutionReview?.placementCrop) {
       const final = attempt.postResolutionReview
       if (!final?.review || wallpaperVerdict(final.review) !== 'pass' || final.imageVersionId !== image.id || final.digest !== image.blob.digest) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The delivered image has not passed its own final quality review. The native candidate remains saved.')
     }
@@ -219,7 +221,10 @@ export class DirectCropTasks {
     const run = this.deps.engine.get(runId, actor)
     if (actor.kind !== 'human' || !isDirectCropRun(run)) throw new CuratorError('owner-denied', 'direct-crop-export', 'Choose a direct-original task owned by this profile.')
     const state = wallpaperRunState(this.deps.domain, run), settings = wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper)
-    const accepted = state.items.filter(item => item.status === 'passed' && item.attempts.at(-1)?.review && wallpaperVerdict(item.attempts.at(-1)!.review!) === 'pass' && !item.attempts.at(-1)!.checks.length && wallpaperCompositionEligible(item.attempts.at(-1)))
+    const accepted = state.items.filter(item => {
+      const attempt = item.attempts.at(-1), review = wallpaperAttemptReview(attempt)
+      return item.status === 'passed' && attempt && review && wallpaperVerdict(review) === 'pass' && !attempt.checks.length && wallpaperCompositionEligible(attempt)
+    })
     if (!accepted.length) throw new CuratorError('constraint-conflict', 'direct-crop-export', 'There are no independently approved clean outputs to export.')
     const parent = resolve(directory), output = resolve(parent, 'visual-curator-direct-' + state.sourceRunId.slice(0, 12) + '-' + run.id.slice(0, 12))
     if (!output.startsWith(parent.endsWith(sep) ? parent : parent + sep)) throw new CuratorError('invalid-input', 'direct-crop-export', 'The export destination is invalid.')
@@ -238,7 +243,7 @@ export class DirectCropTasks {
       const name = String(state.items.indexOf(item) + 1).padStart(3, '0') + '-' + image.id.slice(-12) + '.png'
       await save(join(output, name), bytes)
       const source = this.deps.domain.authorizedImage(item.originalId!, actor), original = item.download?.originalBlob ?? source.asset.originalBlob ?? source.image.blob
-      rows.push({ name, imageVersionId: image.id, sourceImageVersionId: item.originalId!, sourceDigest: original.digest, outputDigest: image.blob.digest, width: settings.width, height: settings.height, reviewedImageVersionId: attempt.preResolutionReview?.nativeId ?? image.id, postProcessing: attempt.preResolutionReview ? attempt.backgroundResolution ? { kind: 'super-resolution', model: attempt.backgroundResolution.model, modelSha256: attempt.backgroundResolution.modelSha256, postResolutionModelReview: !!attempt.postResolutionReview } : { kind: 'layout-render-only', postResolutionModelReview: !!attempt.postResolutionReview } : { kind: 'legacy-output-review' }, review: attempt.postResolutionReview?.review ?? attempt.review })
+      rows.push({ name, imageVersionId: image.id, sourceImageVersionId: item.originalId!, sourceDigest: original.digest, outputDigest: image.blob.digest, width: settings.width, height: settings.height, reviewedImageVersionId: attempt.preResolutionReview?.nativeId ?? image.id, postProcessing: attempt.preResolutionReview ? attempt.backgroundResolution ? { kind: 'super-resolution', model: attempt.backgroundResolution.model, modelSha256: attempt.backgroundResolution.modelSha256, postResolutionModelReview: !!attempt.postResolutionReview } : { kind: 'layout-render-only', postResolutionModelReview: !!attempt.postResolutionReview } : { kind: 'legacy-output-review' }, ...(attempt.preResolutionReview?.placementCrop ? { placementCrop: attempt.preResolutionReview.placementCrop } : {}), review: wallpaperAttemptReview(attempt) })
     }
     await save(join(output, 'manifest.json'), Buffer.from(JSON.stringify({ version: 'direct-crop-export-v1', runId: run.id, sourceRunId: state.sourceRunId, policy: specOf(run).fixed.directPolicy, files: rows, excluded: state.items.length - accepted.length }, null, 2) + '\n', 'utf8'))
     return { directory: output, files: rows.length, excluded: state.items.length - accepted.length }

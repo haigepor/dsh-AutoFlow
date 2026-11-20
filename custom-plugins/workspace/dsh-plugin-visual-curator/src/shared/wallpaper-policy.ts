@@ -46,11 +46,23 @@ export const wallpaperRepairInstructions = `本任务采用usage.settings.repair
 整组按Host规划等比缩小和平移、增加四周留白是明确允许的适配，不等于取景或保真损失。对比先抵消这次整体变换，再核查组内相对尺度、位置、遮挡、连接和材质；只有偏离本轮定位画布、单件独立移动或比例失真才失败。纯安全区位置问题只记protection的layout问题，不派生主体破损、构图内容改变或修复越权。阻塞issue提供evidence：kind明确区分safe-area-overflow、frame-truncation和具体内容缺陷，entityIds引用冻结实体，imageVersionId为完整成品ID，outputRect定位真实可见问题；保真与修复比较另给sourceRect。safe-area-overflow只用于冻结主角或必要结构的protection，不得用于subject、composition、sourceRepair或sourceCorrespondence。画框截断与内安全区越界严格分开；无法定位或证明缺陷时记unknown，不以越界文案替代内容证据。
 原图有意画框截断不等于损坏。按原图摆放后，逐件区分旧裁切边是否进入成品内部：内部断口须依据可见轴线、材质、透视和光线，合理生成成品视角下应当可见的连续外形，允许在授权区域重画必要的邻接部分；不要用限定“短距离”的浅弧、平切或悬空边假装已经补全。补画是可信的新生成细节，不宣称恢复了原图未记录的真实像素；不得借此新增产品、品牌、额外盘格或未知背面。仍在最终画框外的原有局部取景与正常遮挡可以保留，无须为陪衬进入内侧安全区而缩小核心主体。没有足够可见依据的关键结构保留unknown。`
 
+const nearBoundaryRecheckSchema = z.strictObject({
+  minimumInsideRatio: z.number().min(0.9).max(0.97).default(0.93),
+  maximumSafeAxisRatio: z.number().positive().max(0.1).default(0.03),
+  maximumOutputShortSideRatio: z.number().positive().max(0.1).default(40 / 1845),
+})
+
+const expansionReviewSchema = z.strictObject({
+  version: z.enum(['expansion-first-v1', 'expansion-first-v2']).default('expansion-first-v2'),
+  minimumPlannedScaleRatio: z.number().gt(0).max(1).default(0.8),
+  centerDriftMultiplier: z.number().min(1).max(3).default(1.5),
+})
+
 /** Frozen safety acceptance keeps historical exact bounds separate from approximate subject placement. */
 export const wallpaperAcceptanceSchema = z.discriminatedUnion('version', [
   z.strictObject({ version: z.literal('strict-v1') }),
   z.strictObject({ version: z.literal('practical-v1'), minimumCoreInsideRatio: z.number().gt(0).max(1).default(0.9), minimumCoreSafeAreaRatio: z.number().min(0).max(1).default(0.08), maximumCoreEdgeOverflowRatio: z.number().min(0).max(1).default(0.15), coordinateTolerancePixels: z.number().int().min(0).max(256).default(24), maximumAutomaticCorrections: z.number().int().min(0).max(3).default(1) }),
-  z.strictObject({ version: z.literal('practical-v2'), minimumCoreInsideRatio: z.number().min(0.97).max(1).default(0.97), minimumCoreSafeAreaRatio: z.number().min(0).max(1).default(0.08), maximumAutomaticCorrections: z.number().int().min(0).max(3).default(1) }),
+  z.strictObject({ version: z.literal('practical-v2'), minimumCoreInsideRatio: z.number().min(0.97).max(1).default(0.97), minimumCoreSafeAreaRatio: z.number().min(0).max(1).default(0.08), maximumAutomaticCorrections: z.number().int().min(0).max(3).default(1), nearBoundaryRecheck: nearBoundaryRecheckSchema.optional(), expansionReview: expansionReviewSchema.optional() }),
 ])
 
 /** Balanced full-frame review escalates at most one unresolved native-detail request. */
@@ -78,6 +90,12 @@ export function wallpaperPracticalAcceptance(settings: { processing?: z.infer<ty
   return acceptance?.version === 'practical-v1' || acceptance?.version === 'practical-v2' ? acceptance : undefined
 }
 
+/** @param settings Frozen processing settings. @returns The expansion review options if this task opted in. */
+export function wallpaperExpansionReview(settings: Parameters<typeof wallpaperPracticalAcceptance>[0]) {
+  const acceptance = wallpaperPracticalAcceptance(settings)
+  return acceptance?.version === 'practical-v2' ? acceptance.expansionReview : undefined
+}
+
 /** Resolve current admission or explicitly requested continuation defaults without introducing a clock contrast requirement.
  * @param configured Current deployment processing choices. @returns Validated current policy, including an explicitly configured historical clock rule when present.
  */
@@ -86,5 +104,6 @@ export function resolveWallpaperProcessing(configured?: z.input<typeof wallpaper
   const current = acceptance?.version === 'practical-v1'
     ? { version: 'practical-v2', minimumCoreInsideRatio: Math.max(0.97, acceptance.minimumCoreInsideRatio ?? 0.97), minimumCoreSafeAreaRatio: acceptance.minimumCoreSafeAreaRatio, maximumAutomaticCorrections: acceptance.maximumAutomaticCorrections }
     : acceptance ?? { version: 'practical-v2' }
-  return wallpaperProcessingSchema.parse({ layoutInsetPixels: 24, reviewStages: 'final-only-v1', ...configured, acceptance: current, sourcePreservation: false })
+  return wallpaperProcessingSchema.parse({ layoutInsetPixels: 24, reviewStages: 'final-only-v1', ...configured,
+    acceptance: current.version === 'practical-v2' ? { nearBoundaryRecheck: {}, expansionReview: {}, ...current } : current, sourcePreservation: false })
 }

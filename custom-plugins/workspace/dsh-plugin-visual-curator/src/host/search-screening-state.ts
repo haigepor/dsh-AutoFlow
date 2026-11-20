@@ -1,10 +1,23 @@
-/** Durable candidate positions and conservative screening results, without temporary media URLs. */
+/** Durable candidate positions, separately saved public media references and conservative screening results. */
 import { z } from 'zod'
 import type { RunRecord } from '../shared/model.ts'
+import { galleryMediaUrlSchema } from '../shared/gallery.ts'
 import { searchIssueSchema } from '../shared/search-feedback.ts'
 
 const decisionSchema = z.strictObject({ decision: z.enum(['obvious-reject', 'deep-review', 'uncertain']), reason: z.string() })
 const candidateSchema = z.strictObject({ providerAssetId: z.string().min(1), queryIndex: z.number().int().nonnegative(), pageCursor: z.string().nullable() })
+/** Public CDN addresses can survive a search attempt; expiring download grants stay in memory. */
+export const searchScreeningPublicUrlSchema = galleryMediaUrlSchema.pipe(z.string().refine(value => !new URL(value).searchParams.has('expires'), 'Use a public Unsplash media address without expiry.'))
+/** Optional companion checkpoint for photos returned by the Unsplash search pages. */
+export const searchScreeningPublicLocationsSchema = z.record(z.string().min(1), z.strictObject({
+  previewUrl: searchScreeningPublicUrlSchema, thumbnailUrl: searchScreeningPublicUrlSchema.optional(), originalUrl: searchScreeningPublicUrlSchema.optional(),
+  width: z.number().int().positive().optional(), height: z.number().int().positive().optional(), originalUnavailable: z.literal('restricted').optional(),
+}))
+/** Page yield advances when the last position on that page is consumed, including duplicate and excluded positions. */
+export const searchSourceYieldsSchema = z.array(z.strictObject({
+  examinedPages: z.number().int().nonnegative(), eligibleCandidates: z.number().int().nonnegative(),
+  lastPageEligible: z.number().int().nonnegative(), pendingEligible: z.number().int().nonnegative(),
+}))
 /** The pool and its source continuations are committed together before any model work. */
 export const searchScreeningCheckpointSchema = z.strictObject({
   version: z.literal(1), nextQuery: z.number().int().nonnegative(), nextPool: z.number().int().nonnegative(),

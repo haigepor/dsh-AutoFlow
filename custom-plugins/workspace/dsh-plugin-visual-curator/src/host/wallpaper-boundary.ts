@@ -1,6 +1,6 @@
 /** Measure small peripheral details against the frozen wallpaper safety policy. */
 import { wallpaperEnclosingRect, wallpaperGeometry, wallpaperProtectedBounds, wallpaperObjectProtectionRegions, wallpaperPracticalRegionBoundary } from '../shared/wallpaper-geometry.ts'
-import { wallpaperProcessingSchema, wallpaperGenerativeRepair, wallpaperPracticalAcceptance } from '../shared/wallpaper-policy.ts'
+import { wallpaperExpansionReview, wallpaperProcessingSchema, wallpaperGenerativeRepair, wallpaperPracticalAcceptance } from '../shared/wallpaper-policy.ts'
 import type { WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
 import type { z } from 'zod'
 import type { WallpaperSourceLayout } from '../shared/wallpaper-geometry.ts'
@@ -9,23 +9,60 @@ import { wallpaperSourceReviewV4Schema } from '../shared/wallpaper.ts'
 type ActualLayout = z.infer<typeof wallpaperSourceReviewV4Schema>['actualLayout']
 type Rect = ActualLayout['regions'][number]['rect']
 
+/** @param layout Measured candidate regions. @param settings Frozen canvas and practical safety policy. @param sourceLayout The expected candidate geometry. @returns Candidate crops crossing a disputed safety line, in the full output coordinate system. */
+export function wallpaperBorderlineReviewRegions(layout: ActualLayout, settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout) {
+  const bounds = wallpaperProtectedBounds(settings)
+  const lines = { left: bounds.critical.left, right: bounds.critical.right, top: bounds.top, bottom: bounds.critical.bottom }
+  const { width, height } = settings
+  return layout.regions.flatMap(region => {
+    if (region.scope !== 'core') return []
+    const rect = sourceLayout && !sourceLayout.reviewWholeSubjects && !wallpaperExpansionReview(settings) && region.role === 'subject' && region.safetyClass !== 'automobile' ? region.layoutFocus ?? region.rect : region.rect
+    const { borderline } = wallpaperPracticalRegionBoundary({ ...region, left: rect.x * width, top: rect.y * height, width: rect.width * width, height: rect.height * height }, settings) ?? {}
+    if (!borderline) return []
+    const { edge, overflowPixels } = borderline
+    const padding = 2 * overflowPixels + (settings.processing?.layoutInsetPixels ?? 0)
+    const vertical = edge === 'left' || edge === 'right'
+    const x = Math.max(0, (vertical ? lines[edge] - padding : rect.x * width - padding) / width)
+    const y = Math.max(0, (vertical ? rect.y * height - padding : lines[edge] - padding) / height)
+    const right = Math.min(1, (vertical ? lines[edge] + padding : (rect.x + rect.width) * width + padding) / width)
+    const bottom = Math.min(1, (vertical ? (rect.y + rect.height) * height + padding : lines[edge] + padding) / height)
+    return [{ ...borderline, name: region.name, entityId: region.entityId, rect: { x, y, width: right - x, height: bottom - y } }]
+  }).sort((first, second) => first.insideRatio - second.insideRatio)
+}
+
 /** @param layout Independently observed final-pixel regions. @param mode Observed subject mode. @param settings Frozen output and tolerance. @param sourceLayout New-task output focus and size targets; omission retains historical complete-region checks. @param preservedActionParts Parts with explicit successful framing, appearance and relationship checks. @returns Hard geometry failures and measured nonblocking warnings. */
 export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPlan['mode'], settings: WallpaperSettings, sourceLayout?: WallpaperSourceLayout, preservedActionParts?: ReadonlySet<string>) {
   const visible = layout.regions.filter(region => region.scope === 'core')
+  const expansion = wallpaperExpansionReview(settings)
   const focus = sourceLayout ? visible.map(region => region.role === 'subject' && region.safetyClass !== 'automobile' && region.layoutFocus ? { ...region, rect: region.layoutFocus } : region) : visible
-  const core = sourceLayout?.reviewWholeSubjects ? visible : focus
+  const core = expansion || sourceLayout?.reviewWholeSubjects ? visible : focus
   const protectedCore = wallpaperGenerativeRepair(settings) ? wallpaperObjectProtectionRegions({ mode, regions: core }, settings) : core
   const geometry = wallpaperGeometry(settings, { version: 1, imageVersionId: layout.imageVersionId, mode, subject: 'Actual output', evidence: 'Actual output', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: protectedCore, placement: { scale: 1, left: 0, top: 0 }, reason: 'Actual output coordinates' }, settings, sourceLayout, focus)
   const hard = [...geometry.checks], warnings = [...geometry.warnings]
-  const bounds = wallpaperProtectedBounds(settings), policy = wallpaperProcessingSchema.parse(settings.processing ?? {})
-  if (sourceLayout?.reviewWholeSubjects) for (const region of geometry.regions) {
+  const bounds = wallpaperProtectedBounds(settings), policy = wallpaperProcessingSchema.parse(settings.processing ?? {}), practical = wallpaperPracticalAcceptance(settings)
+  for (const { entityId, name, role, edge } of sourceLayout?.expectedFrameContacts ?? []) {
+    const actual = visible.find(region => region.entityId === entityId && region.role === role)
+    if (!actual) continue
+    const { x, y, width, height } = actual.rect
+    const distance = { left: x * settings.width, right: (1 - x - width) * settings.width, top: y * settings.height, bottom: (1 - y - height) * settings.height }[edge]
+    // Model coordinates are estimates. The planned safety inset also bounds the uncertainty at the outer frame.
+    if (distance > (policy.layoutInsetPixels ?? 0)) hard.push(`source-frame-lost:${edge}:${name}`)
+  }
+  if (sourceLayout?.reviewWholeSubjects && practical?.version !== 'practical-v2') for (const region of geometry.regions) {
     if (region.left < bounds.critical.left || region.top < bounds.top ||
         region.left + region.width > bounds.critical.right || region.top + region.height > bounds.critical.bottom) hard.push(`critical-outside:${region.name}`)
   }
   if (sourceLayout?.alignment === 'subject-fill-v1') {
+    const driftX = settings.safe.width * sourceLayout.fill.maximumCenterDrift
+    const driftY = (bounds.critical.bottom - bounds.top) * sourceLayout.fill.maximumCenterDrift
+    const addDrift = (x: number, y: number, finding: string, advisory = false) => {
+      const multiplier = expansion?.centerDriftMultiplier ?? 1
+      if (!advisory && (Math.abs(x) > driftX * multiplier || Math.abs(y) > driftY * multiplier)) hard.push(finding)
+      else if (Math.abs(x) > driftX || Math.abs(y) > driftY) warnings.push(finding)
+    }
     const planned = sourceLayout.expectedSubjects ?? []
     const observed = planned.flatMap(expected => {
-      const region = core.find(region => region.role === 'subject' && region.entityId === expected.entityId)
+      const region = focus.find(region => region.role === 'subject' && region.entityId === expected.entityId)
       return region ? [region.rect] : []
     })
     const targetGroup = wallpaperEnclosingRect(planned.map(expected => expected.rect))
@@ -33,12 +70,14 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
     if (targetGroup && actualGroup) {
       const x = (actualGroup.x + actualGroup.width / 2 - targetGroup.x - targetGroup.width / 2) * settings.width
       const y = (actualGroup.y + actualGroup.height / 2 - targetGroup.y - targetGroup.height / 2) * settings.height
-      if (Math.abs(x) > settings.safe.width * sourceLayout.fill.maximumCenterDrift || Math.abs(y) > (bounds.critical.bottom - bounds.top) * sourceLayout.fill.maximumCenterDrift) hard.push(`subject-center-drift:${Math.round(x)},${Math.round(y)}`)
+      addDrift(x, y, `subject-center-drift:${Math.round(x)},${Math.round(y)}`, expansion?.version === 'expansion-first-v2')
     }
     const relative = sourceLayout.fill.relativeLayout
     if (relative) {
       const span = (rect: Rect) => Math.max(rect.width * settings.width, rect.height * settings.height)
       const diagonal = (rect: Rect) => Math.hypot(rect.width * settings.width, rect.height * settings.height)
+      // A small change in the angle of a thin part can double its axis-aligned short edge.
+      const slender = (rect: Rect) => Math.min(rect.width * settings.width, rect.height * settings.height) <= span(rect) / 5
       const aspectRetention = (actual: Rect, expected: Rect) => {
         const xScale = actual.width / expected.width, yScale = actual.height / expected.height
         return Math.min(xScale, yScale) / Math.max(xScale, yScale)
@@ -59,8 +98,7 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
         const groupScale = (first.scale + second.scale) / 2
         const x = second.actualCenter.x - first.actualCenter.x - (second.sourceCenter.x - first.sourceCenter.x) * groupScale
         const y = second.actualCenter.y - first.actualCenter.y - (second.sourceCenter.y - first.sourceCenter.y) * groupScale
-        if (Math.abs(x) * settings.width > settings.safe.width * sourceLayout.fill.maximumCenterDrift ||
-            Math.abs(y) * settings.height > (bounds.critical.bottom - bounds.top) * sourceLayout.fill.maximumCenterDrift) hard.push(`subject-relative-position:${pair}`)
+        addDrift(x * settings.width, y * settings.height, `subject-relative-position:${pair}`)
       }
       // A preserved part may follow the accepted group shrinkage. A smaller group member cannot set the scale for the others.
       const subjectScale = matches.length && matches.length === planned.length && matches.every(match => match.scale >= sourceLayout.minimumSubjectScaleRatio)
@@ -73,11 +111,10 @@ export function wallpaperActualBoundary(layout: ActualLayout, mode: WallpaperPla
         const extent = preserved ? diagonal : span
         const scale = preserved ? subjectScale : 1
         if (extent(actual.rect) / (extent(expected.rect) * scale) < relative.minimumRelativeScaleRatio) hard.push(`action-part-too-small:${expected.name}`)
-        else if (preserved && aspectRetention(actual.rect, expected.rect) < relative.minimumWholeAspectRatio) hard.push(`subject-aspect-changed:${expected.name}`)
+        else if (preserved && !(slender(expected.rect) && slender(actual.rect)) && aspectRetention(actual.rect, expected.rect) < relative.minimumWholeAspectRatio) hard.push(`subject-aspect-changed:${expected.name}`)
       }
     }
   }
-  const practical = wallpaperPracticalAcceptance(settings)
   const canvasArea = settings.width * settings.height
   let outsideTotal = 0
   for (const region of layout.regions.filter(region => region.scope === 'peripheral')) {

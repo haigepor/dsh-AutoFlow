@@ -1,4 +1,5 @@
 /** Isolated Host workflows bind source-preserving files to an independent final review. */
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import assert from 'node:assert/strict'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -22,7 +23,7 @@ import { serviceFixture } from './helpers/service-fixture.ts'
 const receipt = z.object({ runId: z.string() })
 const subjectRect = { x: 0.2, y: 0.3, width: 0.6, height: 0.6 }
 const sourceFocus = { x: 0.35, y: 0.35, width: 0.3, height: 0.3 }
-const defaultSubjectFill = { version: 'source-intent-v2', minimumSubjectScaleRatio: 0.9, alignment: 'subject-fill-v1', fill: { safeOccupancy: 0.86, minimumRetainedAxis: 0.4, maximumCenterDrift: 0.08, relativeLayout: { minimumRelativeScaleRatio: 0.8, minimumWholeAspectRatio: 0.65 } } }
+const defaultSubjectFill = { version: 'source-intent-v2', minimumSubjectScaleRatio: 0.9, alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1', peripheralFrameAdaptation: 'verified-v4', fill: { safeOccupancy: 0.86, minimumRetainedAxis: 0.4, maximumCenterDrift: 0.08, relativeLayout: { minimumRelativeScaleRatio: 0.8, minimumWholeAspectRatio: 0.65 } } }
 type ReviewResult = 'pass' | 'unknown' | 'legacy-response' | 'layout-correction' | 'invalid-replan' | 'layout-retry'
 
 async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', uncertainSource = false, historical = false) {
@@ -77,7 +78,7 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
     const content = messages.find(message => message.role === 'user')?.content; assert.ok(Array.isArray(content))
     const descriptor = z.object({ input: z.object({ operation: z.string(), requestId: z.string(), usage: z.unknown().optional(), images: z.array(z.object({ imageVersionId: z.string(), role: z.string() })) }), outputSchema: z.json() }).parse(JSON.parse(content[0]!.text!))
     const input = descriptor.input, original = input.images.find(image => image.role === 'wallpaper-original'); assert.ok(original)
-    let output: object
+    let output: unknown
     if (input.operation === 'wallpaper-plan') {
       plans++
       const fields = Object.keys(z.object({ properties: z.record(z.string(), z.unknown()) }).parse(descriptor.outputSchema).properties).sort()
@@ -87,6 +88,8 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
         frozenPlans.push(frozen)
         output = { imageVersionId: original.imageVersionId, editPrompt: 'Move the entire group down to the Host target layout while retaining the original cropped upper body, smile, glasses, clothing and lectern occlusion.', reason: 'Correct only the observed top overflow; retain the frozen source facts.', ...(result === 'invalid-replan' ? { objectRoles: [] } : {}) }
       } else output = { version: 1, imageVersionId: original.imageVersionId, mode: 'single', subject: 'Synthetic half-length portrait behind a lectern', evidence: 'The fixture records a visible upper body and the original foreground occlusion.',
+        ...(fields.includes('handAssessments') ? { handAssessments: [{ entityId: 'portrait', kind: 'person', left: { kind: 'ordinary' }, right: { kind: 'ordinary' } }] } : {}),
+        ...(fields.includes('presentationAssessments') ? { presentationAssessments: [{ entityId: 'portrait', kind: 'independent', evidence: 'The portrait is the sole focal subject in the original scene.' }] } : {}),
         ...(historical ? {} : { sourceMedium: 'photograph', ...(legacyPlacement ? {} : { actionPartIds: actionPart ? [actionPart.entityId] : [] }) }), priorities: ['Keep the original smile and glasses.'], anchors: ['Continue the same dark blue stage.'], truncations: [], uncertainties: [],
         objectRoles: [{ entityId: 'portrait', name: 'Portrait', role: 'primary', safetyClass: 'general', evidence: 'This is the single focal subject.', rect: subjectRect, sourceEdges: [], ...(historical ? {} : { sourceIntent: { framing: uncertainSource ? 'uncertain' : 'partial', visibility: 'occluded', preserve: ['Keep the original smile, glasses and clothing.'], relationships: ['The original lectern occludes the lower body.'], ...(uncertainSource ? {} : { layoutFocus: sourceFocus }) } }) },
           ...(actionPart ? [{ ...actionPart, role: 'critical-part', evidence: 'The subject holds the visible award.', sourceEdges: [], sourceIntent: { framing: 'whole', visibility: 'visible', preserve: ['Keep the visible award.'], relationships: ['The award remains in the subject’s hand.'] } }] : [])],
@@ -111,6 +114,7 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
         ...(historical || result === 'legacy-response' ? {} : { sourcePreservation: [{ entityId: 'portrait', framing: satisfied, appearance: result === 'unknown' ? { result: 'unknown', reason: 'The final eye detail cannot be established from the isolated observation.' } : satisfied, relationships: satisfied },
           ...(actionPart ? [{ entityId: actionPart.entityId, framing: satisfied, appearance: satisfied, relationships: satisfied }] : [])], sourceStyle: satisfied }) }
     }
+    if (z.object({ protocol: z.literal('practical-v2') }).safeParse(output).success) output = wallpaperFixtureResponse(descriptor, output)
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] })) }
   }
   await f.service.initialize()
@@ -120,7 +124,8 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
       const run = f.domain.require('run', runId), spec = specOf(run), settings = wallpaperSettingsSchema.parse(spec.fixed.wallpaper)
       if (historical) delete settings.sourceIntentPolicy
       else settings.sourceIntentPolicy = { version: 'source-intent-v1', minimumSubjectScaleRatio: 0.9 }
-      const prompts = completeCanvasWallpaperPrompts(settings, !historical), fixed = { ...spec.fixed, wallpaper: toJson(settings), prompts: toJson(prompts), promptDigest: contentDigest(prompts) }
+      const prompts = completeCanvasWallpaperPrompts(settings, !historical), fixed: typeof spec.fixed = { ...spec.fixed, wallpaper: toJson(settings), prompts: toJson(prompts), promptDigest: contentDigest(prompts) }
+      delete fixed.completeCanvasInputPolicy
       const record = runSchema.parse({ ...run, spec: toJson({ ...spec, fixed, specDigest: contentDigest({ kind: spec.kind, config: spec.config, input: spec.input, fixed }) }) })
       const aggregateId = 'run:' + runId, manifest = f.repository.manifest(aggregateId); assert.ok(manifest)
       await f.repository.commit({ aggregateId, expectedRevision: manifest.revision, operationId: 'record-isolated-historical-policy', request: { sourceIntentPolicy: 'absent' }, records: [record], state: { runId } })
@@ -139,39 +144,32 @@ async function sourceWorkflow(t: TestContext, result: ReviewResult = 'pass', unc
   return { f, start, state, requests, generated, reviews, source, replanFields, frozenPlans, plans: () => plans, attachments, replaceState, diagnostics }
 }
 
-test('a new batch sends a positioned master, original and safety guide and adopts the entire provider canvas', async t => {
+test('a new batch sends one unmarked original and adopts the entire provider canvas', async t => {
   const w = await sourceWorkflow(t), runId = await w.start(), item = w.state().items[0]; assert.ok(item)
   assert.equal(item.status, 'passed', w.diagnostics())
   const attempt = item.attempts.at(-1); assert.ok(attempt?.outputId && attempt.canvasId)
   const settings = wallpaperSettingsSchema.parse(specOf(w.f.domain.require('run', runId)).fixed.wallpaper)
   assert.deepEqual(settings.sourceIntentPolicy, defaultSubjectFill)
   assert.equal(attempt.compositionMode, 'generated-canvas-v1'); assert.equal(attempt.sourceIntentProof, undefined)
-  assert.equal(attempt.generationInput?.version, 'wallpaper-edit-input-v6')
-  assert.deepEqual(attempt.generationInput.references.map(reference => reference.role), ['canvas', 'original', 'layout-only'])
+  assert.equal(attempt.generationInput?.version, 'wallpaper-edit-input-v4')
+  assert.deepEqual(attempt.generationInput.references.map(reference => reference.role), ['original'])
   assert.equal(w.requests.length, 1); assert.equal(w.plans(), 1); assert.equal(w.reviews.length, 1)
   const request = w.requests[0]; assert.ok(request)
-  assert.ok(request.mask)
-  assert.equal(request.mask.attachmentId, attempt.generationInput.mask.attachmentId)
+  assert.equal(request.mask, undefined)
+  assert.equal(attempt.maskId, undefined)
   assert.ok(attempt.plan.editPrompt && !request.prompt.includes(attempt.plan.editPrompt))
   assert.doesNotMatch(request.prompt, /"preserve"|"relationships"|desiredSourceTransform|desiredRegions/)
-  assert.ok(request.prompt.length < 1000)
-  assert.match(request.prompt, /不补造画外身体/)
+  assert.match(request.prompt, /不要补造画外人物结构/)
   assert.equal(request.prompt.includes('必须拉远镜头'), false)
-  assert.equal(request.references.length, 3)
-  assert.match(request.prompt, /图1.*主画布/)
-  assert.match(request.prompt, /图1已有画面的外框约在成品横向/)
-  assert.match(request.prompt, /图2.*完整原图/)
-  assert.match(request.prompt, /图3.*安全区规划图/)
-  const reference = request.references[1]; assert.ok(reference)
+  assert.equal(request.references.length, 1)
+  assert.match(request.prompt, /以唯一原图为参考/)
+  assert.match(request.prompt, /最终构图以完整竖图左上为起点计量/)
+  assert.match(request.prompt, /不要缩放并嵌入原图矩形/)
+  const reference = request.references[0]; assert.ok(reference)
   assert.deepEqual({ width: reference.width, height: reference.height }, { width: 400, height: 640 })
   const canvas = w.f.domain.require('imageVersion', attempt.canvasId)
-  assert.deepEqual({ width: canvas.geometry.width, height: canvas.geometry.height }, { width: settings.width, height: settings.height })
-  const master = request.references[0], guideReference = request.references[2]; assert.ok(master && guideReference)
-  assert.deepEqual({ width: master.width, height: master.height }, { width: guideReference.width, height: guideReference.height })
-  assert.ok(Math.abs(master.height - master.width * settings.height / settings.width) <= 1, 'Attachment admission may uniformly normalize both references but cannot change the target field of view')
-  const canvasBytes = await w.f.files.read(canvas.blob)
-  const sourcePatch = await sharp(canvasBytes).extract({ left: Math.round(attempt.plan.placement.left + 200 * attempt.plan.placement.scale), top: Math.round(attempt.plan.placement.top + 300 * attempt.plan.placement.scale), width: 1, height: 1 }).removeAlpha().raw().toBuffer()
-  assert.deepEqual([...sourcePatch], [213, 179, 137], 'The enlarged unmarked reference retains the known portrait patch at the planned position')
+  assert.deepEqual({ width: canvas.geometry.width, height: canvas.geometry.height }, { width: 400, height: 640 })
+  assert.deepEqual(await w.f.files.read(canvas.blob), w.source)
   assert.ok(attempt.plan.placement.scale > 1)
   assert.ok(attempt.layoutAnalysisId)
   const guide = w.f.domain.require('imageVersion', attempt.layoutAnalysisId)
@@ -197,7 +195,7 @@ test('unknown final preservation retains the saved output without another genera
   await assert.rejects(w.f.action('direct-crop-export', { runId, title: 'Unknown is not approved' }), /no independently approved/)
 })
 
-test('a V2 layout deviation measures the actual candidate before retrying the same positioned master and mask', async t => {
+test('a V2 layout deviation measures the actual candidate before retrying from one original', async t => {
   const w = await sourceWorkflow(t, 'layout-retry'); await w.start()
   const item = w.state().items[0]; assert.ok(item)
   assert.equal(item.status, 'passed', w.diagnostics())
@@ -212,12 +210,12 @@ test('a V2 layout deviation measures the actual candidate before retrying the sa
   const guide = w.f.domain.require('imageVersion', confirmation.guideId)
   const unmarkedPixel = await sharp(await w.f.files.read(guide.blob)).extract({ left: 40, top: 2000, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
   assert.deepEqual([...unmarkedPixel], [69, 107, 85], 'The same-output guide shows provider pixels at the unannotated location')
-  assert.equal(first.generationInput.version, 'wallpaper-edit-input-v6')
-  assert.equal(last.generationInput.version, 'wallpaper-edit-input-v6')
+  assert.equal(first.generationInput.version, 'wallpaper-edit-input-v4')
+  assert.equal(last.generationInput.version, 'wallpaper-edit-input-v4')
   assert.deepEqual(last.plan, first.plan)
   assert.deepEqual(last.generationInput.references, first.generationInput.references)
-  assert.deepEqual(last.generationInput.mask, first.generationInput.mask)
-  assert.match(last.generationInput.prompt, /位置与大小统一恢复到图1/)
+  assert.deepEqual(w.requests.map(request => request.mask), [undefined, undefined])
+  assert.match(last.generationInput.prompt, /最终构图以完整竖图左上为起点计量/)
 })
 
 test('manual plan admission accepts the saved V2 enlarged reference without changing its parent history', async t => {
@@ -292,7 +290,7 @@ test('complete-canvas reprocessing reuses its full-reference receipt and retains
   assert.equal(exported.files, 1)
 })
 
-test('a saved V4 single-original receipt remains unchanged when resumed by the three-reference implementation', async t => {
+test('resuming a historical single-reference receipt keeps the recorded role and prompt', async t => {
   const w = await sourceWorkflow(t), runId = await w.start(), saved = w.state(), item = saved.items[0], prior = item?.attempts.at(-1)
   assert.ok(item?.originalId && prior?.generationInput)
   const original = prior.generationInput.references.find(reference => reference.role === 'original'); assert.ok(original)

@@ -77,6 +77,47 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
   return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, interceptVision(hook: typeof beforeVision) { beforeVision = hook }, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ ...f.service.config.wallpaper.processing, clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
 }
 
+test('saved local batches resume in order after reopening the profile', { timeout: 25_000 }, async () => {
+  const f = await fixture(), entered = Promise.withResolvers<void>()
+  const plans: string[] = []
+  let reopened: CuratorService | undefined
+  try {
+    f.interceptVision(async (request, signal) => {
+      if (request.operation !== 'wallpaper-plan') return
+      plans.push(request.requestId.split(':')[0]!)
+      if (plans.length !== 1) return
+      assert.ok(signal)
+      signal.throwIfAborted()
+      entered.resolve()
+      await new Promise<void>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+    })
+    const first = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', f.input))
+    await entered.promise
+    const second = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', { ...f.input, operationId: 'direct-local-next', name: 'Next local batch' }))
+    const waiting = f.domain.require('run', second.runId)
+    assert.equal(waiting.status, 'created')
+    assert.equal(dataOf(waiting).requestIds.length, 0)
+    assert.deepEqual(plans, [first.runId])
+    await f.service.dispose()
+    assert.equal(f.domain.require('run', second.runId).status, 'interrupted')
+    const repository = new DomainRepository(f.profileId, f.adapter)
+    reopened = new CuratorService(f.host, f.service.config, { openDomain: async files => new CuratorDomain(f.profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }), providers: f.providers })
+    await reopened.initialize()
+    await f.jobs.drain()
+    await f.jobs.drain()
+    assert.deepEqual(plans, [first.runId, first.runId, second.runId])
+    for (const { runId } of [first, second]) {
+      const run = repository.get('run', runId)
+      assert.ok(run)
+      assert.equal(run.status, 'completed')
+      assert.equal(wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]?.status, 'passed')
+    }
+  } finally {
+    await reopened?.dispose()
+    await f.cleanup()
+  }
+})
+
 const retryScenarios = [
   ['settle', 'retrying a failed image while its sibling is running keeps both images and their own outputs'],
   ['pause', 'a batch pause retains queued retries until explicit resume'],
@@ -395,6 +436,25 @@ test('the detail pass cannot exceed the frozen vision-call budget', async () => 
   const run=f.domain.require('run',runId),state=wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper)
   assert.equal(run.outcome,'budget-exhausted');assert.equal(f.detailRequests.length,0);assert.equal(state.items[0]!.attempts[0]!.outputId,undefined);assert.equal(f.repository.list('selection').length,0)
  } finally {await f.cleanup()}
+})
+
+test('a multi-image batch reserves vision for every admitted original', async () => {
+  const f = await fixture('complete', 'satisfied', undefined, 2)
+  try {
+    const path = join(f.root, 'batch-second.png')
+    await writeFile(path, f.bytes)
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', {
+      ...f.input, source: { kind: 'local', files: [...f.input.source.files, { path, name: 'batch-second.png' }] },
+    }))
+    await f.jobs.drain()
+    const run = f.domain.require('run', runId), data = dataOf(run)
+    const state = wallpaperStateSchema.parse(data.checkpoint.wallpaper)
+    assert.equal(run.outcome, 'target-met')
+    assert.deepEqual(state.items.map(item => item.status), ['passed', 'passed'])
+    assert.equal(data.budget.vision, 4)
+    assert.ok(specOf(run).config.limits.maxVisionCalls >= data.budget.vision)
+    assert.equal(f.service.config.limits.maxVisionCalls, 2)
+  } finally { await f.cleanup() }
 })
 
 test('source-only detail evidence is rejected with a specific repair code before an allowed corrected response continues', async () => {

@@ -318,13 +318,27 @@ function Workbench() {
       datasets: { start: async () => {}, refresh: async () => {}, loadMore: async () => {}, filter: () => {}, open: async () => {}, moreSamples: async () => {}, closeDetail: () => {}, dismiss: () => {} },
       launches: { start: async () => {}, retry: async () => {}, stop: async () => {}, refresh: async () => {}, loadOptions: async () => {}, openSession: id => { state.opened.push(['launch', id]); return true } },
       publish: async () => '',
-      saveCredential: async () => {},
+      saveCredential: async ref => { if (ref === 'VISUAL_CURATOR_OPPO_FEEDBACK_TOKEN') state.serverReferenceConnected = true },
       loadVisionModels: async () => {},
       reloadVisionModels: () => {},
       openModelSettings: () => {},
       pickLocalReferences: async () => ({}),
       listLocalReferences: async () => ({}),
       galleryRead: async () => ({}),
+      serverReference: async (operation, args) => {
+        if (!state.serverReferenceConnected) throw { code: 'configuration-required' }
+        if (operation === 'server-reference-import') {
+          state.runCommands.push([operation, args])
+          return { results: args.keys.map(key => ({ key, status: 'added' })) }
+        }
+        return {
+          snapshotId: '6ee1d2c1-090b-463a-8dce-d6cd424667bd', startDate: '2026-10-21', endDate: '2026-11-19', ignored: 0,
+          items: [{ grade: 'A', score: 8.1 }, { grade: 'S', score: 9.5 }, { grade: 'A', score: 8.9 }, { grade: null, score: null }].map(({ grade, score }, i) => ({
+            key: String(i + 1).repeat(64), itemId: String(i + 1), name: '评级样图', grade, score,
+            previewPath: '/api/visual-curator/resource?serverReferenceKey=' + String(i + 1).repeat(64),
+          })),
+        }
+      },
       readTaskReferences: async args => {
         state.taskReferenceReads ??= []; state.taskReferenceReads.push(args)
         if (state.taskReferenceReadGate && args.pageToken) await state.taskReferenceReadGate

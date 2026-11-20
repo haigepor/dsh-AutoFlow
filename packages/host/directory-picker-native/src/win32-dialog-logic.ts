@@ -15,10 +15,11 @@ export const FOS_PICKFOLDERS = 0x20
 export const FOS_FORCEFILESYSTEM = 0x40
 /** `FOS_NOCHANGEDIR`: never mutate the process working directory. */
 export const FOS_NOCHANGEDIR = 0x8
-/** `FOS_ALLOWMULTISELECT`: return every selected image path. */
+/** `FOS_ALLOWMULTISELECT`: return every selected filesystem path. */
 export const FOS_ALLOWMULTISELECT = 0x200
 const FOS_FILEMUSTEXIST = 0x1000
 const FOS_PATHMUSTEXIST = 0x800
+const FOLDER_OPTIONS = FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
 
 /** One created folder dialog: the vtable calls the sequencing needs. */
 export interface Win32FolderDialog {
@@ -131,11 +132,27 @@ export function runFolderDialog(
   title: string,
   onShowing: (threadId: number) => void,
 ): string | null {
-  return runDialog(bindings, title, onShowing, FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR, (dialog) => {
+  return runDialog(bindings, title, onShowing, FOLDER_OPTIONS, (dialog) => {
     const result = dialog.resultPath()
     check(result.hr, 'GetResult')
     return result.path as string
   })
+}
+
+function readPaths(dialog: Win32FolderDialog): string[] {
+  const result = dialog.resultPaths()
+  check(result.hr, 'GetResults')
+  return result.paths as string[]
+}
+
+/** Open the directory-only dialog with multiple selection enabled.
+ * @param bindings Native COM operations.
+ * @param title Localized window title.
+ * @param onShowing Dialog-thread notice for cancellation.
+ * @returns Selected directory paths, or null on cancel.
+ */
+export function runFoldersDialog(bindings: Win32DialogBindings, title: string, onShowing: (threadId: number) => void): string[] | null {
+  return runDialog(bindings, title, onShowing, FOLDER_OPTIONS | FOS_ALLOWMULTISELECT, readPaths)
 }
 
 /** Open an image-only, multiple-selection dialog without reading or copying the selected files.
@@ -146,11 +163,7 @@ export function runFolderDialog(
  */
 export function runImageDialog(bindings: Win32DialogBindings, title: string, onShowing: (threadId: number) => void): string[] | null {
   const options = FOS_ALLOWMULTISELECT | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
-  return runDialog(bindings, title, onShowing, options, (dialog) => {
-    const result = dialog.resultPaths()
-    check(result.hr, 'GetResults')
-    return result.paths as string[]
-  }, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes') })
+  return runDialog(bindings, title, onShowing, options, readPaths, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes') })
 }
 
 /** Open one window for individual images or the current folder, without copying bytes.
@@ -164,9 +177,7 @@ export function runReferenceDialog(
   bindings: Win32DialogBindings, title: string, folderLabel: string, onShowing: (threadId: number) => void,
 ): string[] | null {
   const options = FOS_ALLOWMULTISELECT | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
-  return runDialog(bindings, title, onShowing, options, (dialog) => {
-    const result = dialog.resultPaths(); check(result.hr, 'GetResults'); return result.paths as string[]
-  }, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes'); check(dialog.enableFolderChoice(folderLabel), 'AddFolderChoice') })
+  return runDialog(bindings, title, onShowing, options, readPaths, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes'); check(dialog.enableFolderChoice(folderLabel), 'AddFolderChoice') })
 }
 
 function runDialog<T>(

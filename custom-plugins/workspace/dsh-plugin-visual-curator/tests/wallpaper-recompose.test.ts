@@ -11,7 +11,8 @@ import { useHistoricalWallpaperCpu, serviceFixture } from './helpers/service-fix
 import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import { BudgetLedger, dataOf, specOf, toJson, type ExecutionSpec } from '../src/host/runtime.ts'
 import { assessmentSchema, selectionSchema, assetSchema, imageVersionSchema, runSchema, requestSchema, type CuratorRecord, type RunRecord } from '../src/shared/model.ts'
-import { wallpaperPlanSchema, wallpaperReviewKeys, wallpaperReviewSchema, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperViewSchema } from '../src/shared/wallpaper.ts'
+import { wallpaperGenerationCount, wallpaperPlanSchema, wallpaperReviewKeys, wallpaperReviewSchema, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperViewSchema, wallpaperReworkCount } from '../src/shared/wallpaper.ts'
+import { wallpaperRecovery, wallpaperBatchCanContinue } from '../src/client/wallpaper-recovery.ts'
 import { wallpaperPromptBundle } from '../src/shared/wallpaper-prompts.ts'
 import { wallpaperCanvasReviewPromptV4 } from '../src/shared/wallpaper-edit-prompts.ts'
 import { wallpaperGeometry } from '../src/media/wallpaper-render.ts'
@@ -652,33 +653,74 @@ test('historical workflow reads pin the requested task and expose source-image r
   } finally { await f.cleanup() }
 })
 
-for (const receiptState of ['failed', 'outcome-unknown', 'succeeded'] as const) test('single-image recovery checks a ' + receiptState + ' receipt before creating any new edit', async () => {
+for (const receiptState of ['failed', 'outcome-unknown', 'succeeded', 'cancelled'] as const) test('single-image recovery checks a ' + receiptState + ' receipt before creating any new edit', async () => {
   const f = await fixture({ twoSources: true })
   try {
     const llm = f.f.host.llm!, successful = await llm.getImageGeneration(f.handle), state = structuredClone(f.state), item = state.items[0]!
-    item.edits = 1; item.reason = 'image-operation-failed'; item.status = 'needs-review'
-    delete item.attempts[0]!.outputId; delete item.attempts[0]!.review; delete item.attempts[0]!.simulationId
-    const parent = runSchema.parse({ ...f.old, id: 'single-image-failed-parent', createdAt: new Date().toISOString(), data: { ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } } })
+    const spec = specOf(f.old), unsent = receiptState === 'cancelled', unknown = receiptState === 'outcome-unknown'
+    item.edits = unsent ? 2 : 1
+    item.status = 'technical-failed'; item.failedStep = 'rendering'
+    item.errorCode = unsent ? 'interrupted-before-send' : unknown ? 'interrupted-after-send' : 'image-operation-failed'
+    item.reason = item.errorCode
+    const attempt = { ...item.attempts[0]!, revision: unsent ? 2 : 1 }
+    delete attempt.outputId; delete attempt.review; delete attempt.simulationId
+    if (unsent) {
+      item.attempts[0]!.generation = { ...f.handle, id: 'first-sent-operation', taskId: 'first-sent-task' }
+      item.attempts[0]!.generationOperation = 'first-sent-operation'
+      item.attempts.push(attempt)
+    } else item.attempts[0] = attempt
+    if (unknown) state.items[1]!.status = 'cancelled'; // The unknown receipt alone offers no batch continuation.
+    const parent = runSchema.parse({ ...f.old, id: 'single-image-failed-parent', createdAt: new Date().toISOString(),
+      ...(unsent ? { spec: toJson({ ...spec, config: { ...spec.config, limits: { ...spec.config.limits, maxRetryAttempts: 1 } }, fixed: { ...spec.fixed, wallpaper: { ...wallpaperSettingsSchema.parse(spec.fixed.wallpaper), maxReworks: 1 } } }) } : {}),
+      data: { ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } } })
     await f.f.repository.commit({ aggregateId: 'single-image-failed-seed', expectedRevision: 0, operationId: 'single-image-failed-seed', request: {}, records: [parent], state: {} })
     let starts = 0, queries = 0
     const nextHandle = { ...f.handle, id: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationId>('new-operation'), taskId: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationTaskId>('new-task') }
     llm.getImageGeneration = async handle => {
       queries++
-      if (handle.id === f.handle.id) return { ...successful, state: receiptState, images: receiptState === 'succeeded' ? successful.images : [] }
+      if (handle.id === f.handle.id) return { ...successful, state: receiptState, images: receiptState === 'succeeded' ? successful.images : [],
+        ...(receiptState === 'succeeded' ? { error: { code: 'image-partial-result', message: 'A saved image is available.' } } : unsent ? { error: { code: 'interrupted-before-send', message: 'The reserved request was never sent.' } } : {}) }
       if (handle.taskId === undefined) throw Object.assign(new Error('Known absent operation'), { code: 'IMAGE_GENERATION_NOT_FOUND' })
       return { ...successful, ...nextHandle }
     }
     llm.startImageGeneration = async input => { assert(queries > 0); starts++; nextHandle.id = input.id!; return { ...successful, ...nextHandle } }
     await assert.rejects(f.f.action('wallpaper-continue', { runId: parent.id, operationId: 'old-version', retryImage: { imageVersionId: item.imageVersionId, revision: 99, step: 'rendering' } }), { code: 'constraint-conflict' })
-    const args = { runId: parent.id, operationId: 'single-image-retry', retryImage: { imageVersionId: item.imageVersionId, revision: 1, step: 'rendering' } }
+    const view = wallpaperViewSchema.parse(await f.f.action('wallpaper-read', { sourceRunId: state.sourceRunId, offset: 0, limit: 1 }))
+    if (unsent) {
+      assert.equal(wallpaperGenerationCount(view.state.items[0]!), 1)
+      assert.deepEqual(wallpaperRecovery(view, view.state.items[0], view.state.items[0]?.attempts.at(-1)), { kind: 'retry', step: 'rendering' })
+      assert.deepEqual(wallpaperRecovery({ ...view, generationRetryLimit: 0 }, view.state.items[0], view.state.items[0]?.attempts.at(-1)), { kind: 'none' })
+    }
+    if (unknown) {
+      assert.equal(wallpaperBatchCanContinue(view), false)
+      assert.deepEqual(wallpaperRecovery(view, view.state.items[0], view.state.items[0]?.attempts.at(-1)), { kind: 'none' })
+      assert.deepEqual(await f.f.action('wallpaper-continue', { runId: parent.id, operationId: 'skip-unknown-batch' }), { runId: parent.id })
+    }
+    const args = { runId: parent.id, operationId: 'single-image-retry', retryImage: { imageVersionId: item.imageVersionId, revision: attempt.revision, step: 'rendering' } }
+    if (unknown) {
+      assert.deepEqual(await f.f.action('wallpaper-continue', args), { runId: parent.id, receiptState: 'outcome-unknown' })
+      assert.equal(starts, 0)
+      assert.deepEqual(f.f.domain.require('run', parent.id), parent)
+      return
+    }
     const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', args))
     assert.deepEqual(await f.f.action('wallpaper-continue', args), receipt)
     await f.f.jobs.drain()
     const after = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', receipt.runId)).checkpoint.wallpaper)
-    assert.equal(starts, receiptState === 'failed' ? 1 : 0)
-    assert.equal(after.items[0]!.edits, receiptState === 'failed' ? 2 : 1)
-    assert.equal(after.items[0]!.attempts.length, receiptState === 'failed' ? 2 : 1)
+    assert.equal(starts, receiptState === 'succeeded' ? 0 : 1)
+    assert.equal(after.items[0]!.edits, receiptState === 'succeeded' ? 1 : 2)
+    assert.equal(after.items[0]!.attempts.length, unsent ? 3 : receiptState === 'failed' ? 2 : 1)
     assert.deepEqual(after.items[1], state.items[1]); assert.deepEqual(f.f.domain.require('run', parent.id), parent)
-    if (receiptState === 'outcome-unknown') { assert.equal(after.items[0]!.status, 'technical-failed'); assert.equal(after.items[0]!.failedStep, 'rendering') }
+    if (receiptState === 'succeeded') {
+      assert.equal(after.items[0]!.attempts[0]?.generationAdvisory?.code, 'image-partial-result')
+      assert.ok(after.items[0]!.attempts[0]?.outputId)
+      assert.equal(after.items[0]!.errorCode, undefined)
+    }
+    if (unsent) {
+      assert.equal(after.items[0]!.attempts[1]?.generationFailure?.code, 'interrupted-before-send')
+      assert.equal(after.items[0]!.attempts[1]?.editReserved, false)
+      assert.equal(wallpaperGenerationCount(after.items[0]!), 2)
+      assert.equal(wallpaperReworkCount(after.items[0]!), 1)
+    }
   } finally { await f.cleanup() }
 })

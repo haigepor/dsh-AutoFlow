@@ -167,7 +167,7 @@ test('a new preview search skips exact selections from its collection without re
   const f = await fixture(false, { queries: ['cars'], targetCount: 1, page: () => ({ ids: ['matching-car-prior', 'matching-car-new'], totalPages: 1 }) })
   try {
     const first = await f.engine.create(f.spec, f.actor, f.worker, 'prior-search'); await f.jobs.drain()
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), f.spec)
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'novel-search'); await f.jobs.drain()
     assert.equal(f.domain.require('run', second.id).outcome, 'target-met')
     assert.equal(dataOf(f.domain.require('run', second.id)).counts.excludedPrevious, 1)
@@ -179,30 +179,33 @@ test('a new preview search skips exact selections from its collection without re
     assert.equal(dataOf(f.domain.require('run', second.id)).budget.vision, 1)
     const other = modelProfileSchema.parse({ ...profile, styleId: 'other-collection' })
     assert.deepEqual(searchHistoryRuns(f.domain, other.styleId), [])
-    assert.deepEqual(freezeSearchExclusions(f.domain, other, f.actor, [], String(f.spec.input.taskBrief)).sources, {})
+    assert.deepEqual(freezeSearchExclusions(f.domain, other, f.actor, [], f.spec).sources, {})
   } finally { await f.cleanup() }
 })
 
-test('repeated searches skip exact rejected photos when task wording, rules or the reviewer change', async () => {
+test('a preview task skips equivalent historical rejections and rechecks them after a review input changes', async () => {
   const f = await fixture(false, { queries: ['cars'], page: (_query, page) => ({ ids: page === 1 ? ['portrait-a', 'portrait-b'] : ['matching-car-prior', 'matching-car-new'], totalPages: 2 }) })
   try {
     await f.engine.create(f.spec, f.actor, f.worker, 'learn-mismatches'); await f.jobs.drain()
     const history = searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor }))
-    const brief = String(f.spec.input.taskBrief)
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history, brief)
-    assert.equal(sourceExclusion(policy, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
-    const differentTask = freezeSearchExclusions(f.domain, profile, f.actor, history, 'Find portraits instead.')
-    assert.equal(sourceExclusion(differentTask, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
-    const differentRules = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, contentDigest: `sha256-v1:${'c'.repeat(64)}` }), f.actor, history, brief)
-    assert.equal(sourceExclusion(differentRules, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
-    const differentReviewer = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, recipe: { ...recipe, visionRevision: 'new-reviewer' } }), f.actor, history, brief)
-    assert.equal(sourceExclusion(differentReviewer, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
+    const portrait = { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history, f.spec)
+    assert.equal(sourceExclusion(policy, portrait), 'previous-rejection')
+    const differentTask = { ...f.spec, input: { ...f.spec.input, taskBrief: 'Find portraits instead.' } }
+    assert.equal(sourceExclusion(freezeSearchExclusions(f.domain, profile, f.actor, history, differentTask), portrait), undefined)
+    const differentRules = modelProfileSchema.parse({ ...profile, contentDigest: `sha256-v1:${'c'.repeat(64)}` })
+    assert.equal(sourceExclusion(freezeSearchExclusions(f.domain, differentRules, f.actor, history, { ...f.spec, fixed: { ...f.spec.fixed, release: toJson(differentRules) } }), portrait), undefined)
+    const differentReviewer = { ...f.spec, fixed: { ...f.spec.fixed, executionRecipe: toJson({ ...recipe, visionRevision: 'new-reviewer' }) } }
+    assert.equal(sourceExclusion(freezeSearchExclusions(f.domain, profile, f.actor, history, differentReviewer), portrait), undefined)
     const before = f.remoteInputs.length
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'skip-mismatches')
     await f.jobs.drain()
     assert.equal(f.domain.require('run', second.id).outcome, 'target-met')
     assert.deepEqual(f.remoteInputs.slice(before).map(url => new URL(url).pathname), ['/photo-matching-car-new'])
     assert.equal(dataOf(f.domain.require('run', second.id)).budget.vision, 1)
+    const rechecked = await f.engine.create({ ...differentTask, fixed: { ...differentTask.fixed, searchExclusions: toJson(freezeSearchExclusions(f.domain, profile, f.actor, history, differentTask)) } }, f.actor, f.worker, 'recheck-mismatches')
+    await f.jobs.drain()
+    assert.ok(f.repository.list('assessment').some(item => item.runId === rechecked.id && item.verdict === 'reject'))
   } finally { await f.cleanup() }
 })
 
@@ -213,7 +216,7 @@ test('a search with no accepted images still contributes its confirmed mismatche
     assert.equal(f.repository.list('selection').length, 0)
     const history = searchHistoryRuns(f.domain, profile.styleId)
     assert.deepEqual(history.map(run => run.id), [first.id])
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history.map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history.map(run => ({ run, actor: f.actor })), f.spec)
     assert.equal(sourceExclusion(policy, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
   } finally { await f.cleanup() }
 })
@@ -226,7 +229,7 @@ test('an exact negative photo is excluded across account and URL changes before 
     const image = imageVersionSchema.parse({ ...base, id: 'negative-image', kind: 'imageVersion', assetId: asset.id, versionKind: 'remote-reference', blob, geometry: { width: 1200, height: 800, colorSpace: 'unverified', processorVersion: 'fixture' } })
     const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'negative-ref', kind: 'reference', styleId: profile.styleId, imageVersionId: image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: blob.digest, familyId: asset.familyId, feedbackIds: [] })
     await f.repository.commit({ aggregateId: 'negative-ref', expectedRevision: 0, operationId: 'negative-ref', request: {}, records: [asset, image], state: {} })
-    const standard = modelProfileSchema.parse({ ...profile, references: [reference] }), policy = freezeSearchExclusions(f.domain, standard, f.actor, [], String(f.spec.input.taskBrief))
+    const standard = modelProfileSchema.parse({ ...profile, references: [reference] }), policy = freezeSearchExclusions(f.domain, standard, f.actor, [], f.spec)
     const started = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, release: toJson(standard), searchExclusions: toJson(policy) } }, f.actor, f.worker, 'negative-search'); await f.jobs.drain()
     const run = f.domain.require('run', started.id)
     assert.equal(run.outcome, 'source-exhausted'); assert.equal(dataOf(run).counts.excludedNegative, 1)
@@ -242,7 +245,7 @@ test('a paused preview task retains its admitted exclusions when a selection and
   const f = await fixture(true, { queries: ['first'], targetCount: 1, blockPhoto: 'matching-car-new', page: query => ({ ids: query === 'first' ? ['matching-car-prior', 'matching-car-new'] : ['matching-car-new'], totalPages: 1 }) })
   try {
     await f.engine.create(f.spec, f.actor, f.worker, 'first-selection'); await f.jobs.drain()
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), f.spec)
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'paused-novel-search')
     await f.blocked; await f.engine.control(second.id, 'pause', f.actor)
     assert.equal(f.domain.require('run', second.id).status, 'paused')
@@ -252,7 +255,7 @@ test('a paused preview task retains its admitted exclusions when a selection and
     const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'late-negative', kind: 'reference', styleId: profile.styleId, imageVersionId: image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: image.blob.digest, familyId: asset.familyId, feedbackIds: [] })
     await f.repository.commit({ aggregateId: 'late-negative', expectedRevision: 0, operationId: 'late-negative', request: {}, records: [reference.reference], state: {} })
     const updated = modelProfileSchema.parse({ ...profile, id: 'later-profile', revision: 2, references: [reference] })
-    const refreshed = freezeSearchExclusions(f.domain, updated, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
+    const refreshed = freezeSearchExclusions(f.domain, updated, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), f.spec)
     assert.equal(Object.keys(policy.sources).length, 1); assert.equal(Object.keys(refreshed.sources).length, 2)
     assert.equal(sourceExclusion(refreshed, { providerId: 'unsplash', providerAssetId: 'matching-car-new', accountIdentity: 'public' }), 'negative-reference')
     await f.engine.control(second.id, 'resume', f.actor, f.worker); await f.jobs.drain()

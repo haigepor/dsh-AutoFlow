@@ -74,6 +74,20 @@ export async function pickWin32Directory(
   return result
 }
 
+/** Open the Win32 folder chooser in multiple-selection mode.
+ * @param signal Request lifetime.
+ * @param title Localized window title.
+ * @param internals Test process operations.
+ * @returns Selected folder paths, or null on cancel.
+ */
+export async function pickWin32Directories(
+  signal: AbortSignal, title: string, internals: Win32DialogInternals = {},
+): Promise<string[] | null> {
+  const result = await pickWin32Paths(signal, { title, kind: 'folders' }, internals)
+  if (typeof result === 'string') throw new Error('native multi-folder picker returned a single-path reply')
+  return result
+}
+
 /** Open the same cancellable native window in image multi-selection mode.
  * @param signal Request lifetime.
  * @param title Localized window title.

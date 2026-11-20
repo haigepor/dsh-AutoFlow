@@ -7,6 +7,27 @@ export class ImageServiceError extends Error {
   constructor(readonly code: string, message: string, readonly status?: number) { super(message); this.name = 'ImageServiceError' }
 }
 
+const networkFailures = new Set(['ECONNABORTED', 'ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET'])
+
+/** @param error The original interruption or local cancellation reason.
+ * @param status HTTP status when response headers arrived.
+ * @param requestId Validated response correlation ID when available.
+ * @returns An unconfirmed outcome with safe transport details for the saved receipt.
+ */
+export function unknownImageOutcome(error: unknown, status: number | undefined, requestId: string | undefined): ImageFailure {
+  const stage = status === undefined
+    ? 'The image operation stopped after recording dispatch, before response headers arrived.'
+    : `The image operation received HTTP ${status} headers, but the response body could not be read in full.`
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause : error
+  const causeCode = cause instanceof Error && 'code' in cause && typeof cause.code === 'string' ? cause.code : undefined
+  const detail = error instanceof ImageServiceError && ['image-deadline', 'image-response-too-large', 'invalid-image-response', 'image-service-stopped'].includes(error.code)
+    ? error.message
+    : causeCode && networkFailures.has(causeCode) ? `Transport error ${causeCode}.` : ''
+  return { code: 'image-outcome-unknown', message: [stage, detail, 'The remote outcome is unknown. Keep the saved receipt for confirmation.'].filter(Boolean).join(' '),
+    ...(status === undefined ? {} : { status }), ...(requestId === undefined ? {} : { requestId }) }
+}
+
 /** Project an arbitrary failure without leaking tokens, signed URLs or backend request bodies.
  * @param error Failure raised by image protocol, attachments, or infrastructure.
  * @returns A bounded safe task failure.

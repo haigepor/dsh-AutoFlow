@@ -13,10 +13,10 @@
  */
 
 import { loadWin32DialogBindings } from './win32-dialog-bindings.ts'
-import { runFolderDialog, runImageDialog, runReferenceDialog } from './win32-dialog-logic.ts'
+import { runFolderDialog, runFoldersDialog, runImageDialog, runReferenceDialog } from './win32-dialog-logic.ts'
 
 /** The driver-to-child payload: the dialog title (passed via env). */
-export type Win32DialogWorkerData = { title: string } & ({ kind?: 'images' } | { kind: 'references'; folderLabel: string })
+export type Win32DialogWorkerData = { title: string } & ({ kind?: 'images' | 'folders' } | { kind: 'references'; folderLabel: string })
 
 /** One notice or outcome posted back to the driver. */
 export type Win32DialogWorkerMessage =
@@ -53,6 +53,7 @@ void (async () => {
       if (!label) throw new Error('win32-dialog-worker: folder label is required')
       post({ kind: 'images-done', paths: runReferenceDialog(bindings, title, label, showing) })
     } else if (process.env.DSH_DIALOG_KIND === 'images') post({ kind: 'images-done', paths: runImageDialog(bindings, title, showing) })
+    else if (process.env.DSH_DIALOG_KIND === 'folders') post({ kind: 'images-done', paths: runFoldersDialog(bindings, title, showing) })
     else post({ kind: 'done', path: runFolderDialog(bindings, title, showing) })
   } catch (error: unknown) {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)

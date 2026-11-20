@@ -19,15 +19,53 @@ import { createImageStorageDialog } from './image-storage.tsx'
 /** Direct UI operations remain authenticated native actions, not a public server API. */
 export type DirectCropInvoke = (operation: string, args: Record<string, Json>, signal?: AbortSignal) => Promise<unknown>
 type DirectSelection = Exclude<DirectCropStart['source'], { kind: 'server' }> | { kind: 'server'; snapshotId: string; photos: { id: string; title: string }[] }
+type LocalOriginalPicker = 'file' | 'folders'
 type RemovalRow = DirectCropBatch | (ServerImportView & { importOnly: true })
 type Removal = { mode: 'single' | 'selected' | 'all'; rows: RemovalRow[]; removed: number }
 const routeSchema = z.object({ runId: z.string(), imageVersionId: z.string().optional() })
 const listSchema = z.object({ batches: z.array(directCropBatchSchema), total: z.number().int().nonnegative(), nextOffset: z.number().int().nonnegative().optional(), imports: z.array(serverImportViewSchema).default([]) })
 const pickedSchema = z.object({ files: z.array(z.object({ path: z.string().min(1), name: z.string().min(1), size: z.number().int().nonnegative().optional(), readable: z.boolean().optional() })), cancelled: z.boolean().optional() })
-type PendingImport = { operationId: string; name: string; selection: DirectSelection; imageRoute: ConfigurationView['wallpaperImage']; details: Map<string, z.infer<typeof pickedSchema>['files'][number]>; count: number; createdAt: string; runId?: string; error?: string }
+type ImportSelection = { operationId: string; name: string; selection: DirectSelection; imageRoute: ConfigurationView['wallpaperImage'] }
+type PendingImport = ImportSelection & { details: Map<string, z.infer<typeof pickedSchema>['files'][number]>; count: number; createdAt: string; waiting?: boolean; runId?: string; error?: string }
 const imagePreferencesSchema = z.object({ selected: directCropStartSchema.shape.imageRoute.unwrap(), providers: z.record(z.string(), directCropStartSchema.shape.imageRoute.unwrap()) })
 const failureSchema = z.object({ code: z.string(), stage: z.string() })
 const sizeLabel = (bytes: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(bytes / 1_048_576) + ' MiB'
+
+function importArgs({ selection, name, imageRoute }: Omit<ImportSelection, 'operationId'>) {
+  return selection.kind === 'server'
+    ? { name, snapshotId: selection.snapshotId, ids: selection.photos.map(photo => photo.id), imageRoute }
+    : { name, source: selection, imageRoute }
+}
+
+function localImportParts(input: ImportSelection, limits: ConfigurationView['limits']): ImportSelection[] | null {
+  if (input.selection.kind !== 'local') return [input]
+  const { files } = input.selection
+  const encoder = new TextEncoder()
+  const bytes = (value: unknown) => encoder.encode(JSON.stringify(value)).byteLength
+  const requestBytes = (part: ImportSelection) => bytes({ operation: 'direct-crop-start', args: { ...importArgs(part), operationId: part.operationId } })
+  if (files.length <= limits.maxImportFiles && requestBytes(input) <= limits.maxClientRequestBytes) return [input]
+  const suffix = ` (${files.length}/${files.length})`
+  const name = input.name.slice(0, 160 - suffix.length).trimEnd()
+  const envelopeBytes = requestBytes({ ...input, name: name + suffix, operationId: `${input.operationId}:${files.length}`, selection: { kind: 'local', files: [] } })
+  const groups: typeof files[] = []
+  let part: typeof files = [], partBytes = envelopeBytes
+  for (const file of files) {
+    const fileBytes = bytes(file)
+    if (envelopeBytes + fileBytes > limits.maxClientRequestBytes) return null
+    if (part.length === limits.maxImportFiles || partBytes + fileBytes + (part.length ? 1 : 0) > limits.maxClientRequestBytes) {
+      groups.push(part)
+      part = []; partBytes = envelopeBytes
+    }
+    partBytes += fileBytes + (part.length ? 1 : 0)
+    part.push(file)
+  }
+  if (part.length) groups.push(part)
+  return groups.map((files, index) => ({
+    ...input, name: `${name} (${index + 1}/${groups.length})`, operationId: `${input.operationId}:${index + 1}`,
+    selection: { kind: 'local', files },
+  }))
+}
+
 function directCropFailure(t: WorkbenchText, failure: unknown, fallback: 'directCropPickError' | 'directCropStartError' | 'directCropExportError' | 'directCropReadError' | 'directCropDeleteError' | 'directCropDeletePrepareError'): string {
   const parsed = failureSchema.safeParse(failure)
   if (!parsed.success) return t(fallback)
@@ -70,7 +108,8 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
     const [admissions, setAdmissions] = React.useState<PendingImport[]>([])
     const awaitingImport = admissions.some(item => !item.error)
     const [localDetails, setLocalDetails] = React.useState(new Map<string, z.infer<typeof pickedSchema>['files'][number]>())
-    const retryAction = React.useRef<'local' | 'export' | 'more' | null>(null)
+    const activePick = React.useRef<AbortController | null>(null)
+    const retryAction = React.useRef<LocalOriginalPicker | 'export' | 'more' | null>(null)
     const [selection, setSelection] = React.useState<DirectSelection | null>(null), [importMenuOpen, setImportMenuOpen] = React.useState(false), [serverOpen, setServerOpen] = React.useState(false), [galleryOpen, setGalleryOpen] = React.useState(false), [name, setName] = React.useState(''), [pending, setPending] = React.useState<string | null>(null)
     const [storageOpen, setStorageOpen] = React.useState(false)
     const busy = pending !== null
@@ -138,38 +177,78 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
       return () => { controller.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visible) }
     }, [invoke, revision, configuration.limits.pollIntervalMs, t, awaitingImport])
     const choose = (source: DirectSelection) => { request.current = null; retryAction.current = null; setLocalDetails(new Map()); setSelection(source); setName(`${t(source.kind === 'server' ? 'serverNameDefault' : 'directCropDefaultName')} ${new Date().toLocaleString()}`); setGalleryOpen(false); setServerOpen(false); setError('') }
-    const local = async () => {
-      if (busy) return
-      setPending('pick'); setError(''); retryAction.current = 'local'
+    const local = async (kind: LocalOriginalPicker) => {
+      if (busy || activePick.current) return
+      const controller = new AbortController()
+      activePick.current = controller
+      const signal = AbortSignal.any([lifetime.current.signal, controller.signal])
+      setPending('pick'); setError(''); retryAction.current = kind
       try {
-        const picked = pickedSchema.parse(await actions.pickLocalReferences('file', lifetime.current.signal, t('directCropChoosePhotos')))
-        if (!alive.current || picked.cancelled || !picked.files.length) return
-        if (picked.files.length > configuration.limits.maxImportFiles) { setError(t('directCropLimit').replace('{count}', String(configuration.limits.maxImportFiles))); return }
-        choose({ kind: 'local', files: picked.files.map(({ path, name }) => ({ path, name })) }); setLocalDetails(new Map(picked.files.map(file => [file.path, file])))
-      } catch (failure) { if (alive.current) setError(directCropFailure(t, failure, 'directCropPickError')) }
-      finally { if (alive.current) setPending(null) }
+        const picked = pickedSchema.parse(await actions.pickLocalReferences(kind, signal, t(kind === 'file' ? 'directCropChoosePhotos' : 'directCropChooseLocalFolders')))
+        if (signal.aborted || picked.cancelled) return
+        if (!picked.files.length) {
+          if (kind === 'folders') setError(t('directCropNoFolderImages'))
+          return
+        }
+        const previous = selection?.kind === 'local' ? selection : null
+        const originals = new Map(previous?.files.map(file => [file.path, file]))
+        const details = new Map(previous ? localDetails : [])
+        for (const file of picked.files) {
+          if (originals.has(file.path)) continue
+          originals.set(file.path, { path: file.path, name: file.name })
+          details.set(file.path, file)
+        }
+        const next: DirectSelection = { kind: 'local', files: [...originals.values()] }
+        if (previous) setSelection(next)
+        else choose(next)
+        setLocalDetails(details)
+      } catch (failure) {
+        if (!signal.aborted) setError(directCropFailure(t, failure, 'directCropPickError'))
+      } finally {
+        activePick.current = null
+        if (alive.current) setPending(null)
+      }
     }
     const start = async (saved?: PendingImport) => {
       const source = saved ? saved.selection : selection
       if (!source || busy || !saved && (!name.trim() || files.some(file => !!file.issue))) return
       const batchName = saved ? saved.name : name.trim(), route = saved ? saved.imageRoute : imageRoute
-      const input = source.kind === 'server'
-        ? { name: batchName, snapshotId: source.snapshotId, ids: source.photos.map(photo => photo.id), imageRoute: route }
-        : { name: batchName, source, imageRoute: route }
-      const value = JSON.stringify(input)
+      const draft = { name: batchName, selection: source, imageRoute: route }
+      const value = JSON.stringify(importArgs(draft))
       const replacedId = saved ? saved.operationId : request.current?.operationId
       const operationId = saved ? saved.operationId : request.current?.value === value ? request.current.operationId : `direct-crop:${crypto.randomUUID()}`
+      const parts = saved ? [{ ...draft, operationId }] : localImportParts({ ...draft, operationId }, configuration.limits)
+      if (!parts) { setError(t('directCropImportPathTooLong')); return }
       request.current = { value, operationId }
-      const admission: PendingImport = { operationId, name: batchName, selection: source, imageRoute: route, details: saved ? saved.details : localDetails, count: source.kind === 'local' ? source.files.length : source.photos.length, createdAt: saved?.createdAt ?? new Date().toISOString() }
-      setAdmissions(previous => [...previous.filter(item => item.operationId !== replacedId && item.operationId !== operationId), admission])
+      const createdAt = saved?.createdAt ?? new Date().toISOString()
+      const queued: PendingImport[] = parts.map((part, index) => ({
+        ...part, details: saved ? saved.details : localDetails,
+        count: part.selection.kind === 'local' ? part.selection.files.length : part.selection.photos.length,
+        createdAt, waiting: index > 0,
+      }))
+      const submitted = new Set(queued.map(item => item.operationId))
+      setAdmissions(previous => [...previous.filter(item => item.operationId !== replacedId && !submitted.has(item.operationId)), ...queued])
       setSelection(null); setPending('import'); setError(''); setRoute({ runId: '' })
       try {
-        const accepted = z.object({ runId: z.string() }).parse(await invoke(source.kind === 'server' ? 'server-queue-start' : 'direct-crop-start', { ...input, operationId }, lifetime.current.signal))
-        if (!alive.current) return
-        setAdmissions(previous => previous.map(item => item.operationId === operationId ? { ...item, runId: accepted.runId } : item))
-        setRoute({ runId: source.kind === 'server' ? '' : accepted.runId }); refresh(current => current + 1)
-      } catch (failure) { if (alive.current) { setAdmissions(previous => previous.map(item => item.operationId === operationId ? { ...item, error: directCropFailure(t, failure, 'directCropStartError') } : item)); refresh(current => current + 1) } }
-      finally { if (alive.current) setPending(null) }
+        for (const admission of queued) {
+          if (admission.waiting && alive.current) setAdmissions(previous => previous.map(item => item.operationId === admission.operationId ? { ...item, waiting: false } : item))
+          try {
+            const accepted = z.object({ runId: z.string() }).parse(await invoke(source.kind === 'server' ? 'server-queue-start' : 'direct-crop-start',
+              { ...importArgs(admission), operationId: admission.operationId },
+              source.kind === 'local' ? undefined : lifetime.current.signal))
+            if (alive.current) {
+              if (queued.length > 1) setAdmissions(previous => previous.filter(item => item.operationId !== admission.operationId))
+              else {
+                setAdmissions(previous => previous.map(item => item.operationId === admission.operationId ? { ...item, runId: accepted.runId } : item))
+                setRoute({ runId: source.kind === 'server' ? '' : accepted.runId })
+              }
+            }
+          } catch (failure) {
+            if (alive.current) setAdmissions(previous => previous.map(item => item.operationId === admission.operationId ? { ...item, waiting: false, error: directCropFailure(t, failure, 'directCropStartError') } : item))
+          }
+          if (alive.current) refresh(current => current + 1)
+        }
+      } finally { if (alive.current) setPending(null) }
     }
     const exportBatch = async () => {
       if (!batch?.wallpaper || busy) return
@@ -269,21 +348,35 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
       const issue = details?.readable === false ? t('directCropUnreadable') : details?.size === 0 ? t('directCropEmptyFile') : details?.size !== undefined && details.size > configuration.limits.maxImportBytes ? t('directCropTooLarge').replace('{limit}', sizeLabel(configuration.limits.maxImportBytes)) : ''
       return { id: file.path, name: file.name, size: details?.size, issue }
     }) : selection?.photos.map(photo => ({ id: photo.id, name: photo.title || photo.id, size: undefined, issue: '' })) ?? []
-    const closeImport = () => { setSelection(null); setError(''); retryAction.current = null }
+    const closeImport = () => { activePick.current?.abort(); setSelection(null); setError(''); retryAction.current = null }
     const editImport = (item: PendingImport) => {
-      const source = item.selection, input = source.kind === 'server' ? { name: item.name, snapshotId: source.snapshotId, ids: source.photos.map(photo => photo.id), imageRoute: item.imageRoute } : { name: item.name, source, imageRoute: item.imageRoute }
-      request.current = { value: JSON.stringify(input), operationId: item.operationId }; setSelection(source); setName(item.name); setImageRoute(item.imageRoute); setLocalDetails(item.details); setError('')
+      request.current = { value: JSON.stringify(importArgs(item)), operationId: item.operationId }; setSelection(item.selection); setName(item.name); setImageRoute(item.imageRoute); setLocalDetails(item.details); setError('')
     }
     const pageId = React.useId()
     return <section className="vc-direct-page" data-vc-direct-crop aria-label={t('directCrop')}>
       <header className="vc-direct-pagebar" data-batch-open={!!batch || undefined}><div><Button size="sm" variant="ghost" onClick={() => batch ? setRoute({ runId: '' }) : onBack()}><ui.IconChevronLeftOutlineRegular size={16} />{t(batch ? 'directCropBatches' : 'directCropBack')}</Button><span className="vc-direct-page-title" title={batch?.name}>{batch ? batch.name : t('directCrop')}</span><Tag tone="neutral">{t('directCropTemplate')}</Tag></div><div>
-        {batch ? batch && <Button size="sm" variant="outline" disabled={busy || !batch.wallpaper?.passed} onClick={() => { void exportBatch() }}>{t('directCropExport')}</Button> : <Menu className="vc-import-picker" listClassName="vc-menu" open={importMenuOpen} onClose={() => setImportMenuOpen(false)} portal autoFocus align="end" items={[{ id: 'local', label: t('directCropLocal'), icon: <ui.IconPlusOutlineRegular size={16} />, disabled: busy }, { id: 'gallery', label: t('directCropGallery'), icon: <ui.IconFolderOpenOutlineRegular size={16} />, disabled: busy }, { id: 'server', label: t('serverQueue'), icon: <ui.IconBrowseOutlineRegular size={16} />, disabled: busy }]} onSelect={value => { setImportMenuOpen(false); if (value === 'local') void local(); else if (value === 'gallery') setGalleryOpen(true); else if (value === 'server') setServerOpen(true) }} anchor={<Button variant="primary" disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} />{t('directCropAddImages')}<ui.IconChevronDownOutlineRegular size={12} /></Button>} />}
+        {batch ? <Button size="sm" variant="outline" disabled={busy || !batch.wallpaper?.passed} onClick={() => { void exportBatch() }}>{t('directCropExport')}</Button> :
+          <Menu className="vc-import-picker" listClassName="vc-menu" open={importMenuOpen} onClose={() => setImportMenuOpen(false)} portal autoFocus align="end"
+            items={[
+              { id: 'file', label: t('directCropLocal'), icon: <ui.IconPlusOutlineRegular size={16} />, disabled: busy },
+              { id: 'folders', label: t('directCropLocalFolders'), icon: <ui.IconFolderOpenOutlineRegular size={16} />, disabled: busy },
+              { id: 'gallery', label: t('directCropGallery'), icon: <ui.IconFolderOpenOutlineRegular size={16} />, disabled: busy },
+              { id: 'server', label: t('serverQueue'), icon: <ui.IconBrowseOutlineRegular size={16} />, disabled: busy },
+            ]}
+            onSelect={value => {
+              setImportMenuOpen(false)
+              if (value === 'file' || value === 'folders') void local(value)
+              else if (value === 'gallery') setGalleryOpen(true)
+              else if (value === 'server') setServerOpen(true)
+            }}
+            anchor={<Button variant="primary" disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} />{t('directCropAddImages')}<ui.IconChevronDownOutlineRegular size={12} /></Button>}
+          />}
         {batch?.origin === 'server' && <Button size="sm" variant="outline" onClick={() => setServerOpen(true)}>{t('serverQueue')}</Button>}
         <Button variant="outline" size="sm" onClick={() => setStorageOpen(true)}><ui.IconFolderOpenOutlineRegular size={14} />{t('imageStorageTitle')}</Button>
         <Button variant="ghost" size="sm" disabled={loading || busy} onClick={reloadBatches}><ui.IconRefreshOutlineRegular size={14} />{t('refresh')}</Button>
       </div></header>
       {readError && <div className="vc-notice" role="alert">{readError}<Button size="sm" onClick={() => refresh(value => value + 1)}>{t('retry')}</Button></div>}
-      {error && !selection && <div className="vc-notice" role="alert">{error}{retryAction.current && <Button size="sm" disabled={busy} onClick={() => { if (retryAction.current === 'local') void local(); else if (retryAction.current === 'export') void exportBatch(); else if (retryAction.current === 'more') void more() }}>{t('retry')}</Button>}</div>}
+      {error && !selection && <div className="vc-notice" role="alert">{error}{retryAction.current && <Button size="sm" disabled={busy} onClick={() => { const retry = retryAction.current; if (retry === 'file' || retry === 'folders') void local(retry); else if (retry === 'export') void exportBatch(); else if (retry === 'more') void more() }}>{t('retry')}</Button>}</div>}
       {exported && <div className="vc-direct-export-status" role="status"><span>{t('directCropExported').replace('{count}', String(exported.files))} · {t('directCropExcluded').replace('{count}', String(exported.excluded))}</span><code>{exported.directory}</code></div>}
       {!configuration.visionConfigured && <div className="vc-notice">{t('directCropModelRequired')}</div>}
       {batch ? <Canvas key={batch.runId} refreshKey={revision} onServer={() => setServerOpen(true)} batch={batch} invoke={invoke} scope={scope} pollMs={configuration.limits.pollIntervalMs} pageSize={configuration.limits.pageSize} t={t} imageVersionId={route.imageVersionId} onImage={onImage} onTask={onTask} /> : <div className="vc-direct-batches">
@@ -291,20 +384,26 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
         {deleteNotice && !deleteTarget && <p className="vc-direct-delete-notice" role="status">{deleteNotice}</p>}
         {deleteError && !deleteTarget && <p className="vc-notice" role="alert">{deleteError}</p>}
         {loading && !batches.length && !imports.length && !admissionRows.length ? <div className="vc-empty"><StateDot state="ongoing" /></div> : batches.length || imports.length || admissionRows.length ? <>
-          <div className="vc-direct-table-scroll"><table className="vc-direct-batch-table"><colgroup><col className="vc-direct-col-check" /><col /><col className="vc-direct-col-source" /><col className="vc-direct-col-state" /><col className="vc-direct-col-count" /><col className="vc-direct-col-count" /><col className="vc-direct-col-time" /><col className="vc-direct-col-actions" /></colgroup><thead><tr><th scope="col">{t('directCropSelectColumn')}</th><th scope="col">{t('directCropName')}</th><th scope="col">{t('directCropSourceColumn')}</th><th scope="col">{t('directCropStatus')}</th><th scope="col">{t('directCropQuality')}</th><th scope="col">{t('directCropAttention')}</th><th scope="col">{t('directCropCreatedColumn')}</th><th scope="col">{t('directCropActionsColumn')}</th></tr></thead><tbody>{admissionRows.map(item => <React.Fragment key={item.operationId}><tr data-import-admission={item.operationId} data-admission-state={item.error ? 'failed' : 'importing'}><td>—</td><td><strong className="vc-direct-import-name" title={item.name}>{item.name}</strong><small className="vc-direct-import-metrics">{t('directCropSelected')} {item.count}</small>{!item.error && <><small className="vc-direct-import-metrics" role="status">{t(item.runId ? 'serverImportPreparing' : 'directCropImporting')}</small><progress className="vc-direct-row-progress" aria-label={t('directCropImporting')} /></>}</td><td><Tag tone="neutral">{t(item.selection.kind === 'server' ? 'serverSource' : item.selection.kind === 'local' ? 'directCropLocalSource' : 'directCropGallerySource')}</Tag></td><td><Tag tone={item.error ? 'warning' : 'info'}>{t(item.error ? 'serverImportPhaseFailed' : 'serverImportPhaseRunning')}</Tag></td><td>—</td><td>—</td><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td><td><div className="vc-direct-row-actions">{item.error && <><Button size="sm" variant="outline" disabled={busy} onClick={() => { void start(item) }}>{t('retry')}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => editImport(item)}>{t('directCropEditImport')}</Button><ui.Tooltip label={t('directCropDismissImport')} portal side="top"><Button size="sm" variant="ghost" className="vc-direct-batch-delete" disabled={busy} aria-label={t('directCropDismissImport') + ' ' + item.name} onClick={() => setAdmissions(previous => previous.filter(row => row.operationId !== item.operationId))}><ui.IconCloseOutlineRegular size={14} /></Button></ui.Tooltip></>}</div></td></tr>{item.error && <tr className="vc-direct-admission-notice"><td colSpan={8}><div className="vc-direct-admission-error" role="alert"><ui.IconInfoOutlineRegular size={16} /><span className="vc-direct-admission-message">{item.error}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => setStorageOpen(true)}>{t('imageStorageManage')}</Button></div></td></tr>}</React.Fragment>)}{imports.map(item=><tr key={item.runId} data-server-import={item.runId} data-selected={checkedIds.has(item.runId)||undefined}><td className="vc-direct-select-cell"><Checkbox className="vc-direct-row-checkbox" label={t('directCropSelectBatch')+' '+item.name} checked={checkedIds.has(item.runId)} disabled={busy || item.status==='importing'} onChange={checked=>checkRow(item.runId,checked)} /></td><td><strong className="vc-direct-import-name">{item.name}</strong><small className="vc-direct-import-metrics">{t('serverImportSaved').replace('{saved}',String(item.saved)).replace('{total}',String(item.total))} · {t('serverImportReceived').replace('{size}',Math.round(item.receivedBytes / 1024) + ' KiB')}</small><progress className="vc-direct-row-progress" max={item.total} value={item.saved} aria-label={t('serverImportProgress')} />{item.status!=='importing'&&<small className="vc-direct-import-issue" title={t(item.status==='interrupted'?'serverImportInterrupted':item.errorCode==='source-protocol-error'?'serverImportChanged':'serverImportFailed')}>{t(item.status==='interrupted'?'serverImportInterrupted':item.errorCode==='source-protocol-error'?'serverImportChanged':'serverImportFailed')}</small>}</td><td><Tag tone="neutral">{t('serverQueue')}</Tag></td><td><Tag tone={item.status==='importing'?'info':'warning'}>{t(item.status==='importing'?'serverImportPhaseRunning':item.status==='interrupted'?'serverImportPhaseInterrupted':'serverImportPhaseFailed')}</Tag></td><td>—</td><td>—</td><td>—</td><td><div className="vc-direct-row-actions">{item.status!=='importing'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{void retryImport(item.runId)}}>{t('serverImportResume')}</Button>}<Button size="sm" variant="ghost" onClick={()=>setServerOpen(true)}>{t('serverImportDetails')}</Button><ui.Tooltip label={t('directCropDelete')}><span><Button size="sm" variant="ghost" disabled={busy||item.status==='importing'} aria-label={t('directCropDelete')+' '+item.name} onClick={()=>openRemoval('single',[{...item,importOnly:true}])}><ui.IconTrashOutlineRegular size={14}/></Button></span></ui.Tooltip></div></td></tr>)}{batches.map(row => {
+          <div className="vc-direct-table-scroll"><table className="vc-direct-batch-table"><colgroup><col className="vc-direct-col-check" /><col /><col className="vc-direct-col-source" /><col className="vc-direct-col-state" /><col className="vc-direct-col-count" /><col className="vc-direct-col-count" /><col className="vc-direct-col-time" /><col className="vc-direct-col-actions" /></colgroup><thead><tr><th scope="col">{t('directCropSelectColumn')}</th><th scope="col">{t('directCropName')}</th><th scope="col">{t('directCropSourceColumn')}</th><th scope="col">{t('directCropStatus')}</th><th scope="col">{t('directCropQuality')}</th><th scope="col">{t('directCropAttention')}</th><th scope="col">{t('directCropCreatedColumn')}</th><th scope="col">{t('directCropActionsColumn')}</th></tr></thead><tbody>{admissionRows.map(item => <React.Fragment key={item.operationId}><tr data-import-admission={item.operationId} data-admission-state={item.error ? 'failed' : item.waiting ? 'queued' : 'importing'}><td>—</td><td><strong className="vc-direct-import-name" title={item.name}>{item.name}</strong><small className="vc-direct-import-metrics">{t('directCropSelected')} {item.count}</small>{!item.error && <><small className="vc-direct-import-metrics" role="status">{t(item.waiting ? 'directCropQueued' : item.runId ? 'serverImportPreparing' : 'directCropImporting')}</small>{!item.waiting && <progress className="vc-direct-row-progress" aria-label={t('directCropImporting')} />}</>}</td><td><Tag tone="neutral">{t(item.selection.kind === 'server' ? 'serverSource' : item.selection.kind === 'local' ? 'directCropLocalSource' : 'directCropGallerySource')}</Tag></td><td><Tag tone={item.error ? 'warning' : item.waiting ? 'neutral' : 'info'}>{t(item.error ? 'serverImportPhaseFailed' : item.waiting ? 'directCropQueued' : 'serverImportPhaseRunning')}</Tag></td><td>—</td><td>—</td><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td><td><div className="vc-direct-row-actions">{item.error && <><Button size="sm" variant="outline" disabled={busy} onClick={() => { void start(item) }}>{t('retry')}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => editImport(item)}>{t('directCropEditImport')}</Button><ui.Tooltip label={t('directCropDismissImport')} portal side="top"><Button size="sm" variant="ghost" className="vc-direct-batch-delete" disabled={busy} aria-label={t('directCropDismissImport') + ' ' + item.name} onClick={() => setAdmissions(previous => previous.filter(row => row.operationId !== item.operationId))}><ui.IconCloseOutlineRegular size={14} /></Button></ui.Tooltip></>}</div></td></tr>{item.error && <tr className="vc-direct-admission-notice"><td colSpan={8}><div className="vc-direct-admission-error" role="alert"><ui.IconInfoOutlineRegular size={16} /><span className="vc-direct-admission-message">{item.error}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => setStorageOpen(true)}>{t('imageStorageManage')}</Button></div></td></tr>}</React.Fragment>)}{imports.map(item=><tr key={item.runId} data-server-import={item.runId} data-selected={checkedIds.has(item.runId)||undefined}><td className="vc-direct-select-cell"><Checkbox className="vc-direct-row-checkbox" label={t('directCropSelectBatch')+' '+item.name} checked={checkedIds.has(item.runId)} disabled={busy || item.status==='importing'} onChange={checked=>checkRow(item.runId,checked)} /></td><td><strong className="vc-direct-import-name">{item.name}</strong><small className="vc-direct-import-metrics">{t('serverImportSaved').replace('{saved}',String(item.saved)).replace('{total}',String(item.total))} · {t('serverImportReceived').replace('{size}',Math.round(item.receivedBytes / 1024) + ' KiB')}</small><progress className="vc-direct-row-progress" max={item.total} value={item.saved} aria-label={t('serverImportProgress')} />{item.status!=='importing'&&<small className="vc-direct-import-issue" title={t(item.status==='interrupted'?'serverImportInterrupted':item.errorCode==='source-protocol-error'?'serverImportChanged':'serverImportFailed')}>{t(item.status==='interrupted'?'serverImportInterrupted':item.errorCode==='source-protocol-error'?'serverImportChanged':'serverImportFailed')}</small>}</td><td><Tag tone="neutral">{t('serverQueue')}</Tag></td><td><Tag tone={item.status==='importing'?'info':'warning'}>{t(item.status==='importing'?'serverImportPhaseRunning':item.status==='interrupted'?'serverImportPhaseInterrupted':'serverImportPhaseFailed')}</Tag></td><td>—</td><td>—</td><td>—</td><td><div className="vc-direct-row-actions">{item.status!=='importing'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{void retryImport(item.runId)}}>{t('serverImportResume')}</Button>}<Button size="sm" variant="ghost" onClick={()=>setServerOpen(true)}>{t('serverImportDetails')}</Button><ui.Tooltip label={t('directCropDelete')}><span><Button size="sm" variant="ghost" disabled={busy||item.status==='importing'} aria-label={t('directCropDelete')+' '+item.name} onClick={()=>openRemoval('single',[{...item,importOnly:true}])}><ui.IconTrashOutlineRegular size={14}/></Button></span></ui.Tooltip></div></td></tr>)}{batches.map(row => {
             const status = row.wallpaper?.status ?? row.status, attention = row.wallpaper?.attention ?? 0, passed = row.wallpaper?.passed ?? 0, live = running(status)
             return <tr key={row.runId} className="vc-direct-batch" data-run-id={row.runId} data-selected={checkedIds.has(row.runId) || undefined}>
               <td className="vc-direct-select-cell"><Checkbox className="vc-direct-row-checkbox" checked={checkedIds.has(row.runId)} label={t('directCropSelectBatch') + ' ' + row.name} disabled={busy} onChange={checked => checkRow(row.runId, checked)} /></td>
               <td><Button variant="ghost" className="vc-direct-batch-open" aria-label={t('directCropOpenBatch') + ' ' + row.name} disabled={busy} onClick={() => { setExported(null); setRoute({ runId: row.runId }) }}><span className="vc-direct-batch-name" title={row.name}>{row.name}</span></Button></td>
               <td><Tag tone="neutral">{t(row.origin === 'local' ? 'directCropLocalSource' : row.origin === 'server' ? 'serverSource' : 'directCropGallerySource')}</Tag></td>
-              <td><span className="vc-direct-batch-state"><StateDot state={live ? 'ongoing' : status === 'failed' ? 'error' : attention ? 'warning' : status === 'completed' && passed === row.matched ? 'done' : 'idle'} />{t(status === 'completed' && attention ? 'wallpaperAttention' : status)}</span></td>
+              <td><span className="vc-direct-batch-state"><StateDot state={status === 'created' ? 'idle' : live ? 'ongoing' : status === 'failed' ? 'error' : attention ? 'warning' : status === 'completed' && passed === row.matched ? 'done' : 'idle'} />{t(status === 'created' && row.origin === 'local' ? 'directCropQueued' : status === 'completed' && attention ? 'wallpaperAttention' : status)}</span></td>
               <td className="vc-direct-count"><strong>{passed}</strong><span> / {row.matched}</span></td><td className="vc-direct-count" data-attention={attention > 0 || undefined}>{attention}</td>
               <td><time dateTime={row.createdAt} title={new Date(row.createdAt).toLocaleString()}>{new Date(row.createdAt).toLocaleString()}</time></td>
               <td><div className="vc-direct-row-actions"><Button size="sm" variant="outline" disabled={busy} onClick={() => { setExported(null); setRoute({ runId: row.runId }) }}>{t('directCropOpenBatch')}</Button><ui.Tooltip label={t(settled(row) ? 'directCropDeleteHintShort' : 'directCropDeleteStopFirst')}><span><Button size="sm" variant="ghost" className="vc-direct-batch-delete" aria-label={t('directCropDelete') + ' ' + row.name} disabled={busy || !settled(row)} onClick={() => openRemoval('single', [row])}><ui.IconTrashOutlineRegular size={16} /></Button></span></ui.Tooltip></div></td>
             </tr>
           })}</tbody></table></div>
           {nextOffset !== undefined && <div className="vc-direct-table-more"><Button variant="outline" disabled={busy} onClick={() => { void more() }}>{t('directCropLoadMore')}</Button></div>}
-        </> : imports.length ? null : <div className="vc-empty vc-direct-empty"><ui.IconBrowseOutlineRegular size={36} /><h2>{t('directCropEmpty')}</h2><p>{t('directCropEmptyHint')}</p><p>{t('directCropHint')}</p><Button variant="primary" disabled={busy} onClick={() => { void local() }}>{t('directCropLocal')}</Button></div>}
+        </> : imports.length ? null : <div className="vc-empty vc-direct-empty">
+          <ui.IconBrowseOutlineRegular size={36} /><h2>{t('directCropEmpty')}</h2><p>{t('directCropEmptyHint')}</p><p>{t('directCropHint')}</p>
+          <div className="vc-direct-local-actions">
+            <Button variant="primary" disabled={busy} onClick={() => { void local('file') }}>{t('directCropLocal')}</Button>
+            <Button variant="outline" disabled={busy} onClick={() => { void local('folders') }}>{t('directCropLocalFolders')}</Button>
+          </div>
+        </div>}
       </div>}
       <Modal open={!!deleteTarget} onClose={closeDelete} title={t(deleteTarget?.mode === 'all' ? 'directCropDeleteAllTitle' : deleteTarget?.mode === 'selected' ? 'directCropDeleteSelected' : 'directCropDelete')} closeLabel={t('close')} className="vc-direct-delete-modal" footer={<div className="vc-direct-dialog-actions"><Button variant="outline" disabled={busy} onClick={closeDelete}>{t('cancel')}</Button><Button variant="primary" disabled={busy || !removableRows.length} onClick={() => { void removeBatch() }}>{busy ? <StateDot state="ongoing" /> : <ui.IconTrashOutlineRegular size={16} />}{t('directCropDeleteConfirm')}</Button></div>}>
         <div className="vc-direct-delete-content">
@@ -324,9 +423,18 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
         <div className="vc-direct-import-body">
           <label className="vc-direct-name" htmlFor={pageId + '-name'}>{t('directCropName')}<Input id={pageId + '-name'} value={name} disabled={busy} maxLength={160} onChange={event => setName(event.currentTarget.value)} /></label>
           <section className="vc-import-section" aria-labelledby={`${pageId}-originals-heading`}>
-            <div className="vc-import-heading"><h3 id={`${pageId}-originals-heading`}>{t('directCropSelected')}</h3><Tag tone="neutral">{files.length}</Tag></div>
-            <div className="vc-direct-import-list" role="list" aria-label={t('directCropSelected')}>{files.map(file => <div role="listitem" key={file.id} data-invalid={!!file.issue}><ui.IconBrowseOutlineRegular size={16} /><div className="vc-direct-file"><span title={file.name}>{file.name}</span>{file.size !== undefined && <small>{sizeLabel(file.size)}</small>}{file.issue && <p role="alert">{file.issue}</p>}</div><Button size="sm" variant="ghost" disabled={busy} aria-label={t('directCropRemove') + ' ' + file.name} onClick={() => setSelection(previous => { if (!previous) return null; if (previous.kind === 'local') return { ...previous, files: previous.files.filter(item => item.path !== file.id) }; if (previous.kind === 'gallery') return { ...previous, photos: previous.photos.filter(item => item.id !== file.id) }; return { ...previous, photos: previous.photos.filter(item => item.id !== file.id) } })}><ui.IconTrashOutlineRegular size={14} /></Button></div>)}</div>
+            <div className="vc-import-heading vc-direct-originals-heading">
+              <h3 id={`${pageId}-originals-heading`}>{t('directCropSelected')}</h3><Tag tone="neutral">{files.length}</Tag>
+              {selection?.kind === 'local' && <div className="vc-direct-local-actions">
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => { void local('file') }}><ui.IconPlusOutlineRegular size={14} />{t('directCropAddLocalFiles')}</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => { void local('folders') }}><ui.IconFolderOpenOutlineRegular size={14} />{t('directCropAddLocalFolders')}</Button>
+              </div>}
+            </div>
+            {files.length > 0 && <div className="vc-direct-import-list" role="list" aria-label={t('directCropSelected')}>{files.map(file => <div role="listitem" key={file.id} data-invalid={!!file.issue}><ui.IconBrowseOutlineRegular size={16} /><div className="vc-direct-file"><span title={selection?.kind === 'local' ? file.id : file.name}>{file.name}</span>{file.size !== undefined && <small>{sizeLabel(file.size)}</small>}{file.issue && <p role="alert">{file.issue}</p>}</div><Button size="sm" variant="ghost" disabled={busy} aria-label={t('directCropRemove') + ' ' + file.name} onClick={() => setSelection(previous => { if (!previous) return null; if (previous.kind === 'local') return { ...previous, files: previous.files.filter(item => item.path !== file.id) }; if (previous.kind === 'gallery') return { ...previous, photos: previous.photos.filter(item => item.id !== file.id) }; return { ...previous, photos: previous.photos.filter(item => item.id !== file.id) } })}><ui.IconTrashOutlineRegular size={14} /></Button></div>)}</div>}
             <p className="vc-settings-description">{selection?.kind === 'local' ? t('directCropFileHint').replace('{limit}', sizeLabel(configuration.limits.maxImportBytes)) : t(selection?.kind === 'server' ? 'serverImportHint' : 'directCropOriginalHint')}</p>
+            {selection?.kind === 'local' && files.length > configuration.limits.maxImportFiles && <p className="vc-settings-description">{t('directCropQueueHint')}</p>}
+            {pending === 'pick' && <p className="vc-settings-description" role="status"><StateDot state="ongoing" /> {t('directCropReadingLocal')}</p>}
+            {selection?.kind === 'local' && error && <p className="vc-notice" role="alert">{error}</p>}
           </section>
           <section className="vc-import-section vc-import-generation" aria-labelledby={`${pageId}-generation-heading`}>
             <div className="vc-import-heading"><h3 id={`${pageId}-generation-heading`}>{t('imageGenerationBatchTitle')}</h3></div>
@@ -338,7 +446,7 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
               {imageOptionsError && <p className="vc-image-model-field" role="alert">{t('imageGenerationLoadError')} <Button size="sm" variant="ghost" onClick={() => retryImageOptions(value => value + 1)}>{t('retry')}</Button></p>}
             </div>
           </section>
-          {error && <p className="vc-notice" role="alert">{error}</p>}
+          {selection?.kind !== 'local' && error && <p className="vc-notice" role="alert">{error}</p>}
         </div>
       </Modal>
     </section>

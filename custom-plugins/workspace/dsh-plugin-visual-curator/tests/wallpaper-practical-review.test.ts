@@ -4,10 +4,11 @@ import test from 'node:test'
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { wallpaperPracticalReviewSchema, wallpaperPracticalReviewOutputSchema, wallpaperSafetyClassSchema, type WallpaperPracticalReview } from '../src/shared/wallpaper-practical.ts'
-import { wallpaperObjectRoleSchema, wallpaperRoleObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperReviewOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { wallpaperPracticalReviewSchema, wallpaperPracticalReviewOutputSchema, wallpaperSafetyClassSchema, wallpaperRequiresFoliage, type WallpaperPracticalReview } from '../src/shared/wallpaper-practical.ts'
+import { wallpaperObjectRoleSchema, wallpaperPlanSchema, wallpaperRoleObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperReviewOutputSchema, wallpaperSettingsSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 import { completeCanvasWallpaperPrompts } from '../src/shared/wallpaper-prompts.ts'
-import { applyWallpaperSourceReview, wallpaperCriticalReviewFocus } from '../src/host/wallpaper-review.ts'
+import { applyWallpaperBoundaryDetail, applyWallpaperSourceReview, applyWallpaperStableFrameReview, wallpaperCriticalReviewFocus, wallpaperPlacementReviewRegions, wallpaperRedrawPlacementCrop, wallpaperSafetyCropEvidenceSchema, wallpaperSafetyReviewRegions, type WallpaperSafetyCropTarget } from '../src/host/wallpaper-review.ts'
+import { resolveWallpaperProcessing } from '../src/shared/wallpaper-policy.ts'
 import { CompatibleVisionProvider, type VisionInput } from '../src/media/vision.ts'
 
 const schema = wallpaperPracticalReviewOutputSchema('source', 'output')
@@ -16,6 +17,156 @@ function review(): WallpaperPracticalReview {
   return { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v1', sourceImageVersionId: 'source', outputImageVersionId: 'output', mode: 'single', subject: 'A visible main subject with a natural continuous background.',
     actualLayout: { regions: [{ name: 'Main subject', entityId: 'main', role: 'subject', scope: 'core', rect: { x: 0.32, y: 0.42, width: 0.3, height: 0.35 } }] }, defects: [], uncertainties: [] }
 }
+
+const edgeSettings = wallpaperSettingsSchema.parse({ processing: { layoutInsetPixels: 24, acceptance: { version: 'practical-v2', nearBoundaryRecheck: {} } }, repairPolicy: {} })
+
+test('unchanged frames share measurements without clearing an unconfirmed safety disagreement or a delivered defect', () => {
+  const current = wallpaperSettingsSchema.parse({ ...edgeSettings, processing: resolveWallpaperProcessing() })
+  const observe = (outputImageVersionId: string, left: number, safetyClass: 'general' | 'automobile' = 'general', defects: WallpaperPracticalReview['defects'] = []) => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({
+    ...review(), outputImageVersionId, defects, actualLayout: { regions: [
+      { name: 'Main subject', entityId: 'main', role: 'subject', scope: 'core', safetyClass, rect: { x: left, y: 0.42, width: 0.3, height: 0.35 } },
+    ] },
+  }, false, current))
+  const native = observe('native', 0.18)
+  const consistent = applyWallpaperStableFrameReview(observe('final', 0.24), native, current)
+  assert.equal(wallpaperVerdict(consistent), 'pass')
+  assert.equal(consistent.actualLayout.imageVersionId, 'final')
+  assert.deepEqual(consistent.actualLayout.regions, native.actualLayout.regions)
+  const detectedOutside = observe('final', 0.11)
+  const disputed = applyWallpaperStableFrameReview(detectedOutside, native, current)
+  assert.equal(wallpaperVerdict(disputed), 'reject')
+  assert.deepEqual(wallpaperSafetyReviewRegions(disputed, current, true).map(target => target.edge), ['left'])
+  assert.equal(wallpaperVerdict(applyWallpaperStableFrameReview(observe('final', 0.24), observe('native', 0.11), current)), 'reject')
+  const seamed = observe('final', 0.11, 'general', [{ kind: 'collage-seam', severity: 'major', reason: 'Clearly visible rectangular hard edge.', outputRect: { x: 0.4, y: 0.3, width: 0.3, height: 0.25 } }])
+  assert.equal(wallpaperVerdict(applyWallpaperStableFrameReview(seamed, native, current)), 'reject')
+  const car = observe('final', 0.139, 'automobile')
+  assert.equal(wallpaperVerdict(applyWallpaperStableFrameReview(car, observe('native', 0.18, 'automobile'), current)), 'reject')
+})
+
+function instrumentReview(outerRight: number, defects: WallpaperPracticalReview['defects'] = []) {
+  const raw = review()
+  raw.actualLayout.regions.push({ name: 'Held instrument', entityId: 'instrument', role: 'critical', scope: 'core', rect: { x: 0.408, y: 0.46, width: outerRight - 0.408, height: 0.16 } })
+  return wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...raw, defects }, false, edgeSettings))
+}
+
+test('disagreeing measurements of one saved frame verify both ends of the disputed vertical extent', () => {
+  const observe = (top: number, height: number) => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({
+    ...review(), actualLayout: { regions: [{ name: 'Cherries in the main bowl', entityId: 'main', role: 'subject', scope: 'core', safetyClass: 'general', rect: { x: 0.335, y: top, width: 0.44, height } }] },
+  }, false, edgeSettings))
+  const saved = observe(0.307, 0.342), reread = observe(0.272, 0.368)
+  assert.equal(wallpaperVerdict(saved), 'pass')
+  assert.equal(wallpaperVerdict(reread), 'reject')
+  const targets = wallpaperSafetyReviewRegions(reread, edgeSettings, false, [saved])
+  assert.deepEqual(targets.map(target => target.edge), ['top', 'bottom'])
+  assert.ok(targets.some(target => target.edge === 'bottom' && target.rect.y + target.rect.height >= 0.68))
+  assert.deepEqual(wallpaperSafetyReviewRegions(reread, edgeSettings, false, [reread]), [])
+  assert.deepEqual(new Set(wallpaperSafetyReviewRegions(saved, edgeSettings, false, [reread]).map(target => target.edge)), new Set(['top', 'bottom']))
+})
+
+test('a guided group checks both actual ends even when an overview reports that both bodies fit', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...edgeSettings, processing: resolveWallpaperProcessing() })
+  const observed = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), mode: 'group', actualLayout: { regions: [
+    { entityId: 'table', name: 'Table and base', role: 'subject', scope: 'core', rect: { x: 0.31, y: 0.52, width: 0.38, height: 0.301 } },
+    { entityId: 'head', name: 'Sculpture', role: 'subject', scope: 'core', rect: { x: 0.39, y: 0.346, width: 0.16, height: 0.145 } },
+  ] } }, false, settings))
+  assert.equal(wallpaperVerdict(observed), 'pass')
+  const targets = wallpaperSafetyReviewRegions(observed, settings, false, [], true)
+  assert.deepEqual(targets.map(({ entityId, edge }) => [entityId, edge]), [['head', 'top'], ['table', 'bottom']])
+  assert.ok(targets.some(target => target.edge === 'bottom' && target.rect.y + target.rect.height > 0.872), 'The actual crop can see the lower edge missed by the overview')
+})
+
+test('a saved whole group can be reframed only when every complete core still fits', () => {
+  const current = wallpaperSettingsSchema.parse({ ...edgeSettings, processing: resolveWallpaperProcessing(), sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1' } })
+  const policy = current.sourceIntentPolicy; assert.ok(policy?.alignment === 'subject-fill-v1')
+  const observe = (sculptureTop: number, tableBottom: number) => {
+    const object = (entityId: string, name: string, rect: { x: number; y: number; width: number; height: number }) => ({ entityId, name, rect, role: 'subject' as const, scope: 'core' as const, safetyClass: 'general' as const })
+    const regions = [object('head', 'Sculpture', { x: 0.394, y: sculptureTop, width: 0.156, height: 0.121 }), object('table', 'Table and base', { x: 0.33, y: 0.548, width: 0.363, height: tableBottom - 0.548 })]
+    const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'group', subject: 'Two objects', evidence: 'Both objects are visible.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: regions.map(({ scope: _scope, ...region }) => region), reason: 'Keep both complete.', placement: { scale: 1, left: 0, top: 0 } })
+    const sourceLayout = { ...policy, expectedSubjects: regions.map(({ entityId, rect }) => ({ entityId, rect })) }
+    const preserved = { result: 'satisfied', reason: 'The whole object and its position relative to the other object are visible.' }
+    const snapshot = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), protocol: 'practical-v2', mode: 'group', actualLayout: { regions }, sourceStyle: preserved,
+      sourcePreservation: regions.map(({ entityId }) => ({ entityId, framing: preserved, appearance: preserved, relationships: preserved })),
+    }, false, current, sourceLayout))
+    assert.equal(wallpaperVerdict(snapshot), 'reject')
+    return wallpaperRedrawPlacementCrop(snapshot, plan, current, sourceLayout)
+  }
+  const crop = observe(0.388, 0.853)
+  assert.ok(crop)
+  assert.ok(crop.height > 0.89 * current.height && crop.height < 0.92 * current.height)
+  assert.equal(crop.y + crop.height, current.height)
+  assert.equal(observe(0.322, 0.85855), undefined, 'Moving the base up with this older view would take the sculpture outside the safe area')
+})
+
+function cropInput(target: WallpaperSafetyCropTarget): VisionInput {
+  return { requestId: 'safety-crops', taskBrief: 'Measure the visible endpoint in the saved crop.', rules: [], images: [
+    { imageVersionId: 'output', role: 'actual-wallpaper', mime: 'image/webp', digest: 'actual-digest', bytes: new Uint8Array() },
+    { imageVersionId: 'right-edge', role: 'actual-wallpaper-detail-only', mime: 'image/webp', digest: 'local-digest', bytes: new Uint8Array() },
+  ], usage: { imageRepresentations: [{ imageVersionId: 'output' }, { imageVersionId: 'right-edge', sourceImageVersionId: 'output', sourceRect: target.rect }] } }
+}
+
+test('a near-threshold horizontal drift rechecks the left and right edges even when the accepted vertical estimates differ more', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...edgeSettings, sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1' } })
+  const policy = settings.sourceIntentPolicy; assert.ok(policy?.alignment === 'subject-fill-v1')
+  const sourceLayout = { ...policy, expectedSubjects: [{ entityId: 'main', rect: { x: 0.305, y: 0.413, width: 0.39, height: 0.317 } }] }
+  const observed = (rect: { x: number; y: number; width: number; height: number }) => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({
+    ...review(), actualLayout: { regions: [{ name: 'Main subject', entityId: 'main', role: 'subject', scope: 'core', safetyClass: 'general', rect }] },
+  }, false, settings, sourceLayout))
+  const native = observed({ x: 0.34, y: 0.385, width: 0.41, height: 0.332 })
+  const final = observed({ x: 0.315, y: 0.35, width: 0.495, height: 0.375 })
+  assert.deepEqual(native.layoutChecks, [])
+  assert.deepEqual(final.layoutChecks, ['subject-center-drift:115,-112'])
+  assert.deepEqual(wallpaperPlacementReviewRegions(native, final, settings).map(target => target.edge), ['left', 'right'])
+})
+
+test('a full-frame reread cannot turn an opposing instrument endpoint into 100 percent without the actual edge crop', () => {
+  const initial = instrumentReview(0.96), overviewReread = instrumentReview(0.85)
+  assert.equal(wallpaperVerdict(initial), 'reject')
+  assert.equal(wallpaperVerdict(overviewReread), 'pass')
+  const targets = wallpaperSafetyReviewRegions(initial, edgeSettings)
+  assert.deepEqual(targets.map(({ name, edge }) => [name, edge]), [['Held instrument', 'right']])
+  assert.deepEqual(wallpaperSafetyReviewRegions(overviewReread, edgeSettings).map(({ edge }) => edge), ['right'], 'A seemingly safe endpoint within the inspection window also gets its actual crop')
+  const held = applyWallpaperBoundaryDetail(initial, overviewReread, 'boundary', { settings: edgeSettings, expected: targets, evidence: [] })
+  assert.equal(held.checks.protection.result, 'unknown')
+  assert.equal(wallpaperVerdict(held), 'needs-review')
+  assert.deepEqual(held.actualLayout.regions[1]?.rect, initial.actualLayout.regions[1]?.rect)
+  assert.deepEqual(held.layoutChecks, ['critical-outside:Held instrument'])
+})
+
+test('independent crop evidence establishes the true endpoint in full-canvas coordinates', () => {
+  const initial = instrumentReview(0.96), overviewReread = instrumentReview(0.85)
+  const expected = wallpaperSafetyReviewRegions(initial, edgeSettings), target = expected[0]; assert.ok(target)
+  const prepared = cropInput(target), wire = wallpaperSafetyCropEvidenceSchema(prepared, expected)
+  const observation = { cropImageVersionId: 'right-edge', edge: 'right', status: 'measured', point: { x: (0.94 - target.rect.x) / target.rect.width, y: 0.5 } }
+  assert.equal(wire.safeParse([{ ...observation, cropImageVersionId: 'other-image' }]).success, false)
+  assert.equal(wire.safeParse([{ ...observation, edge: 'left' }]).success, false)
+  assert.equal(z.toJSONSchema(wire, { io: 'output', unrepresentable: 'any' }).type, 'array')
+  const stored = wire.parse([observation]); assert.deepEqual(wire.parse(stored), stored, 'Persisted responses keep the crop-local point for replay')
+  const correct = applyWallpaperBoundaryDetail(initial, overviewReread, 'boundary', { settings: edgeSettings, expected, prepared, evidence: stored })
+  assert.equal(wallpaperVerdict(correct), 'reject')
+  assert.deepEqual(correct.layoutChecks, ['critical-outside:Held instrument'])
+  const actual = correct.actualLayout.regions[1]?.rect; assert.ok(actual)
+  assert.ok(Math.abs(actual.x + actual.width - 0.94) < 1e-8)
+  const accepted = applyWallpaperBoundaryDetail(initial, overviewReread, 'boundary', { settings: edgeSettings, expected, prepared, evidence: wire.parse([{ ...observation, point: { x: (0.85 - target.rect.x) / target.rect.width, y: 0.5 } }]) })
+  assert.equal(wallpaperVerdict(accepted), 'pass', 'A truly in-bounds locally measured endpoint can clear an inaccurate overview box')
+})
+
+test('an unresolved or crop-clipped endpoint remains unknown, and a real seam survives safety confirmation', () => {
+  const initial = instrumentReview(0.96, [{ kind: 'collage-seam', severity: 'major', reason: 'A rectangular pasted border interrupts the background texture.', outputRect: { x: 0.43, y: 0.22, width: 0.3, height: 0.24 } }])
+  const measured = instrumentReview(0.85)
+  const expected = wallpaperSafetyReviewRegions(initial, edgeSettings), target = expected[0]; assert.ok(target)
+  const prepared = cropInput(target), schema = wallpaperSafetyCropEvidenceSchema(prepared, expected)
+  const ref = { cropImageVersionId: 'right-edge', edge: 'right' }
+  for (const raw of [{ ...ref, status: 'unknown' }, { ...ref, status: 'measured', point: { x: 0, y: 0.5 } }]) {
+    const held = applyWallpaperBoundaryDetail(initial, measured, 'boundary', { settings: edgeSettings, expected, prepared, evidence: schema.parse([raw]) })
+    assert.equal(held.checks.protection.result, 'unknown')
+    assert.ok(held.practicalReview?.uncertainties.length)
+  }
+  const confirmed = applyWallpaperBoundaryDetail(initial, measured, 'boundary', { settings: edgeSettings, expected, prepared, evidence: schema.parse([{ ...ref, status: 'measured', point: { x: (0.85 - target.rect.x) / target.rect.width, y: 0.5 } }]) })
+  assert.equal(confirmed.checks.protection.result, 'satisfied')
+  assert.equal(confirmed.checks.background.result, 'violated')
+  assert.equal(wallpaperVerdict(confirmed), 'reject')
+  assert.ok(confirmed.issues.some(issue => issue.code === 'collage-seam'))
+})
 
 const primaryObjects = wallpaperObjectRoleSchema.array().parse([
   { entityId: 'drink', name: 'Milkshake', role: 'primary', evidence: 'One co-lead in the source arrangement.', rect: { x: 0.45, y: 0.3, width: 0.22, height: 0.4 }, sourceEdges: [] },
@@ -353,4 +504,125 @@ test('practical scene mode remains a landscape through the stored-review adapter
   const practical = wallpaperSettingsSchema.parse({ processing: { acceptance: { version: 'practical-v1' } }, repairPolicy: {} })
   const effective = applyWallpaperSourceReview(scene, true, practical)
   assert.equal(wallpaperVerdict(effective), 'pass')
+})
+
+test('named leaf tips expand a flower-head box and a saved label cannot discard them', () => {
+  const settings = wallpaperSettingsSchema.parse({ processing: resolveWallpaperProcessing() })
+  const source = [{ entityId: 'main', role: 'primary' as const, name: 'Flower heads', safetyClass: 'general' as const }]
+  const wire = wallpaperPracticalReviewOutputSchema('source', 'output', source, 'single', true, true, true)
+  const preserved = { result: 'satisfied', reason: 'The original arrangement is visible.' }
+  const initial = { ...review(), protocol: 'practical-v2', sourceStyle: preserved, sourcePreservation: [{ entityId: 'main', framing: preserved, appearance: preserved, relationships: preserved }] }
+  assert.equal(wire.safeParse(initial).success, false)
+  const region = initial.actualLayout.regions[0]!
+  const extrema = { left: { part: 'Outer leaf', coordinate: 0.06 }, right: { part: 'Attached leaf', coordinate: 0.96 }, top: { part: 'Stem tip', coordinate: 0.12 }, bottom: { part: 'Petal', coordinate: 0.7 } }
+  const observed = wire.parse({ ...initial, actualLayout: { regions: [{ ...region, extrema }] } })
+  const result = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(observed, false, settings))
+  assert.equal(result.actualLayout.regions[0]?.rect.x, 0.06)
+  assert.ok(result.layoutChecks.includes('subject-overflow:Main subject'))
+})
+
+test('a disputed tail search covers the visible endpoint beyond the overview height', () => {
+  const measure = (x: number, width: number) => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), actualLayout: { regions: [
+    { ...review().actualLayout.regions[0], rect: { x, y: 1364 / 3280, width, height: 473 / 3280 } },
+  ] } }, false, edgeSettings))
+  const initial = measure(1011 / 1845, 605 / 1845)
+  const crop = wallpaperSafetyReviewRegions(initial, edgeSettings, true, [measure(1011 / 1845, 550 / 1845)]).find(target => target.edge === 'right')
+  assert.ok(crop)
+  assert.ok(crop.rect.x * 1845 <= 1587 && (crop.rect.x + crop.rect.width) * 1845 >= 1610)
+  assert.ok(crop.rect.y * 3280 <= 1939 && (crop.rect.y + crop.rect.height) * 3280 >= 2031)
+})
+
+test('a vehicle endpoint less than one pixel inside receives a separate exterior strip', () => {
+  const measured = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), actualLayout: { regions: [
+    { ...review().actualLayout.regions[0], safetyClass: 'automobile', rect: { x: 265.68 / 1845, y: 0.48, width: (1586.7 - 265.68) / 1845, height: 0.18 } },
+  ] } }, false, edgeSettings))
+  const targets = wallpaperSafetyReviewRegions(measured, edgeSettings).filter(target => target.edge === 'right')
+  assert.equal(targets.length, 2)
+  const exterior = targets.find(target => target.outsideOnly)
+  assert.ok(exterior)
+  assert.equal(exterior.rect.x * 1845, 1587)
+  assert.ok((exterior.rect.x + exterior.rect.width) * 1845 > 1593)
+})
+
+test('an exterior tail crop crosses the 97 percent decision line and reaches the actual tail height', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...edgeSettings, sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1' } })
+  const measured = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), actualLayout: { regions: [
+    { ...review().actualLayout.regions[0], rect: { x: 1011 / 1845, y: 1364 / 3280, width: 605 / 1845, height: 473 / 3280 } },
+  ] } }, false, settings))
+  const strip = wallpaperSafetyReviewRegions(measured, settings, true, [measured]).find(target => target.edge === 'right' && target.outsideOnly)
+  assert.ok(strip?.contestedClearance)
+  assert.equal(Math.round(strip.rect.x * 1845), 1605)
+  assert.ok((strip.rect.x + strip.rect.width) * 1845 > 1610 && strip.rect.y * 3280 < 1939 && (strip.rect.y + strip.rect.height) * 3280 > 2031)
+})
+
+test('an empty exterior beside an earlier subpixel bumper clearance cannot overturn disputed native pixels', () => {
+  const observe = (right: number) => wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), actualLayout: { regions: [
+    { ...review().actualLayout.regions[0], safetyClass: 'automobile', rect: { x: 265.68 / 1845, y: 0.48, width: (right - 265.68) / 1845, height: 0.18 } },
+  ] } }, false, edgeSettings))
+  const current = observe(1581.4)
+  const strip = wallpaperSafetyReviewRegions(current, edgeSettings, false, [observe(1586.7)]).find(target => target.edge === 'right' && target.outsideOnly)
+  assert.ok(strip?.contestedClearance)
+  const prepared = cropInput(strip)
+  const inspect = (right: number) => applyWallpaperBoundaryDetail(current, observe(right), 'boundary', { settings: edgeSettings, expected: [strip],
+    prepared, evidence: [{ cropImageVersionId: 'right-edge', edge: 'right', status: 'clear' }] })
+  assert.equal(inspect(1581.4).checks.protection.result, 'unknown')
+  assert.equal(wallpaperVerdict(inspect(1500)), 'pass')
+})
+
+test('a frozen plant with attached leaves cannot be cleared by four petal endpoints or an old flower-head box', () => {
+  const intent = { framing: 'whole' as const, visibility: 'visible' as const, preserve: ['保持绿色花茎、萼片和上方虚化玫瑰叶与花头的连接关系。'], relationships: [] }
+  const flower = { entityId: 'main', name: '玫瑰花组', role: 'primary' as const, sourceIntent: intent }
+  assert.ok(wallpaperRequiresFoliage(flower))
+  assert.equal(wallpaperRequiresFoliage({ name: '蓝白花碗中的草莓与无花果', sourceIntent: { ...intent, preserve: ['保留蓝白叶纹陶瓷碗和草莓的绿色叶萼。'] } }), false)
+  assert.equal(wallpaperRequiresFoliage({ name: 'Red fox', sourceIntent: { ...intent, preserve: ['Keep the subject against the forest leaves.'] } }), false)
+  const wire = wallpaperPracticalReviewOutputSchema('source', 'output', [flower], 'single', true, true, true)
+  const preserved = { result: 'satisfied', reason: 'The original arrangement is visible.' }
+  const original = { ...review(), protocol: 'practical-v2', sourceStyle: preserved, sourcePreservation: [{ entityId: 'main', framing: preserved, appearance: preserved, relationships: preserved }] }
+  const petals = { left: { part: 'left petal', coordinate: 0.245 }, right: { part: 'right petal', coordinate: 0.86 }, top: { part: 'upper petal', coordinate: 0.385 }, bottom: { part: 'lower petal', coordinate: 0.685 } }
+  const core = { ...original.actualLayout.regions[0], rect: { x: 0.245, y: 0.385, width: 0.615, height: 0.3 }, extrema: petals }
+  assert.equal(wire.safeParse({ ...original, actualLayout: { regions: [core] } }).success, false)
+  const settings = wallpaperSettingsSchema.parse({ ...edgeSettings, sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1' } })
+  const policy = settings.sourceIntentPolicy; assert.ok(policy?.alignment === 'subject-fill-v1')
+  const layout = { ...policy, expectedSubjects: [{ entityId: 'main', rect: core.rect, attachedFoliage: true as const }] }
+  const measure = (attachedFoliage: { status: 'unknown'; reason: string } | { status: 'located'; rect: typeof core.rect }) =>
+    wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(wire.parse({ ...original, actualLayout: { regions: [{ ...core, attachedFoliage }] } }), false, settings, layout))
+  const unresolved = measure({ status: 'unknown', reason: 'Leaves hidden by foreground flowers.' })
+  assert.notEqual(wallpaperVerdict(unresolved), 'pass')
+  const native = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), actualLayout: { regions: [{ ...review().actualLayout.regions[0], rect: { x: 0.26, y: 0.404, width: 0.61, height: 0.256 } }] } }, false, settings))
+  const good = measure({ status: 'located', rect: { x: 0.3, y: 0.39, width: 0.5, height: 0.25 } })
+  const current = applyWallpaperStableFrameReview(good, native, settings, layout)
+  assert.equal(current.actualLayout.regions[0]?.rect.y, 0.385)
+  const target = wallpaperSafetyReviewRegions(current, settings, false, [], false, layout)[0]
+  assert.ok(target?.component === 'attached-foliage')
+  const inspect = (pointY: number) => applyWallpaperBoundaryDetail(current, current, 'leaf-crop', { settings, sourceLayout: layout, expected: [target], prepared: cropInput(target),
+    evidence: [{ cropImageVersionId: 'right-edge', edge: 'top', status: 'measured', point: { x: 0.54, y: pointY / target.rect.height } }] })
+  assert.equal(inspect(0.13).checks.protection.result, 'violated')
+  assert.equal(inspect(0.45).actualLayout.regions[0]?.rect.y, 0.385)
+  assert.equal(wallpaperVerdict(inspect(0.45)), 'pass')
+  const outside = measure({ status: 'located', rect: { x: 0.02, y: 0.13, width: 0.96, height: 0.38 } })
+  assert.equal(outside.actualLayout.regions[0]?.rect.x, 0.02)
+  assert.equal(outside.checks.protection.result, 'violated')
+})
+
+test('a legacy vertical pair inspects the floor contact beyond the lower subject’s 97 percent decision line', () => {
+  const settings = wallpaperSettingsSchema.parse({ ...edgeSettings, processing: resolveWallpaperProcessing(), sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1' } })
+  const policy = settings.sourceIntentPolicy; assert.ok(policy?.alignment === 'subject-fill-v1')
+  const regions = [
+    { ...review().actualLayout.regions[0], entityId: 'sculpture', name: 'Sculpture', rect: { x: 0.375, y: 0.322, width: 0.16, height: 0.138 } },
+    { ...review().actualLayout.regions[0], entityId: 'table', name: 'Wooden pedestal table', rect: { x: 0.296, y: 0.5125, width: 0.409, height: (2693.2 - 1681) / 3280 } },
+  ]
+  const observation = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview({ ...review(), mode: 'group', actualLayout: { regions } }, false, settings))
+  const layout = { ...policy, stackedSubjects: true as const }
+  const targets = wallpaperSafetyReviewRegions(observation, settings, true, [], true, layout)
+  const bottom = targets.find(target => target.entityId === 'table' && target.edge === 'bottom' && !target.outsideOnly)
+  const exterior = targets.find(target => target.entityId === 'table' && target.edge === 'bottom' && target.outsideOnly)
+  assert.ok(bottom && exterior)
+  assert.ok((bottom.rect.y + bottom.rect.height) * settings.height > 2861)
+  assert.ok(exterior.rect.y * settings.height > 2718 && exterior.rect.y * settings.height < 2861)
+  const investigate = (evidence: Parameters<typeof applyWallpaperBoundaryDetail>[3]) => applyWallpaperBoundaryDetail(observation, observation, 'floor-contact', evidence)
+  const local = { settings, sourceLayout: layout, expected: [exterior], prepared: cropInput(exterior) }
+  const hit = investigate({ ...local, evidence: [{ cropImageVersionId: 'right-edge', edge: 'bottom', status: 'measured', point: { x: 0.51, y: (2861 / 3280 - exterior.rect.y) / exterior.rect.height } }] })
+  assert.equal(hit.checks.protection.result, 'violated')
+  const clear = investigate({ ...local, evidence: [{ cropImageVersionId: 'right-edge', edge: 'bottom', status: 'clear' }] })
+  assert.equal(clear.checks.protection.result, 'satisfied')
 })

@@ -2,11 +2,13 @@
 import { z } from 'zod'
 import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import type { Assessment, Asset, DomainActor, ImageVersion, RunRecord, StyleStandard } from '../shared/model.ts'
+import { recipeSchema, styleStandardSchema, usageSchema, type Assessment, type Asset, type DomainActor, type ImageVersion, type RunRecord, type StyleStandard } from '../shared/model.ts'
+import { searchOutputSchema } from '../shared/search-launch.ts'
 import { effectiveReviewReferenceRole } from './review-references.ts'
-import { searchScreeningSummary } from './search-screening-state.ts'
-import { settingsSchema } from './config.ts'
+import { searchScreeningCheckpointSchema } from './search-screening-state.ts'
+import { reviewerRevision, searchScreeningPolicySchema, settingsSchema } from './config.ts'
 import { sourceIdentity } from './providers.ts'
+import type { ExecutionSpec } from './runtime.ts'
 
 /** Exact sources can be current references, returned images, or previously rejected photos; no prior verdict is applied to a new image. */
 export const searchExclusionReasonSchema = z.enum(['negative-reference', 'reference', 'previous-selection', 'previous-rejection'])
@@ -27,16 +29,45 @@ function confirmedRejection(assessment: Assessment): boolean {
   return assessment.technicalStatus === 'completed' && assessment.verdict === 'reject'
 }
 
+const screeningHistorySchema = z.object({ checkpoint: z.object({ searchScreening: searchScreeningCheckpointSchema }) })
+function coarseRejections(run: RunRecord): string[] {
+  const saved = screeningHistorySchema.safeParse(run.data)
+  return saved.success ? Object.entries(saved.data.checkpoint.searchScreening.screened).flatMap(([id, result]) => result.decision === 'obvious-reject' ? [id] : []) : []
+}
+
+const reviewScopeSchema = z.object({
+  config: settingsSchema, input: z.object({ taskBrief: z.string().min(1) }),
+  fixed: z.object({ release: styleStandardSchema, executionRecipe: recipeSchema.optional(), output: searchOutputSchema.optional(), usage: usageSchema.optional(),
+    wallpaperAuto: z.boolean().optional(), cropReviewPolicy: z.string().optional(), cropModelViews: z.string().optional(), searchScreening: searchScreeningPolicySchema.optional(), searchHardScreening: z.literal(1).optional(), previewPixelIdentity: z.literal(1).optional() }),
+})
+function reviewScope(spec: unknown) {
+  const saved = reviewScopeSchema.safeParse(spec)
+  if (!saved.success || saved.data.config.source.provider !== 'unsplash') return undefined
+  const { config, input, fixed } = saved.data
+  const output = fixed.output ?? (fixed.usage && { kind: 'usage' as const, usageRevisionId: fixed.usage.id })
+  if (!output || output.kind === 'usage' && fixed.usage?.id !== output.usageRevisionId) return undefined
+  const standard = fixed.executionRecipe ? { ...fixed.release, recipe: fixed.executionRecipe } : fixed.release
+  return { standard, output: output.kind, screening: fixed.searchScreening && contentDigest({ policy: fixed.searchScreening, hardScreening: fixed.searchHardScreening ?? null }),
+    digest: contentDigest({ standard, reviewer: reviewerRevision(config), input, output, usage: fixed.usage, wallpaperAuto: fixed.wallpaperAuto === true, cropReviewPolicy: fixed.cropReviewPolicy, cropModelViews: fixed.cropModelViews, previewPixelIdentity: fixed.previewPixelIdentity ?? null }) }
+}
+
+function matchesRejection(assessment: Assessment, scope: NonNullable<ReturnType<typeof reviewScope>>): boolean {
+  const { standard, output } = scope
+  const saved = assessment.standard
+  const sameStandard = saved ? saved.kind === standard.kind && saved.id === standard.id && saved.contentDigest === standard.contentDigest : assessment.releaseId === standard.id && standard.kind === 'release'
+  return sameStandard && assessment.recipeId === standard.recipe.id && (output === 'original' || assessment.stage === (output === 'preview' ? 'final' : 'source'))
+}
+
 /** @param domain Profile records. @param styleId Exact collection. @returns Search Runs with saved selections, completed rejections, or conservative coarse exclusions in that collection. */
 export function searchHistoryRuns(domain: CuratorDomain, styleId: string): RunRecord[] {
   const selected = new Set(domain.repository.list('selection').filter(row => row.qualification === 'auto-qualified').map(row => row.runId))
   for (const assessment of domain.repository.list('assessment')) if (confirmedRejection(assessment)) selected.add(assessment.runId)
   const scope = z.object({ kind: z.literal('search'), fixed: z.object({ release: z.object({ styleId: z.literal(styleId) }) }) })
-  return domain.repository.list('run').filter(run => scope.safeParse(run.spec).success && (selected.has(run.id) || searchScreeningSummary(run)?.screenedSources.some(item => item.decision === 'obvious-reject')))
+  return domain.repository.list('run').filter(run => scope.safeParse(run.spec).success && (selected.has(run.id) || coarseRejections(run).length > 0))
 }
 
-/** @param domain Authorized records. @param standard Effective frozen references and rules. @param actor Reference reader. @param history Verified original readers for prior search Runs. @param _taskBrief Caller task text; exact-photo novelty is independent of wording and reviewer. @returns Detached exact identities; no private paths, pixels or historical task text enter the policy. */
-export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[], _taskBrief: string): SearchExclusions {
+/** @param domain Authorized records. @param standard Effective frozen references and rules. @param actor Reference reader. @param history Verified original readers for prior search Runs. @param current New search inputs; omitted when collecting the current parent Run's already reviewed sources for wallpaper recovery. @returns Detached exact identities with quality rejections limited to equivalent Unsplash reviews. */
+export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[], current?: Pick<ExecutionSpec, 'config' | 'input' | 'fixed'>): SearchExclusions {
   const sources = new Map<string, SearchExclusionReason>(), digests = new Map<string, SearchExclusionReason>()
   const rank = { 'negative-reference': 0, reference: 1, 'previous-selection': 2, 'previous-rejection': 3 }
   const put = (target: Map<string, SearchExclusionReason>, key: string, reason: SearchExclusionReason) => { const prior = target.get(key); if (prior === undefined || rank[reason] < rank[prior]) target.set(key, reason) }
@@ -55,6 +86,13 @@ export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleSta
   const scope = z.object({ kind: z.literal('search'), fixed: z.object({ release: z.object({ styleId: z.literal(standard.styleId) }) }) })
   const scopedHistory = history.filter(item => scope.safeParse(item.run.spec).success)
   const readers = new Map<string, DomainActor>(scopedHistory.map(item => [item.run.id, item.actor]))
+  const scopedRejections = current?.config.source.provider === 'unsplash'
+  const currentScope = scopedRejections ? reviewScope(current) : undefined
+  const matchingReviews = new Map<string, NonNullable<ReturnType<typeof reviewScope>>>()
+  if (currentScope) for (const { run } of scopedHistory) {
+    const saved = reviewScope(run.spec)
+    if (saved?.digest === currentScope.digest) matchingReviews.set(run.id, saved)
+  }
   for (const selection of domain.repository.list('selection')) {
     const reader = readers.get(selection.runId)
     if (!reader || selection.qualification !== 'auto-qualified') continue
@@ -64,14 +102,18 @@ export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleSta
   for (const assessment of domain.repository.list('assessment')) {
     const reader = readers.get(assessment.runId)
     if (!reader || !confirmedRejection(assessment)) continue
+    const matching = matchingReviews.get(assessment.runId)
+    if (scopedRejections && (!matching || !matchesRejection(assessment, matching))) continue
     const { image, asset } = domain.authorizedImage(assessment.imageVersionId, reader)
+    if (matching && image.versionKind !== (matching.output === 'preview' ? 'remote-reference' : 'normalized')) continue
     add(image, asset, 'previous-rejection')
   }
   for (const { run } of scopedHistory) {
-    const rejected = searchScreeningSummary(run)?.screenedSources.filter(item => item.decision === 'obvious-reject') ?? []
+    if (scopedRejections && (!currentScope?.screening || matchingReviews.get(run.id)?.screening !== currentScope.screening)) continue
+    const rejected = coarseRejections(run)
     if (!rejected.length) continue
     const owner = sourceIdentity(z.object({ config: settingsSchema }).parse(run.spec).config)
-    for (const item of rejected) put(sources, searchSourceKey({ ...owner, providerAssetId: item.providerAssetId }), 'previous-rejection')
+    for (const providerAssetId of rejected) put(sources, searchSourceKey({ ...owner, providerAssetId }), 'previous-rejection')
   }
   const entries = (items: Map<string, SearchExclusionReason>) => Object.fromEntries([...items].sort(([left], [right]) => left.localeCompare(right, 'en')))
   return searchExclusionsSchema.parse({ version: 1, sources: entries(sources), digests: entries(digests) })

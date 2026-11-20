@@ -28,7 +28,7 @@ export async function recoverWallpaperSources(deps: { domain: CuratorDomain; fil
   const standard = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
   const reviewContext: WorkContext = { ...ctx, spec: { ...ctx.spec, fixed: { ...ctx.spec.fixed, ...(spec.fixed.output ? { output: spec.fixed.output } : {}) } } }
   const frozen = spec.fixed.searchExclusions === undefined ? undefined : searchExclusionsSchema.parse(spec.fixed.searchExclusions)
-  const sourceHistory = freezeSearchExclusions(deps.domain, standard, actor, [{ run: parent, actor }], String(spec.input.taskBrief))
+  const sourceHistory = freezeSearchExclusions(deps.domain, standard, actor, [{ run: parent, actor }])
   const owner = sourceIdentity(ctx.spec.config), excluded = new Set([...Object.keys(frozen?.sources ?? {}), ...Object.keys(sourceHistory.sources)]), digests = new Set([...Object.keys(frozen?.digests ?? {}), ...Object.keys(sourceHistory.digests)])
   for (const item of state.items) {
     const image = deps.domain.require('imageVersion', item.originalId ?? item.imageVersionId), asset = deps.domain.require('asset', image.assetId)

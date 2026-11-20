@@ -8,7 +8,7 @@ import { CuratorError } from '../shared/errors.ts'
 import { searchOutputSchema } from '../shared/search-launch.ts'
 import { MediaError } from '../media/errors.ts'
 import { remoteReferenceBlob } from '../media/remote-reference.ts'
-import { decodeVisionScreening, type VisionImage, type VisionInput, type VisionScreening } from '../media/vision.ts'
+import { decodeVisionScreening, type VisionImage, type VisionInput, type VisionScreening, type VisionScreeningPolicy } from '../media/vision.ts'
 import type { SourceItem } from '../media/source.ts'
 import { searchScreeningPolicySchema } from './config.ts'
 import { requestBounds, sourceIdentity, visionBounds } from './providers.ts'
@@ -18,8 +18,9 @@ import { executionStandard } from './style-execution.ts'
 import { searchExclusionsSchema, sourceExclusion, imageExclusion, exclusionCounts } from './search-exclusions.ts'
 import { importedRecords } from './imports.ts'
 import { chooseSearchQuery } from './search-query-plan.ts'
-import { searchScreeningCheckpointSchema, searchScreeningState, type SearchScreeningCheckpoint } from './search-screening-state.ts'
+import { searchScreeningCheckpointSchema, searchScreeningPublicLocationsSchema, searchScreeningPublicUrlSchema, searchScreeningState, searchSourceYieldsSchema, type SearchScreeningCheckpoint } from './search-screening-state.ts'
 import { createSearchCheckpointWriter, removeUncommittedSearchImports } from './search-checkpoint.ts'
+import { createSearchPreviewPixels } from './search-preview-pixels.ts'
 import type { SearchDependencies } from './search-workflow.ts'
 
 type Candidate = NonNullable<SearchScreeningCheckpoint['pool']>['candidates'][number]
@@ -32,21 +33,66 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
     const output = ctx.spec.fixed.output === undefined ? undefined : searchOutputSchema.parse(ctx.spec.fixed.output)
     const preview = output?.kind === 'preview', original = output?.kind === 'original'
     if (!preview && !original) usageSchema.parse(ctx.spec.fixed.usage)
-    if (preview && ctx.spec.config.source.provider !== 'unsplash') throw new CuratorError('capability-unavailable', 'preview-search', 'Preview link searches currently require the Unsplash source.')
+    const unsplash = ctx.spec.config.source.provider === 'unsplash'
+    const schedule = unsplash && ctx.spec.fixed.searchScreeningSchedule === 1
+    if (preview && !unsplash) throw new CuratorError('capability-unavailable', 'preview-search', 'Preview link searches currently require the Unsplash source.')
     const standard = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
     const source = await deps.source(ctx.spec.config), vision = await deps.vision(ctx.spec.config), media = deps.media(ctx.spec.config)
     const actor = runActor(ctx), owner = sourceIdentity(ctx.spec.config)
+    const previewPixels = preview && ctx.spec.fixed.previewPixelIdentity === 1 ? createSearchPreviewPixels(deps, ctx) : undefined
+    let screeningPolicy: VisionScreeningPolicy | undefined
+    if (unsplash && ctx.spec.fixed.searchHardScreening === 1) {
+      const memberships = new Map(standard.kind === 'modelProfile' && standard.recipe.styleMatching ? standard.options.filter(item => item.enabled).map(item => [item.rule.ruleId, item.groupId]) : [])
+      const sharedRequiredRuleIds: string[] = [], groups = new Map<string, string[]>()
+      for (const rule of standard.rules) {
+        if (rule.check.kind !== 'visual' || rule.strength === 'reference-only') continue
+        const group = memberships.get(rule.ruleId)
+        if (group && !groups.has(group)) groups.set(group, [])
+        // The thumbnail cannot resolve conditional applicability, exceptions or rules for the output image.
+        if (rule.stage !== 'source' || rule.strength !== 'required' || rule.condition.subjects?.length || rule.condition.usageRevisionIds?.length || rule.exceptions.length) continue
+        if (group) groups.get(group)!.push(rule.ruleId)
+        else sharedRequiredRuleIds.push(rule.ruleId)
+      }
+      screeningPolicy = { sharedRequiredRuleIds, alternativeGroups: [...groups].map(([groupId, requiredRuleIds]) => ({ groupId, requiredRuleIds })) }
+    }
+    const canRejectAtScreening = !screeningPolicy || screeningPolicy.sharedRequiredRuleIds.length > 0
+      || screeningPolicy.alternativeGroups.length > 0 && screeningPolicy.alternativeGroups.every(group => group.requiredRuleIds.length > 0)
     const exclusions = ctx.spec.fixed.searchExclusions === undefined ? undefined : searchExclusionsSchema.parse(ctx.spec.fixed.searchExclusions)
     const state = searchScreeningState(ctx.current()) ?? searchScreeningCheckpointSchema.parse({ version: 1, nextQuery: 0, nextPool: 0, pages: input.queries.map(() => ({ cursor: null, pageCursor: null, seenCursors: [], ids: [], exhausted: false })), queryCandidates: input.queries.map(() => []), seenIds: [], candidateCount: 0, seenDigests: [], excluded: {}, screened: {}, fallbacks: {}, importedImages: {}, deepDone: [], deepReviewed: 0, failedQueries: 0, sourceLimited: false, issues: [] })
-    if (state.pages.length !== input.queries.length || state.queryCandidates.length !== input.queries.length || state.pool?.candidates.some(item => item.queryIndex >= input.queries.length)) throw new CuratorError('reference-unavailable', 'screening', 'The saved candidate pool does not match its query plan.')
+    const previous = dataOf(ctx.current()).checkpoint
+    const sourceYields = schedule ? searchSourceYieldsSchema.parse(previous.searchSourceYields ?? input.queries.map(() => ({ examinedPages: 0, eligibleCandidates: 0, lastPageEligible: 0, pendingEligible: 0 }))) : undefined
+    if (state.pages.length !== input.queries.length || state.queryCandidates.length !== input.queries.length || sourceYields && sourceYields.length !== input.queries.length || state.pool?.candidates.some(item => item.queryIndex >= input.queries.length)) throw new CuratorError('reference-unavailable', 'screening', 'The saved candidate pool does not match its query plan.')
     const uncommitted = new Set(removeUncommittedSearchImports(deps.domain, state.importedImages))
     if (uncommitted.size) {
       state.deepDone = state.deepDone.filter(id => !uncommitted.has(id))
       state.seenDigests = [...new Set(Object.values(state.importedImages).map(id => deps.domain.authorizedImage(id, actor).image.blob.digest))]
     }
+    const savedLocations = previous.searchUnsplashLocations
+    const publicLocations = new Map(Object.entries(unsplash && savedLocations !== undefined ? searchScreeningPublicLocationsSchema.parse(savedLocations) : {}))
     const locations = new Map<string, SourceItem>()
+    for (const [providerAssetId, item] of publicLocations) locations.set(providerAssetId, {
+      providerAssetId, previewUrl: item.previewUrl,
+      ...(item.thumbnailUrl === undefined ? {} : { thumbnailUrl: item.thumbnailUrl }),
+      ...(item.originalUrl === undefined ? {} : { originalUrl: item.originalUrl }),
+      ...(item.width === undefined ? {} : { width: item.width }),
+      ...(item.height === undefined ? {} : { height: item.height }),
+      ...(item.originalUnavailable === undefined ? {} : { originalUnavailable: item.originalUnavailable }),
+    })
+    const restoredPages = new Map<string, Promise<void>>()
+    const rememberPage = (items: readonly SourceItem[]) => {
+      for (const item of items) {
+        locations.set(item.providerAssetId, item)
+        if (!unsplash) continue
+        const previewUrl = searchScreeningPublicUrlSchema.safeParse(item.previewUrl)
+        if (previewUrl.success) publicLocations.set(item.providerAssetId, {
+          previewUrl: previewUrl.data, thumbnailUrl: searchScreeningPublicUrlSchema.safeParse(item.thumbnailUrl).data,
+          originalUrl: searchScreeningPublicUrlSchema.safeParse(item.originalUrl).data,
+          width: item.width, height: item.height, originalUnavailable: item.originalUnavailable,
+        })
+      }
+    }
     const selections = () => deps.domain.repository.list('selection').filter(item => item.runId === ctx.runId && item.qualification === 'auto-qualified')
-    const save = createSearchCheckpointWriter(state, async (snapshot, records, stage) => {
+    const save = createSearchCheckpointWriter({ state, publicLocations, sourceYields }, async ({ state: snapshot, publicLocations: saved, sourceYields: yields }, records, stage) => {
       const data = dataOf(ctx.current())
       snapshot.deepReviewed = new Set([...deps.domain.repository.list('assessment'), ...records.filter((record): record is Assessment => record.kind === 'assessment')].filter(item => item.runId === ctx.runId && item.technicalStatus === 'completed').map(item => item.imageVersionId)).size
       const newSelections = records.flatMap(record => record.kind === 'selection' && record.runId === ctx.runId && record.qualification === 'auto-qualified' ? [record.imageVersionId] : [])
@@ -55,25 +101,47 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
         screeningReviewed: Object.keys(snapshot.screened).length, screeningRejected: Object.values(snapshot.screened).filter(item => item.decision === 'obvious-reject').length,
         screeningFallback: Object.keys(snapshot.fallbacks).length, deepReviewed: snapshot.deepReviewed, failedQueries: snapshot.failedQueries,
         technicalFailed: snapshot.issues.filter(issue => issue.category === 'technical').length, unavailable: snapshot.issues.filter(issue => issue.category === 'unavailable').length, ...exclusionCounts(snapshot.excluded) }
-      await ctx.save(stage, { checkpoint: { ...data.checkpoint, searchScreening: toJson(snapshot) }, counts }, records)
+      const { searchUnsplashLocations: _previous, ...checkpoint } = data.checkpoint
+      await ctx.save(stage, { checkpoint: { ...checkpoint, searchScreening: toJson(snapshot), ...(saved.size ? { searchUnsplashLocations: toJson(Object.fromEntries(saved)) } : {}), ...(yields ? { searchSourceYields: toJson(yields) } : {}) }, counts }, records)
     })
     const fatal = (error: unknown) => ctx.signal.aborted || ['budget-exhausted', 'storage-commit-failed', 'owner-denied', 'reference-unavailable'].includes(safeFailure(error).code)
+    const lookup = async (candidate: Candidate): Promise<SourceItem> => {
+      const item = await ctx.request('search', toJson({ operation: 'lookup', providerAssetId: candidate.providerAssetId }), signal => source.lookup(candidate.providerAssetId, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true }))
+      if (item.providerAssetId !== candidate.providerAssetId) throw new MediaError('source-protocol-error', 'lookup', false, 'The source lookup returned another image.', 'Check the source lookup mapping.')
+      locations.set(item.providerAssetId, item)
+      return item
+    }
     const locate = async (candidate: Candidate): Promise<SourceItem> => {
       const cached = locations.get(candidate.providerAssetId)
       if (cached) return cached
+      if (unsplash) {
+        // Older checkpoints retained only identities. Recover each source page once without admitting new candidates.
+        const key = JSON.stringify([candidate.queryIndex, candidate.pageCursor])
+        let refresh = restoredPages.get(key)
+        if (!refresh) {
+          refresh = ctx.request('search', toJson({ operation: 'restore-screening-page', query: input.queries[candidate.queryIndex], cursor: candidate.pageCursor }), signal => source.search({ query: input.queries[candidate.queryIndex]!, pageSize: ctx.spec.config.limits.pageSize }, candidate.pageCursor, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true })).then(page => {
+            const pending = new Set([...state.pool!.candidates.map(item => item.providerAssetId), ...state.pages.flatMap(item => item.ids)])
+            rememberPage(page.items.filter(item => pending.has(item.providerAssetId) && !locations.has(item.providerAssetId)))
+            return save([], 'retrieving')
+          })
+          restoredPages.set(key, refresh)
+        }
+        try { await refresh }
+        catch (error) {
+          if (!(error instanceof MediaError && error.code === 'source-continuation-invalid')) throw error
+        }
+        const item = locations.get(candidate.providerAssetId)
+        if (item) return item
+      }
+      if (source.config.lookup) return lookup(candidate)
       const bounds = requestBounds(ctx.spec.config, ctx)
-      const found = source.config.lookup
-        ? await ctx.request('search', toJson({ operation: 'lookup', providerAssetId: candidate.providerAssetId }), signal => source.lookup(candidate.providerAssetId, { ...bounds, signal }), () => ({ refreshed: true }))
-        : await ctx.request('search', toJson({ operation: 'restore-screening-page', query: input.queries[candidate.queryIndex], cursor: candidate.pageCursor }), async signal => {
-          const page = await source.search({ query: input.queries[candidate.queryIndex]!, pageSize: ctx.spec.config.limits.pageSize }, candidate.pageCursor, { ...bounds, signal })
-          for (const item of page.items) locations.set(item.providerAssetId, item)
-          const item = page.items.find(item => item.providerAssetId === candidate.providerAssetId)
-          if (!item) throw new MediaError('source-item-unavailable', 'lookup', false, 'A saved source candidate is unavailable.', 'Continue with the remaining candidates.')
-          return item
-        }, () => ({ refreshed: true }))
-      if (found.providerAssetId !== candidate.providerAssetId) throw new MediaError('source-protocol-error', 'lookup', false, 'The source lookup returned another image.', 'Check the source lookup mapping.')
-      locations.set(found.providerAssetId, found)
-      return found
+      return ctx.request('search', toJson({ operation: 'restore-screening-page', query: input.queries[candidate.queryIndex], cursor: candidate.pageCursor }), async signal => {
+        const page = await source.search({ query: input.queries[candidate.queryIndex]!, pageSize: ctx.spec.config.limits.pageSize }, candidate.pageCursor, { ...bounds, signal })
+        for (const item of page.items) locations.set(item.providerAssetId, item)
+        const item = page.items.find(item => item.providerAssetId === candidate.providerAssetId)
+        if (!item) throw new MediaError('source-item-unavailable', 'lookup', false, 'A saved source candidate is unavailable.', 'Continue with the remaining candidates.')
+        return item
+      }, () => ({ refreshed: true }))
     }
     const download = async (candidate: Candidate, location: string, purpose: 'screening-preview' | 'source-original') => ctx.request('download', toJson({ operation: purpose, providerAssetId: candidate.providerAssetId }), async signal => {
       const reserved = Math.min(purpose === 'screening-preview' ? ctx.spec.config.limits.maxReferenceBytes : ctx.spec.config.limits.maxImportBytes, ctx.ledger.remainingBytes())
@@ -98,7 +166,7 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       const ids = candidates.map(item => screeningId(item.providerAssetId))
       const taskBrief = styleReviewBrief(standard, input.taskBrief)
       const rules = standard.rules.filter(rule => rule.check.kind === 'visual')
-      const requestId = `screen-${contentDigest({ runId: ctx.runId, sequence, ids, standard: standard.contentDigest, taskBrief, rules, policy, promptVersion: 'visual-curator-screening-v1' }).slice(10, 50)}`
+      const requestId = `screen-${contentDigest({ runId: ctx.runId, sequence, ids, standard: standard.contentDigest, taskBrief, rules, policy, promptVersion: screeningPolicy ? 'visual-curator-screening-v2' : 'visual-curator-screening-v1', ...(screeningPolicy ? { screeningPolicy } : {}) }).slice(10, 50)}`
       const saved = deps.domain.repository.list('request').find(request => {
         if (request.runId !== ctx.runId || request.state !== 'committed') return false
         return z.object({ bundle: z.object({ requestId: z.literal(requestId), operation: z.literal('screen') }) }).safeParse(request.data).success
@@ -106,7 +174,7 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       if (saved) {
         const stored = z.object({ bundle: z.json(), output: z.json() }).parse(saved.data)
         if (contentDigest(stored.bundle) !== saved.requestDigest) throw new CuratorError('reference-unavailable', 'screening', 'The committed screening response does not match its request.')
-        return decodeVisionScreening(stored.output, ids)
+        return decodeVisionScreening(stored.output, ids, screeningPolicy)
       }
       let preparationFailure: { error: unknown } | undefined
       const prepared = await Promise.allSettled(candidates.map(candidate => withThumbnailSlot(async () => {
@@ -126,11 +194,11 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       const failed = prepared.find(result => result.status === 'rejected')
       if (failed?.status === 'rejected') throw failed.reason
       const images = prepared.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
-      const bundleInput: VisionInput = { requestId, taskBrief, rules, images }
+      const bundleInput: VisionInput = { requestId, taskBrief, rules, images, ...(screeningPolicy ? { screeningPolicy } : {}) }
       const bundle = toJson(vision.describeRequest(bundleInput, 'screen'))
       return ctx.request('vision', bundle, (signal, recordMetadata) => vision.screen(bundleInput, visionBounds(ctx.spec.config, ctx, signal, recordMetadata)))
     }
-    const fillPool = async () => {
+    const fillPool = async (limit: number) => {
       if (!state.pool) { state.pool = { sequence: state.nextPool++, candidates: [], filled: false }; await save([], 'retrieving') }
       const pool = state.pool
       const latestReviews = new Map<string, Assessment>()
@@ -139,12 +207,19 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       }
       const assessments = [...latestReviews.values()].filter(item => item.technicalStatus === 'completed' && item.verdict !== 'needs-review')
       const reviewedImages = new Set(assessments.map(item => item.imageVersionId)), qualified = selections()
-      while (pool.candidates.length < policy.candidatePoolSize) {
+      while (pool.candidates.length < limit) {
         ctx.signal.throwIfAborted()
         const canSearch = ctx.ledger.snapshot().search < ctx.spec.config.limits.maxSearchPages
-        const index = chooseSearchQuery({ pages: state.pages.flatMap((page, index) => page.ids.length || !page.exhausted && canSearch ? [{ index, ids: [...new Set([...state.queryCandidates[index]!, ...page.ids])], done: state.queryCandidates[index]!.filter(id => state.screened[id]?.decision === 'obvious-reject' || reviewedImages.has(state.importedImages[id] ?? '')), empty: !page.ids.length && page.seenCursors.length > 0 }] : []), nextQuery: state.nextQuery, queryCount: input.queries.length, imageId: id => state.importedImages[id], assessments, selections: qualified })
-        if (index === undefined) { if (state.pages.some(page => !page.exhausted)) state.sourceLimited = true; break }
-        const page = state.pages[index]!
+        // Consume paid-for positions before another page request. Page yield is final only after the buffer drains.
+        const buffered = schedule ? state.pages.findIndex(page => page.ids.length > 0) : -1
+        const index = buffered >= 0 ? buffered : chooseSearchQuery({ pages: state.pages.flatMap((page, index) => {
+          if (!page.ids.length && (page.exhausted || !canSearch)) return []
+          const sourceYield = sourceYields?.[index]
+          const ids = state.queryCandidates[index]!
+          return [{ index, ids: [...new Set([...ids, ...page.ids])], done: ids.filter(id => state.screened[id]?.decision === 'obvious-reject' || reviewedImages.has(state.importedImages[id] ?? '')), empty: !page.ids.length && page.seenCursors.length > 0, ...(sourceYield ? { sourceYield } : {}) }]
+        }), nextQuery: state.nextQuery, queryCount: input.queries.length, imageId: id => state.importedImages[id], assessments, selections: qualified })
+        if (index === undefined) { if (state.pages.some(page => !page.exhausted)) state.sourceLimited = true; pool.filled = true; break }
+        const page = state.pages[index]!, sourceYield = sourceYields?.[index]
         if (!page.ids.length) {
           try {
             const cursor = page.cursor
@@ -153,7 +228,8 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
             if (cursor) page.seenCursors.push(cursor)
             page.pageCursor = cursor; page.cursor = found.nextCursor; page.exhausted = found.nextCursor === null
             page.ids = found.items.map(item => item.providerAssetId)
-            for (const item of found.items) locations.set(item.providerAssetId, item)
+            if (sourceYield && !page.ids.length) { sourceYield.examinedPages++; sourceYield.lastPageEligible = 0 }
+            rememberPage(found.items)
             // Persist the returned page identities and next cursor before consuming any candidate.
             await save([], 'retrieving')
           } catch (error) {
@@ -166,26 +242,34 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
         const id = page.ids[0]
         if (id === undefined) { state.nextQuery = (index + 1) % input.queries.length; continue }
         if (!state.seenIds.includes(id)) {
-          if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) { state.sourceLimited = true; break }
+          if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) { state.sourceLimited = true; pool.filled = true; break }
           state.seenIds.push(id)
           const excluded = sourceExclusion(exclusions, { ...owner, providerAssetId: id })
           const location = locations.get(id)
           if (excluded) state.excluded[id] = excluded
           else if ((!preview || ctx.spec.fixed.wallpaperAuto === true) && location && (location.originalUnavailable || !location.originalUrl && !source.config.lookup)) {
             state.issues.push({ candidateId: id, stage: 'download', category: 'unavailable', code: location.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' })
-          } else { pool.candidates.push({ providerAssetId: id, queryIndex: index, pageCursor: page.pageCursor }); state.queryCandidates[index]!.push(id); state.candidateCount++ }
+          } else {
+            pool.candidates.push({ providerAssetId: id, queryIndex: index, pageCursor: page.pageCursor }); state.queryCandidates[index]!.push(id); state.candidateCount++
+            if (sourceYield) sourceYield.pendingEligible++
+          }
         }
         page.ids.shift(); state.nextQuery = (index + 1) % input.queries.length
+        if (sourceYield && !page.ids.length) {
+          sourceYield.examinedPages++; sourceYield.lastPageEligible = sourceYield.pendingEligible
+          sourceYield.eligibleCandidates += sourceYield.pendingEligible; sourceYield.pendingEligible = 0
+        }
         await save([], 'retrieving')
       }
-      pool.filled = true; await save()
+      pool.filled ||= pool.candidates.length >= policy.candidatePoolSize
+      await save()
     }
     const importCandidate = async (candidate: Candidate): Promise<ImageVersion | undefined> => {
       const existing = state.importedImages[candidate.providerAssetId]
       if (existing) return deps.domain.authorizedImage(existing, actor).image
       let item = await locate(candidate)
       if (preview && ctx.spec.fixed.wallpaperAuto === true) {
-        if (!item.originalUrl && !item.originalUnavailable && source.config.lookup) { locations.delete(candidate.providerAssetId); item = await locate(candidate) }
+        if (!item.originalUrl && !item.originalUnavailable && source.config.lookup) item = await lookup(candidate)
         if (item.originalUnavailable || !item.originalUrl) {
           state.issues.push({ candidateId: candidate.providerAssetId, stage: 'download', category: 'unavailable', code: item.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' })
           return undefined
@@ -199,9 +283,7 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
         state.importedImages[candidate.providerAssetId] = image.id; await save([asset, image], 'reviewing')
         return image
       }
-      if (!item.originalUrl && !item.originalUnavailable && source.config.lookup) {
-        locations.delete(candidate.providerAssetId); item = await locate(candidate)
-      }
+      if (!item.originalUrl && !item.originalUnavailable && source.config.lookup) item = await lookup(candidate)
       if (!item.originalUrl || item.originalUnavailable) {
         state.issues.push({ candidateId: candidate.providerAssetId, stage: 'download', category: 'unavailable', code: item.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' })
         return undefined
@@ -231,7 +313,9 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
           if (!original) { if (sourceReview.cropPotential !== 'infeasible') await deps.crop(ctx, [image.id]); return undefined }
         }
         const prior = deps.domain.repository.list('assessment').find(item => item.runId === ctx.runId && item.imageVersionId === image!.id && item.stage === 'final')
-        const assessment = prior ?? (await reviewImage({ ...deps, vision }, ctx, subject, standard, 'final')).assessment
+        const verifiedPreview = prior ? undefined : await previewPixels?.subject(image)
+        if (!prior && previewPixels && !verifiedPreview) return undefined
+        const assessment = prior ?? (await reviewImage({ ...deps, vision, ...(verifiedPreview ? { subject: verifiedPreview } : {}) }, ctx, subject, standard, 'final')).assessment
         if (!prior) await save([assessment], 'reviewing')
         return { image, assessment }
       } catch (error) {
@@ -242,15 +326,24 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
         return undefined
       }
     }
+    const batchSize = Math.min(policy.batchSize, vision.config.supportsMultiImage ? vision.config.maxImages : 1)
+    const pendingReview = (item: Candidate) => !state.deepDone.includes(item.providerAssetId) && state.screened[item.providerAssetId]?.decision !== 'obvious-reject'
     await save([], 'retrieving')
     while (selections().length < input.targetCount) {
       ctx.signal.throwIfAborted()
-      if (!state.pool?.filled) await fillPool()
+      if (!state.pool?.filled) {
+        // Keep the first batch contiguous with the rest of this pool so a resume reconstructs the same request identities.
+        const pool = state.pool
+        const first = schedule && (pool ? pool.sequence === 0 && pool.candidates.length <= batchSize && (pool.candidates.length < batchSize || pool.candidates.some(pendingReview)) : state.nextPool === 0)
+        await fillPool(first ? Math.min(batchSize, policy.candidatePoolSize) : policy.candidatePoolSize)
+      }
       const pool = state.pool!
-      if (!pool.candidates.length) return state.sourceLimited ? 'budget-exhausted' : state.issues.some(issue => issue.category === 'technical') ? 'partial-failure' : 'source-exhausted'
-      const batchSize = Math.min(policy.batchSize, vision.config.supportsMultiImage ? vision.config.maxImages : 1)
+      if (!pool.candidates.length) {
+        if (publicLocations.size) { publicLocations.clear(); await save() }
+        return state.sourceLimited ? 'budget-exhausted' : state.issues.some(issue => issue.category === 'technical') ? 'partial-failure' : 'source-exhausted'
+      }
       const batches: Candidate[][] = []
-      for (let offset = 0; offset < pool.candidates.length; offset += batchSize) {
+      for (let offset = 0; canRejectAtScreening && offset < pool.candidates.length; offset += batchSize) {
         const batch = pool.candidates.slice(offset, offset + batchSize).filter(item => !state.screened[item.providerAssetId] && !state.fallbacks[item.providerAssetId])
         if (batch.length) batches.push(batch)
       }
@@ -273,7 +366,7 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       }))
       const failedScreen = screening.find(result => result.status === 'rejected')
       if (failedScreen?.status === 'rejected') throw failedScreen.reason
-      const pending = pool.candidates.filter(item => !state.deepDone.includes(item.providerAssetId) && state.screened[item.providerAssetId]?.decision !== 'obvious-reject')
+      const pending = pool.candidates.filter(pendingReview)
       while (pending.length && selections().length < input.targetCount) {
         const capacity = preview || original ? Math.min(ctx.spec.config.limits.maxConcurrentRequests, input.targetCount - selections().length) : 1
         const admitted = pending.splice(0, capacity)
@@ -287,15 +380,20 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
           state.deepDone.push(admitted[index]!.providerAssetId)
           const value = result.value
           if (!value || value.assessment.technicalStatus !== 'completed' || value.assessment.verdict !== 'pass' || selected.has(value.image.id)) continue
+          if (previewPixels && !previewPixels.admit(value.image.id)) continue
           selected.add(value.image.id)
           records.push(selectionSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `selection-${contentDigest({ runId: ctx.runId, imageId: value.image.id, output: preview ? 'preview' : 'original' }).slice(10, 50)}`, createdAt: new Date().toISOString(), kind: 'selection', runId: ctx.runId, imageVersionId: value.image.id, assessmentId: value.assessment.id, qualification: 'auto-qualified', rank: rank++, warnings: [] }))
         }
+        if (rank >= input.targetCount) publicLocations.clear()
         await save(records, 'reviewing')
         const failed = results.find(result => result.status === 'rejected')
         if (failed?.status === 'rejected') throw failed.reason
       }
       if (selections().length >= input.targetCount) return 'target-met'
+      if (!pool.filled) continue
       for (const candidate of pool.candidates) locations.delete(candidate.providerAssetId)
+      const buffered = new Set(state.pages.flatMap(page => page.ids))
+      for (const id of publicLocations.keys()) if (!buffered.has(id)) publicLocations.delete(id)
       delete state.pool; await save()
       if (state.sourceLimited) return 'budget-exhausted'
     }

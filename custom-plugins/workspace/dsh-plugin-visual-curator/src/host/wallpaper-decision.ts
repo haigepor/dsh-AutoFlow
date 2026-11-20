@@ -112,7 +112,7 @@ function allowedFor(deps: WallpaperDecisionDependencies, attempt: Attempt): Wall
     if (!attempt.outputId && !receipt && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage) && (!item.errorCode || item.failedStep === 'planning')) actions.push('replan')
     if (!attempt.outputId && item.failedStep === 'rendering' && item.errorCode && referenceErrors.has(item.errorCode) && !attempt.generation && !attempt.generationInput) actions.push('retry_reference_preparation')
     if (!attempt.outputId && !attempt.generatedImageId && receipt && deps.llm) actions.push('query_saved_generation')
-    if (attempt.generation && attempt.compositionMode === 'generated-canvas-v1' && attempt.generationInput && ['wallpaper-edit-input-v4', 'wallpaper-edit-input-v5', 'wallpaper-edit-input-v6'].includes(attempt.generationInput.version) && !attempt.sourceIntentProof && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {
+    if (attempt.generation && attempt.compositionMode === 'generated-canvas-v1' && attempt.generationInput && ['wallpaper-edit-input-v4', 'wallpaper-edit-input-v5', 'wallpaper-edit-input-v6', 'wallpaper-edit-input-v7'].includes(attempt.generationInput.version) && !attempt.sourceIntentProof && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {
       if (item.errorCode !== 'image-resolution-insufficient') actions.push('recompose_saved_background')
       if (settings.backgroundResolution?.enabled) actions.push('reconstruct_saved_background')
     }

@@ -1,7 +1,7 @@
-/** Cross-platform native single-directory chooser behind the native backend's capability. */
+/** Cross-platform native directory and image choosers. */
 
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
-import { pickWin32Directory, pickWin32Images, pickWin32References } from './win32-dialog.ts'
+import { pickWin32Directories, pickWin32Directory, pickWin32Images, pickWin32References } from './win32-dialog.ts'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type DirectoryPickerRunner = NativeCommandRunner
@@ -12,6 +12,8 @@ export interface DirectoryPickerInternals {
   run?: DirectoryPickerRunner
   /** Replaces the in-process Win32 dialog (`pickWin32Directory`) for deterministic tests. */
   pickWin32Dialog?: (signal: AbortSignal) => Promise<string | null>
+  /** Replaces the native multi-folder chooser for platform-independent tests. */
+  pickWin32FoldersDialog?: (signal: AbortSignal, title: string) => Promise<string[] | null>
   /** Replaces the native image chooser for platform-independent tests. */
   pickWin32ImageDialog?: (signal: AbortSignal, title: string) => Promise<string[] | null>
   /** Replaces the combined image/folder window for deterministic tests. */
@@ -58,7 +60,7 @@ function run(argv) {
   panel.canChooseFiles = false;
   panel.canChooseDirectories = true;
   panel.canCreateDirectories = true;
-  panel.allowsMultipleSelection = false;
+  panel.allowsMultipleSelection = argv[1] === 'folders';
   if (argv[1] === 'images' || argv[1] === 'references') {
     panel.canChooseFiles = true;
     panel.canChooseDirectories = argv[1] === 'references';
@@ -72,7 +74,7 @@ function run(argv) {
   if (panel.runModal !== $.NSModalResponseOK) return '';
   var urls = panel.URLs;
   if (urls.count < 1) return '';
-  if (argv[1] === 'images' || argv[1] === 'references') {
+  if (panel.allowsMultipleSelection) {
     var paths = [];
     for (var index = 0; index < urls.count; index++) paths.push(ObjC.unwrap(urls.objectAtIndex(index).path));
     return JSON.stringify(paths);
@@ -83,6 +85,13 @@ function run(argv) {
 function outputPath(stdout: string): string | null {
   const path = stdout.replace(/[\r\n]+$/, '')
   return path === '' ? null : path
+}
+
+function macPaths(stdout: string): string[] | null {
+  if (!stdout.trim()) return null
+  const paths: unknown = JSON.parse(stdout)
+  if (!Array.isArray(paths) || !paths.every((path): path is string => typeof path === 'string' && path.length > 0)) throw new Error('native picker returned invalid paths')
+  return paths.length ? paths : null
 }
 
 function errorCode(error: unknown): string | number | undefined {
@@ -158,6 +167,35 @@ export async function pickNativeDirectory(
   throw new Error(`native directory picker is unsupported on ${platform}`)
 }
 
+/** Open a folder-only chooser that supports multiple selections.
+ * @param signal Caller lifetime.
+ * @param title Localized dialog title.
+ * @param internals Test operations for each platform.
+ * @returns Selected directory paths, or null on cancellation.
+ */
+export async function pickNativeDirectories(
+  signal: AbortSignal, title: string, internals: DirectoryPickerInternals = {},
+): Promise<string[] | null> {
+  signal.throwIfAborted()
+  const platform = internals.platform ?? process.platform, run = internals.run ?? runNativeCommand
+  if (platform === 'win32') return await (internals.pickWin32FoldersDialog ?? pickWin32Directories)(signal, title)
+  if (platform === 'darwin') {
+    return macPaths((await run('osascript', ['-l', 'JavaScript', '-e', MAC_PANEL, title, 'folders'], signal, 'hidden')).stdout)
+  }
+  if (platform === 'linux') {
+    try {
+      const { stdout } = await run('zenity', ['--file-selection', '--directory', '--multiple', '--separator=\n', `--title=${title}`], signal, 'hidden')
+      const paths = stdout.replace(/[\r\n]+$/, '').split(/\r?\n/).filter(Boolean)
+      return paths.length ? paths : null
+    } catch (error) {
+      rethrowIfAborted(signal, error)
+      if (errorCode(error) === 1) return null
+      throw error
+    }
+  }
+  throw new Error(`native multi-folder picker is unsupported on ${platform}`)
+}
+
 /** Open the system image chooser, returning paths without reading or copying image bytes.
  * @param signal Caller lifetime; abort closes the chooser.
  * @param title Localized dialog title.
@@ -171,11 +209,7 @@ export async function pickNativeImages(
   const platform = internals.platform ?? process.platform, run = internals.run ?? runNativeCommand
   if (platform === 'win32') return await (internals.pickWin32ImageDialog ?? pickWin32Images)(signal, title)
   if (platform === 'darwin') {
-    const result = await run('osascript', ['-l', 'JavaScript', '-e', MAC_PANEL, title, 'images'], signal, 'hidden')
-    if (!result.stdout.trim()) return null
-    const paths: unknown = JSON.parse(result.stdout)
-    if (!Array.isArray(paths) || !paths.every((path): path is string => typeof path === 'string' && path.length > 0)) throw new Error('native image picker returned invalid paths')
-    return paths.length ? paths : null
+    return macPaths((await run('osascript', ['-l', 'JavaScript', '-e', MAC_PANEL, title, 'images'], signal, 'hidden')).stdout)
   }
   if (platform === 'linux') {
     let output: string
@@ -211,11 +245,7 @@ export async function pickNativeReferences(
   const platform = internals.platform ?? process.platform, run = internals.run ?? runNativeCommand
   if (platform === 'win32') return await (internals.pickWin32ReferenceDialog ?? pickWin32References)(signal, labels.title, labels.folderLabel)
   if (platform === 'darwin') {
-    const result = await run('osascript', ['-l', 'JavaScript', '-e', MAC_PANEL, labels.title, 'references'], signal, 'hidden')
-    if (!result.stdout.trim()) return null
-    const paths: unknown = JSON.parse(result.stdout)
-    if (!Array.isArray(paths) || !paths.every((path): path is string => typeof path === 'string' && path.length > 0)) throw new Error('native reference picker returned invalid paths')
-    return paths.length ? paths : null
+    return macPaths((await run('osascript', ['-l', 'JavaScript', '-e', MAC_PANEL, labels.title, 'references'], signal, 'hidden')).stdout)
   }
   if (platform === 'linux') {
     let mode: string

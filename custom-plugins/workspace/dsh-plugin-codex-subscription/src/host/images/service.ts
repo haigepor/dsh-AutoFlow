@@ -1,7 +1,7 @@
 /** Durable Codex image operations. Protocol fields follow Magpie draw.go at e056779a67d2024a09aa25edad8a4373931a5b64. */
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { ImageServiceError, imageFailure } from './errors.ts'
+import { ImageServiceError, imageFailure, unknownImageOutcome } from './errors.ts'
 import { decodeImageDataUrl, detectImageMediaType, loadImageReference } from './remote.ts'
 import { imageTaskEvidenceSchema, imageGenerationIdSchema, type ImageAssetRecord, type ImageBytes, type ImageInput, type ImageOwner, type ImageServiceOptions, type ImageServiceSettings, type ImageTask, type ImageTaskEvidence, type ImageTaskRecord, type ImagesFacade } from './types.ts'
 import { parseImageAssetId, parseImageTaskId, type ImageTaskId } from './ids.ts'
@@ -269,6 +269,7 @@ export class ImageService implements ImagesFacade {
     const settings = operation.settings
     const signal = operation.controller.signal
     let evidence: ImageTaskEvidence = { requested: requestedEvidence(operation.input) }
+    let responseStatus: number | undefined
     try {
       signal.throwIfAborted()
       const refs: string[] = []
@@ -298,6 +299,7 @@ export class ImageService implements ImagesFacade {
           operation.sent = true
           operation.responseKnown = false
         })
+        responseStatus = undefined
         requestSignal.throwIfAborted()
         const { referenceImages: _references, mask: _mask, outputFormat, ...input } = operation.input
         // Codex 编辑接口使用 JSON images；不发送 GPT-image 后端拒绝的 response_format。
@@ -310,6 +312,7 @@ export class ImageService implements ImagesFacade {
             'x-codex-imagegen-request-id': requested.imagegenRequestId, 'x-codex-image-turn-id': requested.imageTurnId },
           body: JSON.stringify(body),
         })
+        responseStatus = fetched.status
         const response = lease.observeResponse?.(fetched) ?? fetched
         if (!response.ok) operation.responseKnown = true
         const reported = reportedEvidence(response)
@@ -363,9 +366,10 @@ export class ImageService implements ImagesFacade {
         const task = await this.ownedRecord(id)
         if (terminal(task)) return
         const unknown = operation.sent && !operation.responseKnown
+        const cause = signal.aborted ? signal.reason : error
         const failure = unknown
-          ? { code: 'image-outcome-unknown', message: 'The request was dispatched but its remote outcome could not be confirmed. It will not be resent automatically.' }
-          : imageFailure(signal.aborted ? signal.reason : error)
+          ? unknownImageOutcome(cause, responseStatus, evidence.reported?.requestId ?? evidence.reported?.oaiRequestId)
+          : imageFailure(cause)
         await this.options.repository.put({ ...task, state: unknown ? 'outcome-unknown' : signal.aborted && !operation.sent ? 'cancelled' : 'failed', updatedAt: this.now(), evidence, error: failure })
       })
     } finally { clearTimeout(operation.timer) }
@@ -440,7 +444,12 @@ async function readResponse(response: Response, maxBytes: number, signal: AbortS
       chunks.push(result.value)
     }
     return Buffer.concat(chunks).toString('utf8')
-  } finally { await reader.cancel(); reader.releaseLock() }
+  } catch (error) {
+    try { await reader.cancel() } catch (cancelError) {
+      // Cancellation of an errored response stream can reject. Retain the original read failure.
+    }
+    throw error
+  } finally { reader.releaseLock() }
 }
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {

@@ -10,15 +10,37 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const compiled = await build({ entryPoints: [resolve(root, 'src/client/wallpaper-history.ts')], bundle: true, write: false, packages: 'external', platform: 'node', format: 'cjs', logLevel: 'silent' })
 const filename = resolve(root, 'tests/wallpaper-history-memory.cjs'), capsule = new Module(filename)
 capsule.filename = filename; capsule.paths = Module._nodeModulePaths(dirname(filename)); capsule._compile(compiled.outputFiles[0].text, filename)
-const { wallpaperImageHistory, wallpaperReviewReasons } = capsule.exports
+const { wallpaperImageHistory, wallpaperReviewBoundaryEstimate, wallpaperReviewReasons } = capsule.exports
 
 const checks = Object.fromEntries(['subject', 'protection', 'clock', 'readability', 'composition', 'background', 'style'].map(key => [key, { result: 'satisfied', reason: '' }]))
 
 test('review explanations identify estimated overflow and retain failed checks without issue rows', () => {
   const text = { wallpaperBoundaryEstimate: '{name}: estimated overflow · {edges}', wallpaperBoundaryRight: 'Right' }
-  const review = { checks: { ...checks, protection: { result: 'violated', reason: 'critical-outside:Vase' }, clarity: { result: 'unknown', reason: 'Fine edges could not be confirmed.' } }, issues: [{ reason: 'critical-outside:Vase；critical-outside:Vase' }], actualLayout: { regions: [{ name: 'Vase', rect: { x: 0.8, y: 0.4, width: 0.1, height: 0.2 } }] } }
+  const review = { reviewVersion: 'wallpaper-review-source-v3', checks: { ...checks, protection: { result: 'violated', reason: 'critical-outside:Vase' }, clarity: { result: 'unknown', reason: 'Fine edges could not be confirmed.' } }, issues: [{ reason: 'critical-outside:Vase；critical-outside:Vase' }], actualLayout: { regions: [{ name: 'Vase', rect: { x: 0.8, y: 0.4, width: 0.1, height: 0.2 } }] } }
   const settings = { width: 1845, height: 3280, safe: { left: 258, top: 1032, width: 1329, height: 1686 }, sideOverflow: 66, bottomOverflow: 84, topBuffer: 32 }
   assert.deepEqual(wallpaperReviewReasons(review, settings, key => text[key] ?? key), ['Vase: estimated overflow · Right 74 px', 'Fine edges could not be confirmed.'])
+})
+
+test('practical subject explanations include all failed safe edges and use the failed focus when present', () => {
+  const text = { wallpaperBoundaryEstimate: '{name}: estimated overflow · {edges}', wallpaperBoundaryTop: 'Top', wallpaperBoundaryBottom: 'Bottom' }
+  const body = { entityId: 'rabbit', name: 'Rabbit', role: 'subject', scope: 'core', rect: { x: 0.24, y: 0.3, width: 0.5, height: 0.54 } }
+  const reason = 'subject-overflow:Rabbit'
+  const review = { reviewVersion: 'wallpaper-review-source-v4', checks: { ...checks, protection: { result: 'violated', reason } }, issues: [{ reason }], layoutChecks: [reason], actualLayout: { regions: [body] } }
+  const settings = { width: 1845, height: 3280, safe: { left: 258, top: 1032, width: 1329, height: 1686 }, sideOverflow: 66, bottomOverflow: 84, topBuffer: 32,
+    processing: { acceptance: { version: 'practical-v2', minimumCoreInsideRatio: 0.97 } }, sourceIntentPolicy: { version: 'source-intent-v2' } }
+  assert.deepEqual(wallpaperReviewReasons(review, settings, key => text[key] ?? key), ['Rabbit: estimated overflow · Top 48 px · Bottom 38 px'])
+  body.layoutFocus = { x: 0.29, y: 0.3, width: 0.39, height: 0.25 }
+  const focusEstimate = wallpaperReviewBoundaryEstimate(review, settings, reason)
+  assert.deepEqual(focusEstimate?.rect, body.layoutFocus)
+  assert.deepEqual(wallpaperReviewReasons(review, settings, key => text[key] ?? key), ['Rabbit: estimated overflow · Top 48 px'])
+  assert.equal(wallpaperReviewBoundaryEstimate(review, settings, 'action-part-too-small:Rabbit'), undefined)
+  const wholeSettings = { ...settings, sourceIntentPolicy: { ...settings.sourceIntentPolicy, alignment: 'subject-fill-v1', wholeSubjectSafety: 'extrema-v1' } }
+  assert.deepEqual(wallpaperReviewBoundaryEstimate(review, wholeSettings, reason)?.rect, body.rect)
+  const sizeReview = { ...review, issues: [], checks: { ...checks, protection: { result: 'violated', reason: 'subject-too-small:Rabbit' } } }
+  assert.deepEqual(wallpaperReviewReasons(sizeReview, wholeSettings, key => key === 'wallpaperReviewPlannedSize' ? '{name} is below the planned size, visible length {span} px' : key),
+    [`Rabbit is below the planned size, visible length ${Math.round(Math.max(body.rect.width * settings.width, body.rect.height * settings.height))} px`])
+  review.layoutChecks.push('critical-outside:Rabbit')
+  assert.deepEqual(wallpaperReviewBoundaryEstimate(review, settings, reason)?.rect, body.rect)
 })
 
 test('new generated revisions show native review before optional resolution with saved times and final output', () => {

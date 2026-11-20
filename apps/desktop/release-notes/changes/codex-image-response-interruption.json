@@ -1,0 +1,8 @@
+{
+  "id": "codex-image-response-interruption",
+  "category": "fixes",
+  "text": {
+    "en": "Codex Subscription reports interrupted image responses with the network error, HTTP status and request ID when available.",
+    "zh-CN": "Codex 订阅在生图响应中断时显示可用的网络错误、HTTP 状态和请求编号。"
+  }
+}

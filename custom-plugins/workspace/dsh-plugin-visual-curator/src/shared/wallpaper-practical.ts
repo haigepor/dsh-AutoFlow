@@ -23,7 +23,20 @@ export const wallpaperSourcePreservationSchema = z.array(z.strictObject({ entity
     ids.add(check.entityId)
   }
 })
-const currentRegionFields = region.extend({ entityId: id, layoutFocus: rect.optional().describe('Actual output coordinates of the frozen source layout focus; retain the complete subject rect independently.') })
+const extremum = z.strictObject({ part: text.describe('Name the visible physical part at this extreme, including attached foliage, tail, or vehicle trim.'), coordinate: z.number().min(0).max(1) })
+const subjectExtrema = z.strictObject({ left: extremum, right: extremum, top: extremum, bottom: extremum }).refine(value => value.left.coordinate <= value.right.coordinate && value.top.coordinate <= value.bottom.coordinate, { message: 'Whole-output extrema must be ordered left to right and top to bottom.' }).describe('Inspect the entire delivered photo against the original. Independently identify the leftmost, rightmost, highest and lowest connected parts of the whole entity in whole-output coordinates. Trace stems, leaves, tails and bumpers before reporting. The frozen name identifies the entity, not its limits.')
+const attachedFoliage = z.discriminatedUnion('status', [
+  z.strictObject({ status: z.literal('located'), rect: rect.describe('Tight whole-output bounds of all source-connected visible foliage and stems, including out-of-focus leaves and tips. Trace their connection to this plant. Exclude detached background plants.') }),
+  z.strictObject({ status: z.literal('unknown'), reason: text }),
+])
+
+/** @param subject Frozen source entity and its own preservation instructions. @returns Whether its visible attached foliage needs separate pixel evidence. */
+export function wallpaperRequiresFoliage(subject: { name: string; sourceIntent?: WallpaperSourceIntent | undefined }): boolean {
+  return /花[束朵组丛枝头卉木苞瓣]|[盆鲜插兰菊荷莲梅]花|玫瑰|植[株物]|盆栽|树|藤|\b(?:flowers?|roses?|bouquets?|plants?|trees?|vines?)\b/i.test(subject.name)
+    && !!subject.sourceIntent?.preserve.some(statement => /叶|\b(?:foliage|leaf|leaves)\b/i.test(statement) && !/^(?:背景|background\b)/i.test(statement))
+}
+
+const currentRegionFields = region.extend({ entityId: id, extrema: subjectExtrema.optional(), layoutFocus: rect.optional().describe('Actual output coordinates of the frozen source layout focus; retain the complete subject rect independently.') })
 function validateLayoutFocus(value: z.infer<typeof currentRegionFields>, ctx: z.RefinementCtx, path: (string | number)[] = []) {
   const focus = value.layoutFocus
   if (focus && (focus.x < value.rect.x || focus.y < value.rect.y || focus.x + focus.width > value.rect.x + value.rect.width || focus.y + focus.height > value.rect.y + value.rect.height)) ctx.addIssue({ code: 'custom', path: [...path, 'layoutFocus'], message: 'The actual layout focus must remain inside the complete actual subject rectangle.' })
@@ -38,7 +51,7 @@ const practicalBaseSchema = z.strictObject({
   actualLayout: z.strictObject({ regions: z.array(region).max(32) }),
   defects: z.array(defect).max(12),
   uncertainties: z.array(z.string().trim().min(1).max(160)).max(4),
-  inspection: z.strictObject({ sourceRect: inspectionRect, outputRect: inspectionRect, question: text }).optional().describe('Only for a reported acceptance-critical uncertainty that local original/output pixels can answer. Omit for known defects, ordinary background variation, normal occlusion, unreadable incidental text and unseen off-frame content.'),
+  inspection: z.strictObject({ sourceRect: inspectionRect, outputRect: inspectionRect, question: text }).optional().describe('Omit inspection whenever uncertainties is empty. Near the safety line, report the actual extrema; the Host selects its own safety crops. Only request inspection for a separately stated unresolved content question requiring matched local source/output pixels. Each rectangle must use less than 85% of either dimension and at most 25% of the image area.'),
 }).superRefine((review, ctx) => {
   if (review.sourceImageVersionId === review.outputImageVersionId) ctx.addIssue({ code: 'custom', path: ['outputImageVersionId'], message: 'The original and final output must have distinct identities.' })
   if ((review.mode === 'single' || review.mode === 'group') && !review.actualLayout.regions.some(value => value.role === 'subject' && value.scope === 'core') && !review.defects.some(value => value.kind === 'subject-damage' && value.severity === 'major' && value.absent && value.entityId)) ctx.addIssue({ code: 'custom', path: ['actualLayout', 'regions'], message: 'Locate the actual main subject in the complete output, or explicitly identify an entirely absent main subject.' })
@@ -50,7 +63,7 @@ const practicalBaseSchema = z.strictObject({
   if (review.inspection && !review.uncertainties.length) ctx.addIssue({ code: 'custom', path: ['inspection'], message: 'A local inspection requires an explicitly reported unresolved quality question.' })
 })
 const legacyReviewSchema = practicalBaseSchema.safeExtend({ protocol: z.literal('practical-v1') })
-const currentReviewSchema = practicalBaseSchema.safeExtend({ protocol: z.literal('practical-v2'), actualLayout: z.strictObject({ regions: z.array(currentRegion).max(32) }), sourcePreservation: wallpaperSourcePreservationSchema, sourceStyle: wallpaperSourcePreservationCheckSchema }).superRefine((review, ctx) => {
+const currentReviewSchema = practicalBaseSchema.safeExtend({ protocol: z.literal('practical-v2'), actualLayout: z.strictObject({ regions: z.array(currentRegionFields.extend({ attachedFoliage: attachedFoliage.optional() }).superRefine(validateLayoutFocus)).max(32) }), sourcePreservation: wallpaperSourcePreservationSchema, sourceStyle: wallpaperSourcePreservationCheckSchema }).superRefine((review, ctx) => {
   const observed = new Set(review.actualLayout.regions.filter(value => value.scope === 'core').map(value => value.entityId))
   for (const defect of review.defects) if (defect.absent && defect.entityId) observed.add(defect.entityId)
   for (const entityId of observed) if (!review.sourcePreservation.some(check => check.entityId === entityId)) ctx.addIssue({ code: 'custom', path: ['sourcePreservation'], message: `The source-preservation result for ${entityId} is required independently of the defect list.` })
@@ -68,9 +81,10 @@ export type WallpaperPracticalReview = z.infer<typeof wallpaperPracticalReviewSc
  * @param sourceMode Frozen original composition; object-focused originals cannot become scene reviews to evade subject checks.
  * @param sourceIntentPolicy Require the current protocol, source preservation and output focus measurements.
  * @param projectFrozenFocus Keep auxiliary output focus measurements only where the original defined them.
+ * @param requireExtrema Require each visible entity's four named pixel extrema on current whole-subject checks.
  * @returns The compact wire schema requiring each frozen main subject once, without an inventory of supporting objects.
  */
-export function wallpaperPracticalReviewOutputSchema(sourceImageVersionId: string, outputImageVersionId: string, primarySubjects?: readonly { entityId: string; name: string; role?: 'primary' | 'critical-part' | 'supporting' | undefined; safetyClass?: WallpaperSafetyClass | undefined; sourceIntent?: WallpaperSourceIntent | undefined }[], sourceMode?: WallpaperPracticalReview['mode'], sourceIntentPolicy = false, projectFrozenFocus = false) {
+export function wallpaperPracticalReviewOutputSchema(sourceImageVersionId: string, outputImageVersionId: string, primarySubjects?: readonly { entityId: string; name: string; role?: 'primary' | 'critical-part' | 'supporting' | undefined; safetyClass?: WallpaperSafetyClass | undefined; sourceIntent?: WallpaperSourceIntent | undefined }[], sourceMode?: WallpaperPracticalReview['mode'], sourceIntentPolicy = false, projectFrozenFocus = false, requireExtrema = false) {
   const protocol = sourceIntentPolicy ? currentReviewSchema : legacyReviewSchema
   const images = protocol.safeExtend({ sourceImageVersionId: z.literal(sourceImageVersionId), outputImageVersionId: z.literal(outputImageVersionId) })
   const identified = sourceMode && sourceMode !== 'uncertain' ? images.safeExtend({ mode: z.enum([sourceMode, 'uncertain']) }) : images
@@ -81,9 +95,12 @@ export function wallpaperPracticalReviewOutputSchema(sourceImageVersionId: strin
   const outputRegion = sourceIntentPolicy ? projectFrozenFocus ? currentRegionFields.extend({
     layoutFocus: currentRegionFields.shape.layoutFocus.describe('Only for a primary with a frozen source layoutFocus. Measure that same focus in the output and independently report the complete visible subject in rect. Omit for other entities.'),
   }) : currentRegion : region
+  const foliageIds = new Set(requireExtrema ? primarySubjects.filter(subject => subject.role !== 'supporting' && wallpaperRequiresFoliage(subject)).map(subject => subject.entityId) : [])
+  const wholeRegion = requireExtrema ? outputRegion.safeExtend({ extrema: subjectExtrema }) : outputRegion
+  const measuredRegion = foliageIds.size ? wholeRegion.safeExtend({ attachedFoliage: attachedFoliage.optional().describe(`Required for each core plant listed here: ${[...foliageIds].join(', ')}. Measure the leaves and stems themselves even when all four flower-head extrema look safe. If their attachment cannot be verified, report unknown with the reason.`) }) : wholeRegion
   const regions = primaryIds.length
-    ? z.array(outputRegion.safeExtend({ entityId: z.enum(primaryIds).describe(`Frozen primary identities and names: ${JSON.stringify(primarySubjects)}. Locate each subject's own visible body; exclude separate supporting props.`) })).max(32)
-    : z.array(outputRegion.safeExtend({ entityId: id })).max(0)
+    ? z.array(measuredRegion.safeExtend({ entityId: z.enum(primaryIds).describe(`Frozen primary identities and names: ${JSON.stringify(primarySubjects)}. Locate each subject's own visible body; exclude separate supporting props.`) })).max(32)
+    : z.array(measuredRegion.safeExtend({ entityId: id })).max(0)
   const bound = practicalBaseSchema.safeExtend({ sourceImageVersionId: z.literal(sourceImageVersionId), outputImageVersionId: z.literal(outputImageVersionId), actualLayout: z.strictObject({ regions }) })
   const boundMode = sourceMode && sourceMode !== 'uncertain' ? bound.safeExtend({ mode: z.enum([sourceMode, 'uncertain']) }) : bound
   const normalized = boundMode.overwrite(review => ({ ...review, actualLayout: { ...review.actualLayout, regions: review.actualLayout.regions.map(({ safetyClass: _reported, ...observed }) => {
@@ -111,6 +128,9 @@ export function wallpaperPracticalReviewOutputSchema(sourceImageVersionId: strin
       const observed = review.actualLayout.regions.filter(value => value.entityId === subject.entityId)
       const requiredRole = sourceIntentPolicy && subject.role === 'critical-part' ? 'critical' : 'subject'
       const coreCount = observed.filter(value => value.role === requiredRole && value.scope === 'core').length
+      if (foliageIds.has(subject.entityId)) for (const [index, value] of review.actualLayout.regions.entries()) {
+        if (value.entityId === subject.entityId && value.scope === 'core' && value.role === requiredRole && !('attachedFoliage' in value && value.attachedFoliage)) ctx.addIssue({ code: 'custom', path: ['actualLayout', 'regions', index, 'attachedFoliage'], message: `Measure the foliage and stems attached to ${subject.name} separately from the flowers, or explicitly report unknown.` })
+      }
       const absentCount = review.defects.filter(value => value.entityId === subject.entityId && value.kind === 'subject-damage' && value.severity === 'major' && value.absent).length
       if (sourceIntentPolicy && !subject.sourceIntent?.layoutFocus) for (const [index, value] of review.actualLayout.regions.entries()) if (value.entityId === subject.entityId && value.role === 'subject' && value.scope === 'core' && 'layoutFocus' in value && value.layoutFocus) ctx.addIssue({ code: 'custom', path: ['actualLayout', 'regions', index, 'layoutFocus'], message: 'A review cannot introduce a focus that was not observed and frozen in the source.' })
       if (sourceIntentPolicy && subject.sourceIntent?.layoutFocus && !absentCount) for (const [index, value] of review.actualLayout.regions.entries()) if (value.entityId === subject.entityId && value.role === 'subject' && value.scope === 'core' && !('layoutFocus' in value && value.layoutFocus)) ctx.addIssue({ code: 'custom', path: ['actualLayout', 'regions', index, 'layoutFocus'], message: 'Locate the frozen source focus in the output while retaining the complete actual subject rectangle.' })

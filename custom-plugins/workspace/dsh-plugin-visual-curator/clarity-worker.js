@@ -122,6 +122,7 @@ async function run() {
     if (Math.abs(metadata.width - metadata.height * task.width / task.height) > 1) throw new Error("background-resolution-ratio-mismatch");
   }
   const dimensions2 = await sharp(task.bytes, { limitInputPixels: task.maxPixels }).metadata();
+  if (dimensions2.hasAlpha && !(await sharp(task.bytes, { limitInputPixels: task.maxPixels }).stats()).isOpaque) throw new Error(task.kind === "subject" ? "clarity-transparent-input" : "background-resolution-transparent-input");
   const regions = task.kind === "subject" ? task.regions : [{ width: dimensions2.width, height: dimensions2.height }];
   const total = regions.reduce((sum, region) => sum + Math.ceil(region.width / core) * Math.ceil(region.height / core), 0);
   let completed = 0;

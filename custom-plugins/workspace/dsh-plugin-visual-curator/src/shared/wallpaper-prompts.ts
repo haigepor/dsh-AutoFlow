@@ -1,8 +1,8 @@
 /** Versioned model instructions for source-grounded wallpaper layout and independently reviewed pixels. */
 import { wallpaperDirectPlanPrompt, wallpaperEdgeDetailPrompt, wallpaperEdgeDecisionPrompt, wallpaperOpaqueCanvasPrompt, wallpaperCanvasReviewPromptV4 } from './wallpaper-edit-prompts.ts'
-import { wallpaperGenerativeRepair, wallpaperRepairInstructions, wallpaperPracticalAcceptance } from './wallpaper-policy.ts'
+import { wallpaperExpansionReview, wallpaperGenerativeRepair, wallpaperRepairInstructions, wallpaperPracticalAcceptance } from './wallpaper-policy.ts'
 import { wallpaperRepairPlanPromptV8, wallpaperRepairGenerationPrompt, wallpaperRepairReviewPromptV8 } from './wallpaper-repair-prompts.ts'
-import { wallpaperSourceIntentObservationInstructions, wallpaperSourceIntentReviewInstructions, wallpaperSourceReplanPrompt, wallpaperSourceFramingPrompt } from './wallpaper-source-intent.ts'
+import { wallpaperCoreMeasurementInstructions, wallpaperPrimaryMeasurementInstructions, wallpaperSourceIntentObservationInstructions, wallpaperSourceIntentReviewInstructions, wallpaperSourceReplanPrompt, wallpaperSourceFramingPrompt, wallpaperSourceFramingPromptV2, wallpaperSourceFramingPromptV3, wallpaperSourceFramingPromptV4, wallpaperSubjectPresentationInstructions } from './wallpaper-source-intent.ts'
 import type { WallpaperSettings } from './wallpaper.ts'
 /** A decision selects one executable recovery action from actual evidence; it never changes acceptance policy. */
 export const wallpaperDecisionPrompt = { version: 'wallpaper-decision-v1' as const, text: `你是壁纸处理流程的决策控制器。根据本次实际证据，从allowedActions选择一个下一步动作，使当前图片进入继续处理、独立复审或有原因的异常终态。你不能直接宣布成品合格，也不能假定动作已经执行成功。
@@ -110,7 +110,12 @@ export function sourceFaithfulWallpaperPrompts(settings?: WallpaperSettings) {
 }
 
 /** Shared practical acceptance keeps visible subjects useful while allowing natural scene variation. */
-export const wallpaperPracticalInstructions = `按实际图片题材适配锁屏构图：共同主角都清楚、大小自然、各自主要体量合理落在安全区。先识别共同视觉主角，不能只因某物最高、最大、最亮而把它当作唯一主角。多个前景对象共同承担叙事、肖像或产品展示焦点时均为primary，使用group；环境框景、承托物、反射和零散装饰仍是supporting，类别本身不决定主次。细线和同一主角的小附属末端允许小量外伸，不能把完整人物、动物或产品降为peripheral。背景可按原有风格自然发挥。只阻止明显主体损坏、重复主角、贴图拼接、严重模糊或大幅越界；普通背景变化、原图有意取景和轻微审美差异不构成返工理由。无法确认的重要质量疑点保留待检查，不凭猜测重新生图。`
+function practicalInstructions(wholeSubject: boolean) {
+  return `按实际图片题材适配锁屏构图：共同主角都清楚、大小自然、各自主要体量合理落在安全区。先识别共同视觉主角，不能只因某物最高、最大、最亮而把它当作唯一主角。多个前景对象共同承担叙事、肖像或产品展示焦点时均为primary，使用group；环境框景、承托物、反射和零散装饰仍是supporting，类别本身不决定主次。${wholeSubject ? '主体固有的相连结构与本体共同计量，单列的装饰附件按外围观察' : '细线和同一主角的小附属末端允许小量外伸'}，不能把完整人物、动物或产品降为peripheral。背景可按原有风格自然发挥。只阻止明显主体损坏、重复主角、贴图拼接、严重模糊或大幅越界；普通背景变化、原图有意取景和轻微审美差异不构成返工理由。无法确认的重要质量疑点保留待检查，不凭猜测重新生图。`
+}
+
+/** Whole-subject instructions frozen into new direct runs. */
+export const wallpaperPracticalInstructions = practicalInstructions(true)
 
 /** Share frozen current safety requirements across source planning, generation and final review.
  * @param settings Frozen task configuration.
@@ -121,20 +126,45 @@ export function wallpaperSafetyInstructions(settings: WallpaperSettings): string
   return practical?.version === 'practical-v2' ? `汽车主角的完整可见车身必须100%进入safe安全区，包括车轮、后视镜、车顶、车头、车尾及其它可见结构；汽车不使用外围外伸、坐标误差或比例容差。其他主角各自核心体量至少${(practical.minimumCoreInsideRatio * 100).toFixed(0)}%进入safe。保持主体自然大小、清楚可辨，不能缩成小点，不能漏框、只框车舱或把完整部位降为peripheral来规避。` : ''
 }
 
-/** @param settings Frozen template and source-edit permission. @param sourceIntentPolicy Whether this task requires structured source framing and appearance evidence. @returns Complete-scene instructions with explicit instance counts and optional source-intent fidelity. */
-export function completeCanvasWallpaperPrompts(settings: WallpaperSettings, sourceIntentPolicy = false) {
+/** @param settings Frozen template and source-edit permission. @param sourceIntentPolicy Whether this task requires structured source framing and appearance evidence. @param observeHandGestures Whether the frozen source plan expects the independent hand assessment. @param assessPresentation Whether the initial plan distinguishes independent subjects from their styling props with structured evidence. @returns Complete-scene instructions with explicit instance counts and optional source-intent fidelity. */
+export function completeCanvasWallpaperPrompts(settings: WallpaperSettings, sourceIntentPolicy = false, observeHandGestures = false, assessPresentation = false) {
   const prompts = sourceFaithfulWallpaperPrompts(settings)
+  const peripheralFraming = settings.sourceIntentPolicy?.alignment === 'subject-fill-v1' ? settings.sourceIntentPolicy.peripheralFrameAdaptation : undefined
+  const framing = peripheralFraming === 'verified-v4' ? wallpaperSourceFramingPromptV4 : peripheralFraming === 'verified-v3' ? wallpaperSourceFramingPromptV3 : peripheralFraming === 'verified-v2' ? wallpaperSourceFramingPromptV2 : wallpaperSourceFramingPrompt
   const practical = wallpaperPracticalAcceptance(settings), safety = wallpaperSafetyInstructions(settings)
   const protectActionParts = settings.sourceIntentPolicy?.alignment === 'subject-fill-v1' && !!settings.sourceIntentPolicy.fill.relativeLayout
-  const actionObservation = protectActionParts ? '\n单独追踪主体的动作道具。完整形态参与主体动作的手持或连接物（例如绸带与握杆、牵引绳、演奏的琴弓）应各有一个entityId，标为critical-part并将ID列入actionPartIds。rect紧贴道具本身的所有可见边缘，从连接处追踪到最远可见末端；握持的手指、袖口、承托物及倒影不计入道具尺寸。保留原有真实断开与遮挡；靠近画框的可见末梢仍计入范围。缺少这类道具时返回[]。普通承托、反射、投影和装饰留在supporting。' : ''
-  const actionReview = protectActionParts ? '\n每件critical-part都必须用自己的entityId和critical/core区域单独复审。对照原图，从连接或握持处一直追踪到最远的可见末端，检查断开、裁断、缺段、重复和错误续接。原图可见的道具被截掉时，该道具的framing为violated；看不清则unknown。关系核对包括共同主角的相对大小、左右或前后位置和原来的接触点。' : ''
-  const observationInstructions = sourceIntentPolicy ? `\n${wallpaperSourceIntentObservationInstructions}${actionObservation}` : ''
-  const reviewInstructions = sourceIntentPolicy ? `\n${wallpaperSourceIntentReviewInstructions}${actionReview}` : ''
-  if (practical) return { ...prompts, ...(sourceIntentPolicy ? { replan: wallpaperSourceReplanPrompt, framing: wallpaperSourceFramingPrompt } : {}),
-    plan: { version: 'wallpaper-plan-v8' as const, text: `观察唯一原图并返回严格JSON。${wallpaperPracticalInstructions}\n识别single/group/scene/abstract/uncertain及真正视觉核心。objectRoles逐个记录共同主角的稳定entityId、name、primary角色及主要可见体量rect，不能只保留最大或居中的对象；人物与宠物、并列人物或高低不同的展示产品都可能共同主角。真正不可替代的小结构才标critical-part；supporting只记录容易被误认作主角的陪衬，不逐件列出零散装饰。rect不能混入独立承托物、装饰或反射，也不因细枝、吸管、发梢、天线等末端扩大主框。${safety ? `每个primary还须依据原图真实视觉填写safetyClass：汽车为automobile，其他为general；不能按名称猜类，不能把汽车改称general、陪衬或scene来放宽。汽车的rect须包住全部可见车辆结构。${safety}` : ''}sourceEdges与regions是Host按objectRoles.rect计算的重复字段，必须返回但可填[]，无需推算碰边或再次复制主体框；Host为每个primary/critical-part生成对应保护框，不为supporting设框。风景和抽象图以视觉焦点及构图平衡为准，没有对象就不强造完整对象。只记录影响实际可用性的真实uncertainties，不因小字、普通背景、正常遮挡或有意半身构图请求细节放大。editPrompt简短描述题材、风格及背景续接，不声称已经移动或通过。Host计算等比缩放与位置，不能输出placement。${observationInstructions}` },
-    review: { version: 'wallpaper-review-source-v4' as const, text: `先快速查看actual-wallpaper最终成品和wallpaper-original原图，只返回本次compact outputSchema，protocol固定${sourceIntentPolicy ? 'practical-v2' : 'practical-v1'}。${wallpaperPracticalInstructions}\nusage.objectPolicy.objectRoles中的primary是已从原图识别的共同主角，逐个在成品核对身份和可见主要体量，沿用准确entityId，每个必须有独立subject/core。不能遗漏、改ID、降为peripheral或切成scene逃避。确实消失的主角应报告major subject-damage，entityId指向该主角并填absent:true，不能捏造框；仅漏框或不确定应重新观察同图，不是生成理由。actualLayout以完整成品归一化坐标，只标真正主角主要体量为subject/core，框紧贴主体本身，不把承托盘、投影、反射、陪衬或空白一起包入主框；少量外围可用subject/peripheral并沿用其主角entityId；peripheral仅限同一主角的细线、毛梢等小附属末端，不能用来表示另一整件陪衬或共同主角。独立supporting不画主体框。脸、标识等真正不可替代的小区才标critical/core，杯盘容纳关系不自动升级为关键部件。主体不能因细节或背景而缩得难辨。${safety ? `${safety}分类由原图冻结，Host按entityId绑定；本次只观察实际坐标和质量，不重新给汽车改类。` : ''}\n只将明确、可定位、影响成品用途的缺陷记major，给outputRect。轻微风格/纹理差异、正常景深、自然新增植物或背景元素记minor或不记缺陷；不要逐件清点装饰、水果、花瓣等。明显重复主角、矩形贴片、画中画、拼接重影仍须major。布局要求由Host按核心坐标统一判断，不以口头结论替代实际框。仅在快速全图确实无法判断关键质量时填写uncertainties，不能把一般审美谨慎写成未知。reason一句简短像素依据，不重复规则。${reviewInstructions}` },
+  const independentHands = observeHandGestures && protectActionParts && sourceIntentPolicy && !!practical
+  const assessSubjectPresentation = assessPresentation && independentHands
+  const handObservation = independentHands
+    ? 'handAssessments须逐一覆盖每个primary。非人物填non-person；每个人物按本人左右观察双手。挥手、指向、向外张开等承担表达的可见手势填gesture，并引用独立critical-part的entityId，从本人手腕量到可见指尖，列入actionPartIds。人物全框和已有视觉焦点仍包含同一只手。自然垂放、承重或仅握住单列道具的手填ordinary。不可见的手填not-visible，不补造手指。'
+    : '参与表达的空手手势属于人物自身焦点，与道具分别定位。'
+  const actionObservation = protectActionParts ? `\n单独追踪动作必需的手持或连接物（例如绸带与握杆、牵引绳、琴弓）。每项各有一个entityId，标为critical-part并列入actionPartIds。道具rect从连接处量到自身最远可见末端，排除手指、袖口、承托物和倒影。${handObservation}保留原有断开、遮挡和可见末梢；没有符合条件的${independentHands ? '动作部位或道具' : '道具'}时返回[]。普通承托、反射、投影和装饰留在supporting。` : ''
+  const handReview = independentHands
+    ? '有独立entityId的手势须在成品从实际手腕量到所有可见指尖，核对原有手指朝向、姿态和所属人物。人物焦点和道具框均不能替代手势框。确实消失的手势报告major subject-damage及absent:true；看不清须报告unknown，不能省略核对。'
+    : '手掌和指尖归入持物人物。'
+  const actionReview = protectActionParts ? `\n每件critical-part用同一entityId和独立critical/core区域复审。从实际握持或连接处量到道具自身的可见末端，${handReview}检查断开、裁断、缺段、重复和错误续接；原图可见的道具被截掉时framing为violated，看不清则unknown。关系核对包括共同主角的相对大小、左右或前后位置和原来的接触点。` : ''
+  const wholeSubject = settings.sourceIntentPolicy?.alignment === 'subject-fill-v1' && settings.sourceIntentPolicy.wholeSubjectSafety === 'extrema-v1'
+  const practicalBrief = practicalInstructions(wholeSubject)
+  const planOutline = wholeSubject ? 'rect覆盖同一实体的完整可见范围，沿相连枝叶、翼板、尾梢或突出车件量到末端。独立承托物、陈设和反射另计' : 'rect不能混入独立承托物、装饰或反射，也不因细枝、吸管、发梢、天线等末端扩大主框'
+  const subjectIdentity = wholeSubject ? '先在原图独立识别每个实体的组成，再在成品逐个核对身份和全部可见轮廓；历史实体名称即使只写花头也须追到连着的茎叶' : '逐个在成品核对身份和可见主要体量'
+  const reviewOutline = wholeSubject ? '用含固有外伸结构的完整实体框作subject/core' : '只标真正主角主要体量为subject/core'
+  const peripheralParts = wholeSubject ? '另列的装饰附件，茎叶、尾梢、相连翼板、保险杠等固有部位须计入同一主框' : '同一主角的细线、毛梢等小附属末端'
+  const measurementInstructions = independentHands ? `\n${wholeSubject ? wallpaperPrimaryMeasurementInstructions : wallpaperCoreMeasurementInstructions}` : ''
+  const allowAccessory = independentHands && (peripheralFraming === 'verified-v2' || peripheralFraming === 'verified-v3' || peripheralFraming === 'verified-v4')
+  const accessoryObservation = allowAccessory ? '\n对普通主体清楚可见、超出主框且与本体连为一体的细附件，在sourceIntent.visibleAccessoryExtent填它自身全部可见部分的归一化外框，在preserve记录连接点、已见端点或自然回绕处。主框、独立陪衬、装饰和未知画外延续不填入此字段。没有这类附件就省略。' : ''
+  const accessoryReview = allowAccessory ? '\n属于主体结构的细附件仍须保留原图全部可见路径。按preserve逐一检查连接点、已见端点或自然回绕处，允许超出安全区但不能被成品画框新增截断。保留原有遮挡和已有真实截断，不补全未见部分。主框合格不能代替这些保真核对。' : ''
+  const focalEvidence = independentHands ? '\n静物、产品组合或室内陈设中，先识别哪些对象独立承担展示或叙事焦点。每个primary的evidence须说明这个对象如何组织画面主题，例如与其他主角并列展示、独立陈列或承担关键动作。只描述可见、大小、颜色和位置不能证明它是主角。提供场景语境、边缘框景、搭配、桌面装饰或承托作用的独立物件为supporting，即使位于前景、清晰可见或与主角是同类产品。保留陪衬的关系和有意取景，允许其自然留在边缘，无需进入安全区或补全原图截断。真正的并列展示和直接承担主题的局部特写仍保留各自的primary；不能仅因原图截断或构图困难而降级。' : ''
+  const presentation = assessSubjectPresentation ? `\n${wallpaperSubjectPresentationInstructions}` : focalEvidence
+  const observationInstructions = sourceIntentPolicy ? `\n${wallpaperSourceIntentObservationInstructions}${measurementInstructions}${accessoryObservation}${presentation}${actionObservation}` : ''
+  const expansionReview = wallpaperExpansionReview(settings)
+    ? '\n复审顺序先看整张扩图的背景、光影和纹理是否连续，再核对贴片、拼接、重复主体及关键结构缺失。主体可见轮廓须涵盖与本体相连的主要结构，如空间站帆板与桁架。layoutFocus仅供比较构图位置，不能替代完整安全区主体框。安全区位置交由Host按实测框计算。整体轻微平移或比例差异可以记录为提示，保留自然构图与清楚可辨的主体。'
+    : ''
+  const reviewInstructions = (sourceIntentPolicy ? `\n${wallpaperSourceIntentReviewInstructions}${measurementInstructions}${accessoryReview}${actionReview}` : '') + expansionReview
+  if (practical) return { ...prompts, ...(sourceIntentPolicy ? { replan: wallpaperSourceReplanPrompt, framing } : {}),
+    plan: { version: assessSubjectPresentation ? 'wallpaper-plan-v13' as const : independentHands ? 'wallpaper-plan-v12' as const : 'wallpaper-plan-v8' as const, text: `观察唯一原图并返回严格JSON。${practicalBrief}\n识别single/group/scene/abstract/uncertain及真正视觉核心。objectRoles逐个记录共同主角的稳定entityId、name、primary角色及主要可见体量rect，不能只保留最大或居中的对象；人物与宠物、并列人物或高低不同的展示产品都可能共同主角。真正不可替代的小结构才标critical-part；supporting只记录容易被误认作主角的陪衬，不逐件列出零散装饰。${planOutline}。${safety ? `每个primary还须依据原图真实视觉填写safetyClass：汽车为automobile，其他为general；不能按名称猜类，不能把汽车改称general、陪衬或scene来放宽。汽车的rect须包住全部可见车辆结构。${safety}` : ''}sourceEdges与regions是Host按objectRoles.rect计算的重复字段，必须返回但可填[]，无需推算碰边或再次复制主体框；Host为每个primary/critical-part生成对应保护框，不为supporting设框。风景和抽象图以视觉焦点及构图平衡为准，没有对象就不强造完整对象。只记录影响实际可用性的真实uncertainties，不因小字、普通背景、正常遮挡或有意半身构图请求细节放大。editPrompt简短描述题材、风格及背景续接，不声称已经移动或通过。Host计算等比缩放与位置，不能输出placement。${observationInstructions}` },
+    review: { version: 'wallpaper-review-source-v4' as const, text: `先快速查看actual-wallpaper最终成品和wallpaper-original原图，只返回本次compact outputSchema，protocol固定${sourceIntentPolicy ? 'practical-v2' : 'practical-v1'}。${practicalBrief}\nusage.objectPolicy.objectRoles中的primary是已从原图识别的共同主角，${subjectIdentity}，沿用准确entityId，每个必须有独立subject/core。不能遗漏、改ID、降为peripheral或切成scene逃避。确实消失的主角应报告major subject-damage，entityId指向该主角并填absent:true，不能捏造框；仅漏框或不确定应重新观察同图，不是生成理由。actualLayout以完整成品归一化坐标，${reviewOutline}，框紧贴主体本身，不把承托盘、投影、反射、陪衬或空白一起包入主框；少量外围可用subject/peripheral并沿用其主角entityId；peripheral仅限${peripheralParts}，不能用来表示另一整件陪衬或共同主角。独立supporting不画主体框。脸、标识等真正不可替代的小区才标critical/core，杯盘容纳关系不自动升级为关键部件。主体不能因细节或背景而缩得难辨。${safety ? `${safety}分类由原图冻结，Host按entityId绑定；本次只观察实际坐标和质量，不重新给汽车改类。` : ''}\n只将明确、可定位、影响成品用途的缺陷记major，给outputRect。轻微风格/纹理差异、正常景深、自然新增植物或背景元素记minor或不记缺陷；不要逐件清点装饰、水果、花瓣等。检查整幅实际像素，包括主体之外的承托、陪衬和背景。明显重复主角、矩形或软边贴片、画中画、拼接重影仍须major。贴片边缘若把任何连续物体、光影或纹理切成不自然的直线，即使主体、安全区和其他边缘正常，也要用major collage-seam标出实际位置。自然木板接线、建筑直线与物体正常轮廓不属于拼接。布局要求由Host按核心坐标统一判断，不以口头结论替代实际框。仅在快速全图确实无法判断关键质量时填写uncertainties，不能把一般审美谨慎写成未知。reason一句简短像素依据，不重复规则。${reviewInstructions}` },
   }
-  return { ...prompts, ...(sourceIntentPolicy ? { replan: wallpaperSourceReplanPrompt, framing: wallpaperSourceFramingPrompt } : {}),
+  return { ...prompts, ...(sourceIntentPolicy ? { replan: wallpaperSourceReplanPrompt, framing } : {}),
     plan: { ...prompts.plan, text: `${prompts.plan.text}\n成品必须是一张完整、自然连续的照片。依据原图识别真正主体及共同主角，由生成服务完成整幅构图；禁止把整张原图缩成安全区内的小照片、矩形贴片或画中画。${observationInstructions}` },
     review: { ...prompts.review, text: `${prompts.review.text}\n本次必须填写inventory和newForeground。inventory对outputSchema指定的每个entityId恰好记录一次：逐个数实际成品中可见实例，instances为每个实例在完整成品中的归一化框；sourceInstances逐个定位完整原图中同一实体的全部实例，instances逐个定位成品中的全部实例。一项entityId可以包含原本就有的多枚饼干、多粒水果或一组同类物体；原图两枚、成品两枚不是重复新增，原图一个、成品两个才是多出一个。两个数组都必须按真实像素分别计数，不能将多个物体合为一个大框，也不能假定每项entityId只代表一个物体。status按真实像素填写retained/missing/changed/uncertain。newForeground逐项列出原图没有的新前景物体，不能把复制的玩偶、杯子或托盘解释为背景装饰。\n严格检查整幅成品是否存在矩形嵌图、画中画、回贴原图、重复窗框或窗台、重复物体、镜像、重影、软化矩形边缘，以及光线、景深或透视在局部边界突变。任一种贴图或拼接痕迹均在background明确报告violated并给出位置；模糊边缘不能算自然衔接。不得凭主体像素保留、模型自述、尺寸或规划框宣布合格。${reviewInstructions}` },
   }

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import { AccountRejected } from '../src/host/accounts/record.ts'
 import { ImageService } from '../src/host/images/service.ts'
 import { ImageServiceError } from '../src/host/images/errors.ts'
 import { assertPublicImageUrl, decodeImageDataUrl } from '../src/host/images/remote.ts'
@@ -279,15 +280,83 @@ test('new settings apply only to new tasks and bounded history requires explicit
 
 test('known HTTP errors redact backend bodies, while network failure after send is unknown', async () => {
   const rejected = await fixture({ fetch: async () => new Response('Bearer backend-secret', { status: 429 }) })
-  const disconnected = await fixture({ fetch: async () => { throw new Error('backend-secret transport') } })
+  const disconnected = await fixture({ fetch: async () => {
+    throw new TypeError('backend-secret transport', { cause: Object.assign(new Error('private socket details'), { code: 'ECONNRESET' }) })
+  } })
   try {
     const task = await rejected.service.submit({ prompt: 'Quota' }, owner)
     const done = await rejected.service.getResult(task.id, owner, { waitMs: 1000 })
     assert.equal(done.state, 'failed'); assert.equal(done.error?.status, 429)
     assert.ok(!JSON.stringify(done).includes('backend-secret'))
     const sent = await disconnected.service.submit({ prompt: 'Network uncertain' }, owner)
-    assert.equal((await disconnected.service.getResult(sent.id, owner, { waitMs: 1000 })).state, 'outcome-unknown')
+    const unknown = await disconnected.service.getResult(sent.id, owner, { waitMs: 1000 })
+    assert.equal(unknown.state, 'outcome-unknown'); assert.equal(unknown.error?.code, 'image-outcome-unknown')
+    assert.match(unknown.error?.message ?? '', /before response headers arrived.*ECONNRESET/)
+    assert.equal(unknown.error?.status, undefined)
+    assert.doesNotMatch(JSON.stringify(unknown), /backend-secret|private socket details/)
   } finally { await rejected.service.dispose(); await disconnected.service.dispose() }
+})
+
+test('an interrupted image body retains safe response evidence and the same operation receipt', async () => {
+  let sends = 0
+  const f = await fixture({ fetch: async () => {
+    sends++
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.error(new Error('private incomplete body')) } })
+    return new Response(body, { headers: { 'x-oai-request-id': 'image-response-one', authorization: 'Bearer private-response-token' } })
+  } })
+  try {
+    const input = { prompt: 'Observe the same image receipt' }, operation = { id: 'body-disconnect', digest: 'same-input' }
+    const task = await f.service.submit(input, owner, operation)
+    const result = await f.service.getResult(task.id, owner, { waitMs: 1000 })
+    assert.equal(result.state, 'outcome-unknown'); assert.equal(result.error?.code, 'image-outcome-unknown')
+    assert.equal(result.error?.status, 200); assert.equal(result.error?.requestId, 'image-response-one')
+    assert.match(result.error?.message ?? '', /received HTTP 200 headers.*body could not be read in full/)
+    assert.doesNotMatch(JSON.stringify(f.writes), /private incomplete body|private-response-token/)
+    assert.deepEqual(imageTaskSchema.parse(f.records.get(parseImageTaskId(result.id))).error, result.error)
+    assert.deepEqual(await f.service.submit(input, owner, operation), result)
+    assert.equal(sends, 1)
+  } finally { await f.service.dispose() }
+})
+
+test('an unreadable image response keeps the configured limit error if stream cancellation also fails', async () => {
+  const f = await fixture({ maxResponseBytes: 16, fetch: async () => new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(32)) },
+    cancel() { throw new Error('private cancellation failure') },
+  })) })
+  try {
+    const task = await f.service.submit({ prompt: 'Retain the read failure' }, owner)
+    const result = await f.service.getResult(task.id, owner, { waitMs: 1000 })
+    assert.equal(result.state, 'outcome-unknown')
+    assert.match(result.error?.message ?? '', /The image response exceeds the configured limit/)
+    assert.doesNotMatch(JSON.stringify(result), /private cancellation failure/)
+  } finally { await f.service.dispose() }
+})
+
+test('an unknown dispatch after an explicit account refusal reports only the pending submission', async () => {
+  let sends = 0
+  const f = await fixture({
+    fetch: async () => {
+      if (++sends === 1) return new Response('Refused', { status: 429, headers: { 'x-request-id': 'known-refusal' } })
+      throw new TypeError('Connection dropped')
+    },
+    withAccount: async (request, run) => {
+      const lease = { accountId: 'workspace', accessToken: 'token', headers: {}, signal: request.signal ?? new AbortController().signal }
+      try { return await run({ ...lease, accountKey: 'first' }) }
+      catch (error) {
+        if (!(error instanceof AccountRejected)) throw error
+        return await run({ ...lease, accountKey: 'second' })
+      }
+    },
+  })
+  try {
+    const task = await f.service.submit({ prompt: 'Separate the two dispatch attempts' }, owner)
+    const result = await f.service.getResult(task.id, owner, { waitMs: 1000 })
+    assert.equal(result.state, 'outcome-unknown')
+    assert.equal(result.error?.status, undefined)
+    assert.equal(result.error?.requestId, undefined)
+    assert.match(result.error?.message ?? '', /before response headers arrived/)
+    assert.equal(sends, 2)
+  } finally { await f.service.dispose() }
 })
 
 test('image inputs and references reject invalid n, MIME aliases, oversized bytes and private destinations', async () => {

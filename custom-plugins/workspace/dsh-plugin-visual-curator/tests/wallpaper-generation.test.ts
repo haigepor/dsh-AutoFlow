@@ -7,12 +7,13 @@ import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore, { prepareImageFile } from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { CompatibleVisionProvider, MediaError } from '../src/media/index.ts'
 import type { VisionConfig, VisionInput } from '../src/media/index.ts'
-import { wallpaperCompleteCanvasPrompt, wallpaperGenerationPrompt, wallpaperGenerationReferences, wallpaperPositionedGenerationReferences } from '../src/media/wallpaper-generation.ts'
+import { wallpaperCompleteCanvasPrompt, wallpaperGenerationPrompt, wallpaperGenerationReferences, wallpaperOriginalScenePrompt, wallpaperPositionedGenerationReferences, wallpaperStackedGroupGuide, wallpaperTextureCanvasPrompt, wallpaperUsesFullFrameTexture } from '../src/media/wallpaper-generation.ts'
 import { wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
-import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams } from '../src/media/wallpaper-render.ts'
-import { fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
+import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams, wallpaperPositionedSeamRegions, wallpaperSameFullFrame } from '../src/media/wallpaper-render.ts'
+import { fitWallpaperPlacement, wallpaperPositionedLayout } from '../src/shared/wallpaper-geometry.ts'
 import { wallpaperAttemptSchema, wallpaperGenerationInputSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperPromptBundle } from '../src/shared/wallpaper-prompts.ts'
+import { resolveWallpaperProcessing } from '../src/shared/wallpaper-policy.ts'
 
 const settings = wallpaperSettingsSchema.parse({ backgroundTransitionPixels: 0 })
 const plan = wallpaperPlanSchema.parse({
@@ -25,6 +26,180 @@ const plan = wallpaperPlanSchema.parse({
     { name: 'tank marking', role: 'critical', rect: { x: 0.3125, y: 0.4375, width: 0.125, height: 0.125 } },
   ],
   placement: { scale: 1, left: 500, top: 1400 }, reason: 'Preserve both visible subjects and keep the horizon continuous in the editable background.',
+})
+
+test('a wide abstract pattern is reframed as a full portrait texture without carrying the old picture frame', () => {
+  const original = { width: 1672, height: 941 }
+  const abstract = wallpaperPlanSchema.parse({
+    ...plan, mode: 'abstract', subject: '层叠纸艺', regions: [], objectRoles: [], actionPartIds: [],
+    anchors: ['浅色纸带跨越画面'], priorities: ['保留半透明纸张、暖红与藏蓝'],
+    editPrompt: '统一恢复到图1的旧位置，保留横向矩形内全部原图像素。',
+  })
+  assert.equal(wallpaperUsesFullFrameTexture(abstract, original, settings), true)
+  const prompt = wallpaperTextureCanvasPrompt(abstract, settings, ['图1中部的旧矩形有接缝'])
+  assert.match(prompt, /1845×3280竖幅/)
+  assert.match(prompt, /半透明纸张、暖红与藏蓝/)
+  assert.match(prompt, /纹理在整幅图中连贯流动并自然延伸到四边/)
+  assert.match(prompt, /不要嵌入整张原图/)
+  assert.match(prompt, /消除内嵌贴片和断纹/)
+  assert.doesNotMatch(prompt, /图1|蒙版|安全区规划图/)
+
+  assert.equal(wallpaperUsesFullFrameTexture(abstract, { width: 941, height: 1672 }, settings), false)
+  assert.equal(wallpaperUsesFullFrameTexture(abstract, original, { width: 900, height: 1000 }), false)
+  assert.equal(wallpaperUsesFullFrameTexture({ ...abstract, mode: 'scene' }, original, settings), false)
+  assert.equal(wallpaperUsesFullFrameTexture({ ...abstract, regions: plan.regions }, original, settings), false)
+  assert.equal(wallpaperUsesFullFrameTexture({ ...abstract, objectRoles: undefined }, original, settings), false)
+  assert.equal(wallpaperUsesFullFrameTexture(plan, original, settings), false)
+})
+
+test('an original-only scene prompt carries planned output coordinates and only the verified adapted edge', () => {
+  const source = { width: 1000, height: 1600 }
+  const current = wallpaperSettingsSchema.parse({ ...settings, processing: { acceptance: { version: 'practical-v2' } } })
+  const planning = wallpaperPlanSchema.parse({
+    ...plan, mode: 'single', subject: 'A violinist with a cropped coat sleeve.',
+    regions: [{ entityId: 'violinist', name: 'violinist', role: 'subject', rect: { x: 0.1, y: 0.2, width: 0.5, height: 0.6 } }],
+    placement: { scale: 1, left: 500, top: 1400, adaptedSourceEdges: [{ entityId: 'violinist', edge: 'left', detail: 'clothing-edge' }] },
+  })
+  const layout = wallpaperPositionedLayout(planning, source, current)
+  const prompt = wallpaperOriginalScenePrompt(planning, current, layout)
+  assert.ok(prompt.includes(JSON.stringify({ protectedNormalized: layout.protectedNormalized, positionedRegions: layout.positionedRegions })))
+  assert.ok(prompt.includes(JSON.stringify([{ entityId: 'violinist', edge: 'left', feature: '已有衣料外缘' }])))
+  assert.match(prompt, /完整可见车身和关键结构全部位于区内.*97%/)
+  assert.doesNotMatch(prompt, /图1|蒙版|已有重复结构最后一片的外缘/)
+})
+
+test('an original-only scene retry changes the prompt with the rejected candidate’s measured layout', () => {
+  const layout = wallpaperPositionedLayout(plan, { width: 1000, height: 1600 }, settings)
+  const first = wallpaperOriginalScenePrompt(plan, settings, layout)
+  const rejectedLayout = { checks: ['subject-center-drift:35,-381'], actualCore: [{ name: 'first vehicle', rect: { x: 0.43, y: 0.29, width: 0.31, height: 0.28 } }] }
+  const retry = wallpaperOriginalScenePrompt(plan, settings, layout, rejectedLayout)
+  assert.notEqual(retry, first)
+  assert.ok(retry.includes(JSON.stringify(rejectedLayout)))
+  assert.ok(retry.includes(JSON.stringify({ protectedNormalized: layout.protectedNormalized, positionedRegions: layout.positionedRegions })))
+  assert.doesNotMatch(retry, /图1|蒙版/)
+})
+
+test('original-only correction states the desired position and movement without repeating the rejected coordinates', () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, processing: { acceptance: { version: 'practical-v2' } } })
+  const planning = wallpaperPlanSchema.parse({
+    ...plan, mode: 'single', subject: 'A dish of cherries on a wooden counter.',
+    regions: [{ entityId: 'fruit', name: '主盘车厘子', role: 'subject', rect: { x: 0.23, y: 0.44, width: 0.54, height: 0.26 } }],
+    placement: { scale: 1, left: 0, top: 0 },
+  })
+  const layout = wallpaperPositionedLayout(planning, current, current)
+  const rejectedLayout = { checks: ['subject-center-drift:111,-426'], actualCore: [{ entityId: 'fruit', name: '中央车厘子', rect: { x: 0.31, y: 0.31, width: 0.50, height: 0.26 } }] }
+  const prompt = wallpaperOriginalScenePrompt(planning, current, layout, rejectedLayout, 'focal-target-v1')
+  assert.match(prompt, /成品高度57\.0%，上缘在44\.0%，下缘在70\.0%/)
+  assert.match(prompt, /向左移约画宽的6\.0%、向下移约画高的13\.0%/)
+  assert.match(prompt, /主盘车厘子的主体核心位于横向23\.0%–77\.0%、纵向44\.0%–70\.0%/)
+  assert.doesNotMatch(prompt, /中央车厘子|actualCore|subject-center-drift|图1|蒙版/)
+})
+
+test('pure overflow changes the automatic prompt and fits the whole visible structure together', () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, processing: resolveWallpaperProcessing() })
+  const planning = wallpaperPlanSchema.parse({ ...plan, mode: 'single', subject: 'Orbital station and connected panels', placement: { scale: 1, left: 0, top: 0 },
+    regions: [{ name: 'Station', entityId: 'station', role: 'subject', rect: { x: 0.25, y: 0.44, width: 0.5, height: 0.25 } }],
+  })
+  const layout = wallpaperPositionedLayout(planning, current, current)
+  const initial = wallpaperOriginalScenePrompt(planning, current, layout, undefined, 'focal-target-v2')
+  const corrected = wallpaperOriginalScenePrompt(planning, current, layout, { checks: ['subject-overflow:Station'], actualCore: [
+    { name: 'Station', entityId: 'station', role: 'subject', rect: { x: 0.25, y: 0.44, width: 0.5, height: 0.25 }, outline: { x: 0.01, y: 0.44, width: 0.98, height: 0.25 } },
+  ] }, 'focal-target-v2')
+  assert.notEqual(corrected, initial)
+  assert.match(corrected, /完整轮廓控制在横向21\.2%–78\.8%/)
+  assert.match(corrected, /所有相连结构跟随主体/)
+})
+
+test('an original-only group correction leaves breathing room below the complete base', () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, processing: resolveWallpaperProcessing() })
+  const subjects = [
+    { name: 'Three-part table including the base', entityId: 'table', role: 'subject' as const, rect: { x: 0.31, y: 0.51, width: 0.38, height: 0.31 } },
+    { name: 'Sculpture', entityId: 'sculpture', role: 'subject' as const, rect: { x: 0.39, y: 0.322, width: 0.14, height: 0.125 } },
+  ]
+  const planning = wallpaperPlanSchema.parse({ ...plan, mode: 'group', subject: 'A three-part table and sculpture', placement: { scale: 1, left: 0, top: 0 }, regions: subjects })
+  const prompt = wallpaperOriginalScenePrompt(planning, current, wallpaperPositionedLayout(planning, current, current), {
+    checks: ['subject-overflow:Three-part table including the base'], actualCore: [
+      { ...subjects[0]!, rect: { x: 0.279, y: 0.519, width: 0.456, height: 0.401 } }, subjects[1]!,
+    ],
+  }, 'focal-target-v2')
+  assert.match(prompt, /下缘在77\.7%/)
+  assert.match(prompt, /画布下沿留约22\.3%画高/)
+  assert.match(prompt, /Three-part table including the base的主体核心位于/)
+  assert.doesNotMatch(prompt, /按上一版尺寸|向[上下左右]移|图1|蒙版/)
+})
+
+test('a stacked group has one complete-outline guide and a measured bottom miss moves the correction up', async () => {
+  const current = wallpaperSettingsSchema.parse({ ...settings, processing: resolveWallpaperProcessing() })
+  const roles = [
+    { entityId: 'head', name: 'Sculpture', rect: { x: 0.389, y: 0.322, width: 0.14, height: 0.125 } },
+    { entityId: 'table', name: 'Table with base', rect: { x: 0.31, y: 0.51, width: 0.38, height: 0.31 } },
+  ]
+  const planning = wallpaperPlanSchema.parse({ ...plan, subject: 'Stacked room objects', regions: roles.map(region => ({ ...region, role: 'subject' })),
+    objectRoles: roles.map(region => ({ ...region, role: 'primary', safetyClass: 'general', sourceEdges: [], evidence: 'Both outlines are visible through the top and base.',
+      sourceIntent: { framing: 'whole', visibility: 'visible', preserve: ['Complete outlines.'], relationships: ['The sculpture sits on the table.'] } })),
+  })
+  const layout = wallpaperPositionedLayout(planning, current, current)
+  const first = await wallpaperStackedGroupGuide(planning, current, layout)
+  const corrected = await wallpaperStackedGroupGuide(planning, current, layout, {
+    checks: ['subject-overflow:Table with base'], actualCore: [{ ...roles[0]!, role: 'subject' }, { ...roles[1]!, role: 'subject', rect: { x: 0.32, y: 0.568, width: 0.386, height: 0.304 } }],
+  })
+  assert.ok(first && corrected)
+  const frame = await sharp(corrected.reference.data).metadata()
+  assert.equal(frame.width, current.width); assert.equal(frame.height, current.height)
+  assert.equal(corrected.reference.role, 'layout-only')
+  assert.notDeepEqual(first.reference.data, corrected.reference.data)
+  assert.match(first.instructions, /最低点到底边约留24\.8%/)
+  assert.match(corrected.instructions, /最低点到底边约留27\.4%/)
+  const prompt = wallpaperOriginalScenePrompt(planning, current, layout, undefined, 'focal-target-v3', [], corrected.instructions)
+  assert.match(prompt, /图1确定成品构图，图2提供原场景外观/)
+  assert.match(prompt, /保持原来的视角、上下承托关系和形状比例/)
+  assert.equal(await wallpaperStackedGroupGuide(wallpaperPlanSchema.parse({ ...planning, objectRoles: planning.objectRoles?.map(object => ({ ...object, sourceEdges: ['bottom'] })) }), current, layout), undefined)
+})
+
+test('the grouped edit receipt binds a first layout guide and one original without a mask', () => {
+  const guide = { role: 'layout-only', attachmentId: 'guide', width: 1845, height: 3280 }
+  const original = { role: 'original', attachmentId: 'original', width: 2010, height: 3520 }
+  const input = { version: 'wallpaper-edit-input-v7', prompt: 'Use the geometry-only guide and the original appearance.', references: [guide, original] }
+  assert.equal(wallpaperGenerationInputSchema.safeParse(input).success, true)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, references: [original, guide] }).success, false)
+  assert.equal(wallpaperGenerationInputSchema.safeParse({ ...input, mask: { attachmentId: 'mask', width: 1845, height: 3280 } }).success, false)
+})
+
+test('pixel corroboration accepts a full-frame resize and rejects a visible repositioning', async () => {
+  const block = await sharp({ create: { width: 36, height: 42, channels: 3, background: '#fca0a0' } }).png().toBuffer()
+  const frame = (left: number) => sharp({ create: { width: 180, height: 320, channels: 3, background: '#152e22' } }).composite([{ input: block, left, top: 112 }]).png().toBuffer()
+  const native = await frame(45)
+  const delivery = await sharp(native).resize(360, 640).png().toBuffer()
+  assert.equal(await wallpaperSameFullFrame(native, delivery), true)
+  assert.equal(await wallpaperSameFullFrame(native, await frame(60)), false)
+})
+
+test('previous safe placement guides a seam-only repair and the integral accessory stays on the canvas', () => {
+  const core = { x: 0.24, y: 0.42, width: 0.50, height: 0.30 }
+  const planning = wallpaperPlanSchema.parse({
+    ...plan, mode: 'single', subject: 'A leather handbag with a gold chain on a display stand.',
+    regions: [{ entityId: 'bag', name: '绿色手袋', role: 'subject', safetyClass: 'general', rect: core }],
+    objectRoles: [{ entityId: 'bag', name: '绿色手袋', role: 'primary', safetyClass: 'general', rect: core, sourceEdges: [], evidence: 'The bag is the product on display.',
+      sourceIntent: { framing: 'whole', visibility: 'visible', preserve: ['Chain from top attachment to the loose end.'], relationships: ['The chain hangs from the bag.'], visibleAccessoryExtent: { x: 0.24, y: 0.46, width: 0.50, height: 0.49 } },
+    }],
+    placement: { scale: 1, left: 0, top: 0 },
+  })
+  const layout = wallpaperPositionedLayout(planning, settings, settings)
+  const safePrior = { checks: [], actualCore: [{ entityId: 'bag', name: '橄榄色链包', rect: { x: 0.25, y: 0.43, width: 0.48, height: 0.28 } }] }
+  const prompt = wallpaperOriginalScenePrompt(planning, settings, layout, safePrior, 'focal-target-v1')
+  assert.match(prompt, /上一版已核实的主体位置与尺度合格/)
+  assert.match(prompt, /绿色手袋的主体核心位于横向25\.0%–73\.0%、纵向43\.0%–71\.0%/)
+  assert.match(prompt, /从接点到最后一环或末端都须保留在完整画框内。主体核心下缘之下约需留出画高的21\.5%/)
+  assert.doesNotMatch(prompt, /蒙版|成品归一化坐标/)
+  const wholeScene = wallpaperOriginalScenePrompt(planning, settings, layout, safePrior, 'focal-target-v2')
+  assert.match(wholeScene, /从画布上沿到主体核心组最高轮廓留约43\.0%画高，从主体核心组最低轮廓到画布下沿留约29\.0%画高/)
+  assert.ok(wholeScene.indexOf('最终构图') < wholeScene.indexOf('场景：'))
+  assert.match(wholeScene, /绿色手袋的主体核心位于横向25\.0%–73\.0%、纵向43\.0%–71\.0%/)
+  assert.doesNotMatch(prompt, /从画布上沿到主体核心组最高轮廓/)
+
+  const positioned = wallpaperCompleteCanvasPrompt(planning, settings, [], undefined, layout)
+  assert.match(positioned, /绿色手袋的主体核心位于横向24\.0%–74\.0%、纵向42\.0%–72\.0%/)
+  assert.match(positioned, /主体核心下缘之下约需留出画高的23\.0%/)
 })
 
 function nativePixels(width: number, height: number) {
@@ -211,6 +386,21 @@ test('native generated-frame check finds an authorized hard cut before super-res
   const feathered = await sharp(broken).composite([{ input: await sharp({ create: { width: 40, height: 1, channels: 3, background: '#a09070' } }).png().toBuffer(), left: 10, top: 19 }]).png().toBuffer()
   assert.deepEqual((await wallpaperSourceSeams(feathered, { left: 10, top: 20, width: 40, height: 60 }, settings)).filter(seam => seam.edge === 'top'), [])
   assert.deepEqual((await wallpaperGeneratedFrameSeams(feathered, target, canvas, native, ['top'], settings)).map(seam => seam.edge), ['top'])
+})
+
+test('native seam screen sends aligned paired cuts for confirmation and leaves a single natural edge alone', async () => {
+  const canvas = { ...settings, width: 400, height: 600 }
+  const target = { left: 64, top: 80, width: 272, height: 400 }
+  const base = await sharp({ create: { width: 200, height: 300, channels: 3, background: '#d7bfb0' } }).png().toBuffer()
+  const stripe = await sharp({ create: { width: 136, height: 116, channels: 3, background: '#254362' } }).png().toBuffer()
+  const paired = await sharp(base).composite([{ input: stripe, left: 33, top: 72 }]).png().toBuffer()
+  const stripToEdge = await sharp({ create: { width: 168, height: 300, channels: 3, background: '#254362' } }).png().toBuffer()
+  const single = await sharp(base).composite([{ input: stripToEdge, left: 32, top: 0 }]).png().toBuffer()
+  const details = await wallpaperPositionedSeamRegions(paired, target, canvas)
+  assert.equal(details.length, 2)
+  assert.ok(details[0]!.x < 0.16 && details[1]!.x > 0.5)
+  assert.deepEqual(await wallpaperPositionedSeamRegions(single, target, canvas, undefined, 'positioned-edge-v2'), [])
+  assert.deepEqual(await wallpaperPositionedSeamRegions(base, target, canvas, undefined, 'positioned-edge-v2'), [])
 })
 
 test('source-restoring composition is forbidden even for a narrow generated margin', async () => {

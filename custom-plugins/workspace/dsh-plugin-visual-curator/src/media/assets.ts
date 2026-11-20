@@ -129,18 +129,8 @@ export class AssetFiles {
    * @returns Immutable original, normalized and preview references; no domain metadata is committed.
    */
   async importBytes(input: Uint8Array, declaredMime?: string, signal?: AbortSignal): Promise<ImportedFiles> {
-    checkCancelled(signal)
-    if (input.byteLength === 0 || input.byteLength > this.limits.maxFileBytes) throw invalidInput('Image bytes exceed the configured import limit.')
-    const bytes = Buffer.from(input)
-    const mime = rasterMime(bytes)
-    rejectAnimation(bytes, mime)
-    if (declaredMime !== undefined && declaredMime.split(';')[0]?.trim().toLowerCase() !== mime) throw invalidInput('The declared image MIME does not match its bytes.')
     try {
-      const metadata = await sharp(bytes, { limitInputPixels: this.limits.maxPixels, animated: true }).metadata()
-      const expected = mime === 'image/jpeg' ? 'jpeg' : mime === 'image/png' ? 'png' : 'webp'
-      if (metadata.format !== expected || (metadata.pages !== undefined && metadata.pages !== 1)) throw invalidInput('Animated or mismatched image data is not supported.')
-      if (metadata.width === undefined || metadata.height === undefined || metadata.width > this.limits.maxDimension || metadata.height > this.limits.maxDimension
-        || metadata.width * metadata.height > this.limits.maxPixels) throw invalidInput('Decoded image dimensions exceed the configured limit.')
+      const { bytes, mime, metadata } = await this.checkedRaster(input, declaredMime, signal)
       const sourceOrientation = metadata.orientation ?? 1
       const normalized = await sharp(bytes, { limitInputPixels: this.limits.maxPixels }).autoOrient().toColourspace('srgb').png().toBuffer({ resolveWithObject: true })
       const preview = await sharp(normalized.data, { limitInputPixels: this.limits.maxPixels }).resize({ width: this.limits.previewMaxDimension, height: this.limits.previewMaxDimension, fit: 'inside', withoutEnlargement: true }).webp({ lossless: true }).toBuffer({ resolveWithObject: true })
@@ -158,6 +148,40 @@ export class AssetFiles {
       if (error instanceof MediaError) throw error
       throw invalidInput('The image could not be decoded safely.')
     }
+  }
+
+  /** Save only the preview bytes supplied to review and identify their exact oriented display pixels.
+   * @param input Downloaded preview bytes.
+   * @param declaredMime Optional server MIME checked against the decoder.
+   * @param signal Optional cancellation of decoding or storage.
+   * @returns The private preview and a dimension-sensitive digest of its unscaled RGBA pixels.
+   */
+  async savePreviewEvidence(input: Uint8Array, declaredMime?: string, signal?: AbortSignal): Promise<{ blob: BlobRef; pixelDigest: string }> {
+    try {
+      const { bytes, mime, metadata } = await this.checkedRaster(input, declaredMime, signal)
+      const wide = metadata.depth === 'ushort'
+      const { data, info } = await sharp(bytes, { limitInputPixels: this.limits.maxPixels }).autoOrient().toColourspace(wide ? 'rgb16' : 'srgb').ensureAlpha().raw({ depth: wide ? 'ushort' : 'uchar' }).toBuffer({ resolveWithObject: true })
+      checkCancelled(signal)
+      const pixelDigest = createHash('sha256').update(`${wide ? 'rgba16' : 'rgba'}-v1:${info.width}x${info.height}:`).update(data).digest('hex')
+      return { blob: await this.put(bytes, mime, signal), pixelDigest }
+    } catch (error) {
+      if (error instanceof MediaError) throw error
+      throw invalidInput('The preview image could not be decoded safely.')
+    }
+  }
+
+  private async checkedRaster(input: Uint8Array, declaredMime: string | undefined, signal: AbortSignal | undefined) {
+    checkCancelled(signal)
+    if (input.byteLength === 0 || input.byteLength > this.limits.maxFileBytes) throw invalidInput('Image bytes exceed the configured import limit.')
+    const bytes = Buffer.from(input), mime = rasterMime(bytes)
+    rejectAnimation(bytes, mime)
+    if (declaredMime !== undefined && declaredMime.split(';')[0]?.trim().toLowerCase() !== mime) throw invalidInput('The declared image MIME does not match its bytes.')
+    const metadata = await sharp(bytes, { limitInputPixels: this.limits.maxPixels, animated: true }).metadata()
+    const expected = mime === 'image/jpeg' ? 'jpeg' : mime === 'image/png' ? 'png' : 'webp'
+    if (metadata.format !== expected || (metadata.pages !== undefined && metadata.pages !== 1)) throw invalidInput('Animated or mismatched image data is not supported.')
+    if (metadata.width === undefined || metadata.height === undefined || metadata.width > this.limits.maxDimension || metadata.height > this.limits.maxDimension
+      || metadata.width * metadata.height > this.limits.maxPixels) throw invalidInput('Decoded image dimensions exceed the configured limit.')
+    return { bytes, mime, metadata }
   }
 
   /** Copy an already authorized local file; later edits to that file cannot affect the import.

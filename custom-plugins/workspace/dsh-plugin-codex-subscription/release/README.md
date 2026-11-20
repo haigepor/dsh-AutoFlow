@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Version 0.2.9. Generated image previews and call details appear in one collapsible row at the original request in the conversation.
+Codex Subscription 0.2.10 reports interrupted image responses with the network error, HTTP status and request ID when available.
 
 This independent Host-only bundle ships with AutoFlow and uses the Installed plugins section. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `codex-subscription-v<version>` tag family and `codex-subscription-update.json` asset; AFP and application releases use separate families.
 

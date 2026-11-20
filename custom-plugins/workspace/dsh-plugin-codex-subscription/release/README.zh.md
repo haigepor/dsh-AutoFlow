@@ -4,7 +4,7 @@
 
 ## Summary
 
-版本 0.2.9。生成的图片预览和调用详情集中在对话原请求位置的折叠行内。
+Codex 订阅 0.2.10 在生图响应中断时显示可用的网络错误、HTTP 状态和请求编号。
 
 本包是随 AutoFlow 分发的独立 Host 插件，显示在已安装插件分区，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `codex-subscription-v<version>` 标签族和 `codex-subscription-update.json` 资产；AFP 与应用使用独立版本族。
 

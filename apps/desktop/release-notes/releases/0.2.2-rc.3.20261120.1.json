@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.3.20261120.1",
+  "items": [
+    {
+      "id": "codex-image-response-interruption",
+      "category": "fixes",
+      "text": {
+        "en": "Codex Subscription reports interrupted image responses with the network error, HTTP status and request ID when available.",
+        "zh-CN": "Codex 订阅在生图响应中断时显示可用的网络错误、HTTP 状态和请求编号。"
+      }
+    },
+    {
+      "id": "git-dialog-layout",
+      "category": "improvements",
+      "text": {
+        "en": "The Git dialog shows changed files and the commit form side by side on wider windows. File status badges and a selection count make changes easier to scan, and the commit actions stay visible while scrolling.",
+        "zh-CN": "Git 弹窗在宽屏并排显示改动与提交表单，用状态标记和已选数量帮助浏览文件，滚动时仍可看到提交操作。"
+      }
+    },
+    {
+      "id": "visual-curator-folder-import",
+      "category": "features",
+      "text": {
+        "en": "Visual Curator accepts images from multiple local folders and their subfolders. Add more images or folders in the import dialog, then save to queue large selections as numbered batches.",
+        "zh-CN": "视觉策展支持选择多个本地文件夹及其子文件夹，并可在导入弹窗继续追加。确认保存后，大量原图会分批排队处理。"
+      }
+    },
+    {
+      "id": "visual-curator-full-subject-recheck",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator measures attached foliage, tails, bumpers and table bases during wallpaper review. Rework checks whether the original framing fits the safe area, and reviewing a saved candidate uses the selected image.",
+        "zh-CN": "视觉策展在壁纸复审时核对相连枝叶、尾梢、保险杠和边几底座。返工前检查原图取景与安全区能否同时满足，点选已保存的候选会复审该张图片。"
+      }
+    }
+  ]
+}

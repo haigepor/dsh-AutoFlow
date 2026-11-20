@@ -2,23 +2,27 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { wallpaperActualBoundary } from '../src/host/wallpaper-boundary.ts'
-import { wallpaperObjectProtectionRegions, wallpaperGeometry, fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
+import { wallpaperObjectProtectionRegions, wallpaperGeometry, fitWallpaperPlacement, wallpaperPracticalRegionBoundary } from '../src/shared/wallpaper-geometry.ts'
 import { wallpaperProcessingSchema, resolveWallpaperProcessing, wallpaperReviewNeedsSubjectEdit, wallpaperPracticalAcceptance } from '../src/shared/wallpaper-policy.ts'
 import { wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys, type WallpaperPlan } from '../src/shared/wallpaper.ts'
 
 const settings = wallpaperSettingsSchema.parse({ repairPolicy: {}, processing: resolveWallpaperProcessing() })
 const strict = wallpaperSettingsSchema.parse({ repairPolicy: {} })
 const historicalPractical = wallpaperSettingsSchema.parse({ repairPolicy: {}, processing: { acceptance: { version: 'practical-v1' } } })
+const savedPractical = wallpaperSettingsSchema.parse({ repairPolicy: {}, processing: { acceptance: { version: 'practical-v2' } } })
 const region = (name: string, role: WallpaperPlan['regions'][number]['role'], scope: 'core' | 'peripheral', left: number, top: number, width: number, height: number) => ({ name, role, scope, rect: { x: left / 1845, y: top / 3280, width: width / 1845, height: height / 3280 } })
 const body = region('Focal body', 'subject', 'core', 240, 1200, 1000, 900)
 const boundary = (regions: Parameters<typeof wallpaperActualBoundary>[0]['regions'], policy = settings, mode: WallpaperPlan['mode'] = 'single') => wallpaperActualBoundary({ imageVersionId: 'output', regions }, mode, policy)
 const plan = (regions: WallpaperPlan['regions'], mode: WallpaperPlan['mode'] = 'single') => wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode, subject: 'Focal subject', evidence: 'Visible source pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: regions.map(({ name, role, rect }) => ({ name, role, rect })), placement: { scale: 1, left: 0, top: 0 }, reason: 'Keep the focal subject prominent.' })
 
 test('new admissions freeze practical defaults while absent and explicit strict policies remain strict', () => {
-  assert.deepEqual(settings.processing?.acceptance, { version: 'practical-v2', minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 1 })
+  const nearBoundaryRecheck = { minimumInsideRatio: 0.93, maximumSafeAxisRatio: 0.03, maximumOutputShortSideRatio: 40 / 1845 }
+  const expansionReview = { version: 'expansion-first-v2', minimumPlannedScaleRatio: 0.8, centerDriftMultiplier: 1.5 }
+  assert.deepEqual(settings.processing?.acceptance, { version: 'practical-v2', minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 1, nearBoundaryRecheck, expansionReview })
   assert.equal(wallpaperProcessingSchema.parse({}).acceptance, undefined)
   assert.deepEqual(resolveWallpaperProcessing({ acceptance: { version: 'strict-v1' } }).acceptance, { version: 'strict-v1' })
-  assert.deepEqual(resolveWallpaperProcessing({ acceptance: { version: 'practical-v1', minimumCoreInsideRatio: 0.92, maximumAutomaticCorrections: 2 } }).acceptance, { version: 'practical-v2', minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 2 })
+  assert.deepEqual(resolveWallpaperProcessing({ acceptance: { version: 'practical-v1', minimumCoreInsideRatio: 0.92, maximumAutomaticCorrections: 2 } }).acceptance, { version: 'practical-v2', minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 2, nearBoundaryRecheck, expansionReview })
+  assert.deepEqual(savedPractical.processing?.acceptance, { version: 'practical-v2', minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 1 })
   assert.equal(wallpaperPracticalAcceptance(strict), undefined)
   assert.equal(wallpaperPracticalAcceptance(settings)?.version, 'practical-v2')
   assert.deepEqual(wallpaperPracticalAcceptance(historicalPractical), { version: 'practical-v1', minimumCoreInsideRatio: 0.9, minimumCoreSafeAreaRatio: 0.08, maximumCoreEdgeOverflowRatio: 0.15, coordinateTolerancePixels: 24, maximumAutomaticCorrections: 1 })
@@ -26,6 +30,48 @@ test('new admissions freeze practical defaults while absent and explicit strict 
     assert.equal(wallpaperProcessingSchema.safeParse({ acceptance: { version: 'practical-v2', ...invalid } }).success, false)
   }
   assert.equal(wallpaperProcessingSchema.safeParse({ acceptance: { version: 'practical-v2', minimumCoreInsideRatio: 0.969 } }).success, false)
+})
+
+test('a saved partial focal box cannot excuse a connected structure outside the safety area', () => {
+  const sourceLayout = { version: 'source-intent-v2' as const, minimumSubjectScaleRatio: 0.9 }
+  const station = { ...region('Station and solar arrays', 'subject', 'core', 40, 1400, 1750, 800), safetyClass: 'general' as const,
+    layoutFocus: region('Central module', 'subject', 'core', 500, 1420, 800, 620).rect }
+  const layout = { imageVersionId: 'result', regions: [station] }
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', savedPractical, sourceLayout).hard, [])
+  assert.deepEqual(wallpaperActualBoundary(layout, 'single', settings, sourceLayout).hard, ['subject-overflow:Station and solar arrays'])
+})
+
+test('safe historical framing keeps a five-pixel scale estimate and a planned center offset advisory', () => {
+  const configured = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1' } })
+  const policy = configured.sourceIntentPolicy
+  assert.ok(policy?.alignment === 'subject-fill-v1')
+  const target = region('Cherries', 'subject', 'core', 465, 1171, 915, 1408)
+  const actual = { ...region('Cherries', 'subject', 'core', 618, 1007, 812, 1122), entityId: 'cherries', safetyClass: 'general' as const }
+  const sourceLayout = { ...policy, expectedSubjects: [{ entityId: 'cherries', rect: target.rect }] }
+  const measured = (candidate: typeof actual) => wallpaperActualBoundary({ imageVersionId: 'saved-result', regions: [candidate] }, 'single', configured, sourceLayout)
+  const observation = measured(actual)
+  assert.deepEqual(observation.hard, [])
+  assert.ok(observation.warnings.includes('subject-too-small:Cherries'))
+  assert.ok(observation.warnings.some(check => check.startsWith('subject-center-drift:')))
+  const legacy = wallpaperSettingsSchema.parse({ ...configured, processing: resolveWallpaperProcessing({ acceptance: { version: 'practical-v2', expansionReview: { version: 'expansion-first-v1', minimumPlannedScaleRatio: 0.8, centerDriftMultiplier: 1.5 }, minimumCoreInsideRatio: 0.97, minimumCoreSafeAreaRatio: 0.08, maximumAutomaticCorrections: 1 } }) })
+  assert.deepEqual(wallpaperActualBoundary({ imageVersionId: 'saved-result', regions: [actual] }, 'single', legacy, sourceLayout).hard, ['subject-too-small:Cherries', 'subject-center-drift:102,-307'])
+  assert.deepEqual(measured({ ...actual, rect: { ...actual.rect, y: 980 / settings.height } }).hard, ['subject-overflow:Cherries'])
+  assert.deepEqual(measured({ ...actual, rect: { ...actual.rect, y: 1100 / settings.height, height: 950 / settings.height } }).hard, ['subject-too-small:Cherries'])
+})
+
+test('safe modest shift and scale differences are advisory while substantial shrinkage still blocks', () => {
+  const configured = wallpaperSettingsSchema.parse({ ...settings, sourceIntentPolicy: { version: 'source-intent-v2', alignment: 'subject-fill-v1' } })
+  const policy = configured.sourceIntentPolicy
+  assert.ok(policy?.alignment === 'subject-fill-v1')
+  const target = region('Sculpture', 'subject', 'core', 500, 1310, 500, 600)
+  const actual = { ...region('Sculpture', 'subject', 'core', 660, 1310, 430, 516), entityId: 'sculpture', safetyClass: 'general' as const }
+  const sourceLayout = { ...policy, expectedSubjects: [{ entityId: 'sculpture', rect: target.rect }] }
+  const observation = wallpaperActualBoundary({ imageVersionId: 'result', regions: [actual] }, 'single', configured, sourceLayout)
+  assert.deepEqual(observation.hard, [])
+  assert.ok(observation.warnings.includes('subject-too-small:Sculpture'))
+  assert.ok(observation.warnings.includes('subject-center-drift:125,-42'))
+  const tiny = { ...actual, rect: region('Sculpture', 'subject', 'core', 625, 1460, 250, 300).rect }
+  assert.deepEqual(wallpaperActualBoundary({ imageVersionId: 'result', regions: [tiny] }, 'single', configured, sourceLayout).hard, ['subject-too-small:Sculpture'])
 })
 
 test('a prominent focal body may extend slightly beyond the inner guide without a synthetic critical copy', () => {
@@ -87,6 +133,10 @@ test('V2 requires every automobile rectangle to stay 100 percent inside the exac
   assert.ok(boundary([completeCar, wing]).hard.includes('automobile-outside:Car peripheral'))
   const detail = { ...region('Car critical detail', 'critical', 'core', 250, 1400, 20, 20), safetyClass: 'automobile' as const }
   assert.ok(boundary([completeCar, detail]).hard.includes('automobile-outside:Car critical detail'))
+  const atBottom = { ...region('Car touching bottom edge', 'subject', 'core', 500, 1796, 600, 922), safetyClass: 'automobile' as const }
+  assert.deepEqual(boundary([atBottom]), { hard: [], warnings: [] })
+  const overBottom = { ...atBottom, rect: { ...atBottom.rect, y: 1797 / settings.height } }
+  assert.ok(boundary([overBottom]).hard.includes('automobile-outside:Car touching bottom edge'))
 })
 
 test('V2 general subjects pass exactly 97 percent and reject 96.9 percent without expanding the safe rectangle', () => {
@@ -98,6 +148,22 @@ test('V2 general subjects pass exactly 97 percent and reject 96.9 percent withou
   const actualRedCar = { name: 'Red sports car', role: 'subject' as const, scope: 'core' as const, safetyClass: 'automobile' as const, rect: { x: 0.1, y: 0.44, width: 0.8, height: 0.2 } }
   assert.ok(boundary([actualRedCar]).hard.includes('automobile-outside:Red sports car'))
   assert.deepEqual(boundary([actualRedCar], historicalPractical).hard, [])
+})
+
+test('a small single-sided estimate selects a local recheck while still failing the 97 percent gate', () => {
+  const kitten = { name: 'Kitten', role: 'subject' as const, safetyClass: 'general' as const, left: 221.4, top: 1833.5, width: 586.7, height: 747.8 }
+  const measured = wallpaperPracticalRegionBoundary(kitten, settings)
+  assert.deepEqual(measured?.hard, ['subject-overflow:Kitten'])
+  assert.equal(measured?.borderline?.edge, 'left')
+  assert.equal(Math.round(measured?.borderline?.overflowPixels ?? 0), 37)
+  assert.equal(wallpaperPracticalRegionBoundary(kitten, savedPractical)?.borderline, undefined)
+  assert.equal(wallpaperPracticalRegionBoundary({ ...kitten, left: 230, top: 1000 }, settings)?.borderline, undefined, 'Two edges need separate evidence')
+  assert.equal(wallpaperPracticalRegionBoundary({ ...kitten, width: 365 }, settings)?.borderline, undefined, 'A substantial fraction lies outside')
+  assert.equal(wallpaperPracticalRegionBoundary({ ...kitten, left: -1, width: 4000 }, settings)?.borderline, undefined, 'A clipped image requires independent quality handling')
+  assert.equal(wallpaperPracticalRegionBoundary({ ...kitten, role: 'critical' }, settings)?.borderline, undefined)
+  assert.equal(wallpaperPracticalRegionBoundary({ ...kitten, safetyClass: 'automobile' }, settings)?.borderline, undefined)
+  const cup = { ...kitten, name: 'Cup', left: 941, width: 590.4, top: 951.2, height: 1590.8 }
+  assert.equal(wallpaperPracticalRegionBoundary(cup, settings)?.borderline, undefined, 'An 81 px top overflow needs evidence that the extra content is peripheral')
 })
 
 test('an upward straw and diagonal peripheral rectangles remain warnings regardless of their empty rectangle area', () => {

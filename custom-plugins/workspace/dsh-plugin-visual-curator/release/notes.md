@@ -1,3 +1,11 @@
+## Visual Curator 0.2.31
+
+- Review checks the visible ends of each subject and preserves the stricter vehicle safety requirement. Rework checks framing before consuming an image edit.
+
+## Visual Curator 0.2.31 更新说明
+
+- 复审逐件核对主体可见端点，汽车须全部位于安全区。返工先检查取景是否可行，再使用编辑次数。
+
 ## Visual Curator 0.2.30
 
 - The first outpainting request uses the positioned canvas as the framing reference. The original image supplies appearance details, and the safety overlay supplies layout guidance.

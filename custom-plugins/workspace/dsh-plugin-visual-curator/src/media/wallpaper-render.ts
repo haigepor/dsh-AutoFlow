@@ -4,6 +4,7 @@ import { wallpaperClockSvg } from './wallpaper-clock.ts'
 import type { WallpaperFramingObservation, WallpaperPlan, WallpaperSettings, WallpaperCompositionMode } from '../shared/wallpaper.ts'
 import { wallpaperProcessingSchema } from '../shared/wallpaper-policy.ts'
 import { CuratorError } from '../shared/errors.ts'
+import type { PixelRect } from '../shared/model.ts'
 import { wallpaperGeometry, type WallpaperSourceLayout } from '../shared/wallpaper-geometry.ts'
 
 export { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
@@ -29,15 +30,37 @@ export async function wallpaperFramingAnnotation(bytes: Uint8Array, size: { widt
   return sharp(bytes).composite([{ input: svg }]).png().toBuffer()
 }
 
-/** Convert one complete provider canvas to the target PNG; no source or candidate pixels are accepted by this renderer.
+/** Convert one complete provider canvas to the target PNG without adding pixels from another image.
  * @param bytes Complete generated image, optionally reconstructed before this call.
  * @param settings Frozen target dimensions.
- * @returns The uniformly resized full canvas and its measured input size.
+ * @param placementCrop Optional viewport of that same image in target-canvas pixel coordinates.
+ * @returns The rendered canvas and its measured input size.
  */
-export async function renderCompleteWallpaper(bytes: Uint8Array, settings: Pick<WallpaperSettings, 'width' | 'height'>) {
+export async function renderCompleteWallpaper(bytes: Uint8Array, settings: Pick<WallpaperSettings, 'width' | 'height'>, placementCrop?: PixelRect) {
   const generated = await sharp(bytes).metadata()
   if (!generated.width || !generated.height || Math.abs(generated.width - generated.height * settings.width / settings.height) > 1) throw new CuratorError('constraint-conflict', 'wallpaper-background', 'The complete provider canvas has a different aspect ratio from the wallpaper.')
-  return { image: await sharp(bytes).resize(settings.width, settings.height, { fit: 'fill' }).toColourspace('srgb').png().toBuffer(), generatedSize: { width: generated.width, height: generated.height } }
+  const canvas = sharp(bytes)
+  if (placementCrop) {
+    const x = generated.width / settings.width, y = generated.height / settings.height
+    const left = Math.round(placementCrop.x * x), top = Math.round(placementCrop.y * y)
+    canvas.extract({ left, top, width: Math.round((placementCrop.x + placementCrop.width) * x) - left,
+      height: Math.round((placementCrop.y + placementCrop.height) * y) - top })
+  }
+  return { image: await canvas.resize(settings.width, settings.height, { fit: 'fill' }).toColourspace('srgb').png().toBuffer(), generatedSize: { width: generated.width, height: generated.height } }
+}
+
+/** @param native Uncropped provider frame. @param delivered Delivery pixels. @returns Whether normalized, low-frequency pixels corroborate unchanged framing after resampling. */
+export async function wallpaperSameFullFrame(native: Uint8Array, delivered: Uint8Array): Promise<boolean> {
+  const sample = (bytes: Uint8Array) => sharp(bytes).resize(128, 128, { fit: 'fill' }).removeAlpha().toColourspace('srgb').raw().toBuffer()
+  const [before, after] = await Promise.all([sample(native), sample(delivered)])
+  let totalDifference = 0, changedSamples = 0
+  for (const [index, value] of before.entries()) {
+    const difference = Math.abs(value - after[index]!)
+    totalDifference += difference
+    if (difference > 16) changedSamples++
+  }
+  // Interpolation can move the color at a sampled hard edge without moving the scene.
+  return totalDifference <= before.length * 2 && changedSamples <= before.length / 100
 }
 
 /** Render a crop or diagnostic source placement, or deliver an entire generated canvas without restoring source pixels.
@@ -172,6 +195,150 @@ export async function wallpaperGeneratedFrameSeams(image: Uint8Array, target: { 
   const right = Math.round((target.left + target.width) * native.width / canvas.width)
   const bottom = Math.round((target.top + target.height) * native.height / canvas.height)
   return (await wallpaperSourceSeams(image, { left, top, width: right - left, height: bottom - top }, settings, 'source-interior')).filter(seam => edges.includes(seam.edge))
+}
+
+/** Locate hard edges near a positioned source or a previously confirmed artifact for native review.
+ * @param image Complete native candidate before reconstruction.
+ * @param target Placed source rectangle in target-canvas pixels, if the generation request used one.
+ * @param settings Frozen canvas dimensions and seam thresholds.
+ * @param previousArtifact Confirmed artifact bounds in the previous complete canvas's normalized coordinates.
+ * @param screen Frozen task selection for paired edges and optional isolated partial cuts.
+ * @returns Detail rectangles in native normalized coordinates for visual confirmation.
+ */
+export async function wallpaperPositionedSeamRegions(image: Uint8Array, target: { left: number; top: number; width: number; height: number } | undefined, settings: Pick<WallpaperSettings, 'processing'> & { width: number; height: number }, previousArtifact?: { x: number; y: number; width: number; height: number }, screen: 'positioned-edge-pair-v1' | 'positioned-edge-v2' | 'positioned-edge-v3' | 'positioned-edge-v4' = 'positioned-edge-pair-v1') {
+  if (!target && !previousArtifact) return []
+  const { data, info } = await sharp(image).removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
+  const { width, height, channels } = info
+  const policy = wallpaperProcessingSchema.parse(settings.processing ?? {}).sourceSeam
+  const x = width / settings.width, y = height / settings.height
+  const retryEdgeDrift = 0.025
+  const inspect = (vertical: boolean, first: number, second: number, start: number, end: number, mode: 'paired' | 'repeated' | 'isolated' | 'fragmented') => {
+    const acrossSize = vertical ? width : height, alongSize = vertical ? height : width
+    const segment = Math.max(32, Math.round(policy.segmentPixels * (vertical ? y : x)))
+    const search = mode === 'repeated' ? Math.min(Math.ceil(acrossSize * retryEdgeDrift), Math.floor((second - first) / 4)) : Math.ceil(segment / 32)
+    if (mode === 'paired' && (first < search + 8 || second + search + 8 >= acrossSize)) return []
+    const strongLine = (line: number, from: number, to: number, radius = 2) => {
+      let across = 0, before = 0, after = 0, count = 0
+      for (let p = from; p < to; p += 2) for (let c = 0; c < channels; c++) {
+        const pixel = (offset: number) => data[(vertical ? p * width + line + offset : (line + offset) * width + p) * channels + c]!
+        across += Math.abs(pixel(-radius) - pixel(radius))
+        before += Math.abs(pixel(-4 * radius) - pixel(-2 * radius))
+        after += Math.abs(pixel(2 * radius) - pixel(4 * radius))
+        count++
+      }
+      return across >= policy.minimumCrossMean * count && across >= policy.minimumRelative * Math.max(before, after)
+    }
+    const details = (a: number, b: number, from: number) => {
+      const padding = Math.min(a, acrossSize - b, Math.ceil(segment / 2))
+      return [a, b].map(edge => vertical
+        ? { x: (edge - padding) / width, y: from / height, width: 2 * padding / width, height: segment / height }
+        : { x: from / width, y: (edge - padding) / height, width: segment / width, height: 2 * padding / height })
+    }
+    const detect = (edge: number, from: number) => {
+      for (let line = edge - search; line <= edge + search; line++) if (strongLine(line, from, from + segment)) return true
+      return false
+    }
+    const directionStart = Math.max(0, start), directionEnd = Math.min(alongSize, end)
+    const isolatedDetail = (line: number, first: number, last: number, span: number, padding: number) => {
+      const crossStart = Math.max(0, line - 2 * span), crossEnd = Math.min(acrossSize, line + 2 * span)
+      const alongStart = Math.max(0, first - padding), alongEnd = Math.min(alongSize, last + span + padding)
+      return [vertical
+        ? { x: crossStart / width, y: alongStart / height, width: (crossEnd - crossStart) / width, height: (alongEnd - alongStart) / height }
+        : { x: alongStart / width, y: crossStart / height, width: (alongEnd - alongStart) / width, height: (crossEnd - crossStart) / height }]
+    }
+    if (mode === 'fragmented') {
+      const fragment = Math.max(16, Math.floor(segment / 4)), step = Math.floor(fragment / 4), radius = 4
+      const acrossDrift = Math.ceil(acrossSize * retryEdgeDrift), alongDrift = Math.ceil(alongSize * retryEdgeDrift)
+      const from = Math.max(0, directionStart - alongDrift), to = Math.min(alongSize, directionEnd + alongDrift)
+      const exterior = [{ from: from - fragment, to: from }, { from: to, to: to + fragment }]
+        .filter(span => span.from >= 0 && span.to <= alongSize)
+      if (!exterior.length) return []
+      let nearest: { line: number; first: number; last: number; distance: number } | undefined
+      // The boundary can blend between interrupted objects. Require separated fragments on one line and prefer evidence nearer a predicted frame corner.
+      for (const edge of [first, second]) for (let line = Math.max(4 * radius, edge - acrossDrift); line <= Math.min(acrossSize - 4 * radius - 1, edge + acrossDrift); line++) {
+        if (exterior.some(span => strongLine(line, span.from, span.to, radius))) continue
+        let firstHit: number | undefined, gap = false
+        for (let begin = from; begin + fragment <= to; begin += step) {
+          if (!strongLine(line, begin, begin + fragment, radius)) {
+            if (firstHit !== undefined && begin - firstHit >= fragment) gap = true
+            continue
+          }
+          if (firstHit === undefined || begin - firstHit > segment) { firstHit = begin; gap = false; continue }
+          if (!gap || begin - firstHit < 2 * fragment) continue
+          const distance = Math.abs(line - edge) + Math.min(Math.abs(firstHit - directionStart), Math.abs(begin + fragment - directionEnd))
+          if (!nearest || distance < nearest.distance) nearest = { line, first: firstHit, last: begin, distance }
+          firstHit = begin
+          gap = false
+        }
+      }
+      return nearest ? isolatedDetail(nearest.line, nearest.first, nearest.last, fragment, step) : []
+    }
+    if (mode === 'isolated') {
+      const step = Math.floor(segment / 2)
+      const exterior = [{ from: Math.max(0, directionStart - segment), to: directionStart }, { from: directionEnd, to: Math.min(alongSize, directionEnd + segment) }]
+        .filter(({ from, to }) => to - from >= step)
+      const fullSpan = (screen === 'positioned-edge-v3' || screen === 'positioned-edge-v4') && directionStart < step && alongSize - directionEnd < step
+      if (!fullSpan && !exterior.length) return []
+      // The crop proves no defect by itself. A full-span cut has no exterior at either end to sample.
+      for (const edge of [first, second]) for (let line = Math.max(8, edge - search); line <= Math.min(acrossSize - 9, edge + search); line++) {
+        if (exterior.some(({ from, to }) => strongLine(line, from, to))) continue
+        let firstHit: number | undefined
+        for (let from = directionStart; from + segment <= directionEnd; from += step) {
+          if (!strongLine(line, from, from + segment)) continue
+          if (firstHit === undefined || !fullSpan && from - firstHit > 2 * segment) { firstHit = from; continue }
+          if (from - firstHit < segment) continue
+          return isolatedDetail(line, firstHit, from, segment, step)
+        }
+      }
+      return []
+    }
+    if (mode === 'repeated') {
+      // A retry can move both hard edges. Require matching nonoverlapping segments on the same two lines.
+      const starts: number[] = []
+      for (let from = directionStart; from + segment <= directionEnd; from += segment) starts.push(from)
+      if (starts.length < 2) return []
+      const matches = (edge: number) => {
+        const lines: { line: number; spans: number[] }[] = []
+        for (let line = Math.max(8, edge - search); line <= Math.min(acrossSize - 9, edge + search); line++) {
+          const spans = starts.filter(from => strongLine(line, from, from + segment))
+          if (spans.length >= 2) lines.push({ line, spans })
+        }
+        return lines
+      }
+      const outside = Math.ceil(alongSize * retryEdgeDrift)
+      const before = directionStart - outside, after = directionEnd + outside
+      const firstLines = matches(first)
+      if (!firstLines.length) return []
+      const secondLines = matches(second)
+      for (const a of firstLines) for (const b of secondLines) {
+        const [from, next] = a.spans.filter(start => b.spans.includes(start))
+        if (from === undefined || next === undefined) continue
+        // A pair continuing through both sides of the artifact bounds is consistent with full-width bands.
+        if (before >= 16 && alongSize - after >= 16 &&
+          [a.line, b.line].every(line => strongLine(line, Math.max(0, before - segment), before) && strongLine(line, after, Math.min(alongSize, after + segment)))) continue
+        return details(a.line, b.line, from)
+      }
+      return []
+    }
+    for (let from = directionStart; from + segment <= directionEnd; from += Math.floor(segment / 2)) {
+      if (detect(first, from) && detect(second, from)) return details(first, second, from)
+    }
+    return []
+  }
+  const check = (left: number, top: number, right: number, bottom: number, mode: 'paired' | 'repeated' | 'isolated' | 'fragmented') => {
+    const vertical = inspect(true, left, right, top, bottom, mode)
+    return vertical.length ? vertical : inspect(false, top, bottom, left, right, mode)
+  }
+  if (previousArtifact) {
+    const repeated = check(Math.round(previousArtifact.x * width), Math.round(previousArtifact.y * height), Math.round((previousArtifact.x + previousArtifact.width) * width), Math.round((previousArtifact.y + previousArtifact.height) * height), 'repeated')
+    if (repeated.length) return repeated
+  }
+  if (!target) return []
+  const box = [Math.round(target.left * x), Math.round(target.top * y), Math.round((target.left + target.width) * x), Math.round((target.top + target.height) * y)] as const
+  const paired = check(...box, 'paired')
+  if (paired.length || screen === 'positioned-edge-pair-v1') return paired
+  const isolated = check(...box, 'isolated')
+  return isolated.length || screen !== 'positioned-edge-v4' ? isolated : check(...box, 'fragmented')
 }
 
 /** Produce separate annotations and a simulated lock screen; clean output bytes remain unchanged.

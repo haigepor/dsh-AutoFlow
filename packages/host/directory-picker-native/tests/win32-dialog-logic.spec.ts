@@ -6,8 +6,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import {
-  FOS_FORCEFILESYSTEM, FOS_NOCHANGEDIR, FOS_PICKFOLDERS, HRESULT_CANCELLED,
-  runFolderDialog, runImageDialog, runReferenceDialog, type Win32DialogBindings, type Win32FolderDialog,
+  FOS_ALLOWMULTISELECT, FOS_FORCEFILESYSTEM, FOS_NOCHANGEDIR, FOS_PICKFOLDERS, HRESULT_CANCELLED,
+  runFolderDialog, runFoldersDialog, runImageDialog, runReferenceDialog, type Win32DialogBindings, type Win32FolderDialog,
 } from '../src/win32-dialog-logic.ts'
 
 const E_FAIL = 0x80004005 | 0
@@ -122,6 +122,15 @@ describe('runFolderDialog', () => {
     expect(dialog.release).toHaveBeenCalledOnce()
     expect(uninitialize).toHaveBeenCalledOnce()
   })
+})
+
+it('reads all folders from a folder-only multiple selection without applying image filters', () => {
+  const paths = ['C:\\图库\\第一批', 'C:\\图库\\第二批']
+  const { bindings, dialog } = world({ resultPaths: vi.fn(() => ({ hr: 0, paths })) })
+  expect(runFoldersDialog(bindings, '选择文件夹', vi.fn())).toEqual(paths)
+  expect(dialog.setOptions).toHaveBeenCalledWith(FOS_PICKFOLDERS | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR)
+  expect(dialog.setImageFilter).not.toHaveBeenCalled()
+  expect(dialog.resultPath).not.toHaveBeenCalled()
 })
 
 describe('runImageDialog', () => {

@@ -86,3 +86,16 @@ test('background cancellation terminates active worker work and leaves the share
   assert.equal(recovered.outputWidth, 200); assert.equal(recovered.outputHeight, 200)
   assert.deepEqual(bytes, before)
 })
+
+test('background super-resolution rejects hidden RGB in transparent areas and accepts an opaque RGBA canvas', async () => {
+  const width = 100, height = 100
+  const pixels = Buffer.alloc(width * height * 4)
+  for (let i = 0; i < pixels.length; i += 4) pixels.set([80, 170, 35, 255], i)
+  pixels.set([0, 0, 0, 0, 15, 240, 35, 0], 0)
+  const encode = () => sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer()
+  const input = { width: 200, height: 200, maxPixels: 100000, policy: backgroundResolutionSettingsSchema.parse({ version: 'espcn-background-v1' }) }
+  await assert.rejects(superResolveWallpaperBackground({ ...input, bytes: await encode() }, new AbortController().signal), { code: 'background-resolution-transparent-input' })
+  pixels[3] = pixels[7] = 255
+  const result = await superResolveWallpaperBackground({ ...input, bytes: await encode() }, new AbortController().signal)
+  assert.equal((await sharp(result.bytes).stats()).isOpaque, true)
+})

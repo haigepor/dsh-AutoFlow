@@ -59,6 +59,37 @@ test('local references retain original paths without writing image copies and re
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('a multi-folder import stages distinct supported images above the processing batch size', async () => {
+  let selection: string[] | null = null
+  const f = await serviceFixture(undefined, { maxImportFiles: 3, maxLocalReferenceFiles: 2 }, { pickLocalPaths: async kind => {
+    assert.equal(kind, 'folders')
+    return selection
+  } })
+  await f.service.initialize()
+  try {
+    const first = join(f.root, '第一批'), nested = join(first, '子目录'), second = join(f.root, '第二批')
+    await mkdir(nested, { recursive: true }); await mkdir(second)
+    const originals = [join(first, 'photo.PNG'), join(nested, 'photo.PNG'), join(second, '另一张.webp')]
+    for (const path of originals) await writeFile(path, f.http.image)
+    await writeFile(join(first, 'notes.txt'), 'notes', 'utf8')
+    await writeFile(join(second, 'thumbnail.gif'), f.http.image)
+    const args = { kind: 'folders', title: 'Select folders' }
+    assert.deepEqual(await f.action('local-reference-pick', args), { files: [], cancelled: true })
+    selection = [first, nested, second]
+    assert.deepEqual(await f.action('local-reference-pick', args), {
+      files: originals.map(path => ({ path, name: path === originals[2] ? '另一张.webp' : 'photo.PNG', size: f.http.image.length, readable: true })),
+      cancelled: false,
+    })
+    const fourth = join(second, 'fourth.jpg')
+    await writeFile(fourth, f.http.image)
+    const picked = await f.action('local-reference-pick', args)
+    assert.ok(picked && typeof picked === 'object' && !Array.isArray(picked) && Array.isArray(picked.files))
+    assert.equal(picked.files.length, 4)
+    assert.ok(picked.files.some(file => file && typeof file === 'object' && !Array.isArray(file) && file.path === fourth))
+    assert.equal(f.repository.list('asset').length, 0)
+  } finally { await f.cleanup() }
+})
+
 test('folder references analyze from original paths and create no private image blobs', async () => {
   const f = await serviceFixture(undefined, { maxImportFiles: 1 }); await f.service.initialize()
   const store = createCuratorStore({ invoke: f.action })

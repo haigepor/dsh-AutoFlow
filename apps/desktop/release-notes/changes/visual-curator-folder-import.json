@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-folder-import",
+  "category": "features",
+  "text": {
+    "en": "Visual Curator accepts images from multiple local folders and their subfolders. Add more images or folders in the import dialog, then save to queue large selections as numbered batches.",
+    "zh-CN": "视觉策展支持选择多个本地文件夹及其子文件夹，并可在导入弹窗继续追加。确认保存后，大量原图会分批排队处理。"
+  }
+}

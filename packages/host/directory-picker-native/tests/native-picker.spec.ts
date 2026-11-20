@@ -22,7 +22,7 @@ vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
-import { pickNativeDirectory, pickNativeImages, pickNativeReferences, type DirectoryPickerRunner } from '../src/native-picker.ts'
+import { pickNativeDirectories, pickNativeDirectory, pickNativeImages, pickNativeReferences, type DirectoryPickerRunner } from '../src/native-picker.ts'
 
 function failure(code: string | number, stderr = ''): Error {
   return Object.assign(new Error(`command failed: ${String(code)}`), { code, stderr })
@@ -49,6 +49,31 @@ describe('combined reference picker', () => {
     const run = vi.fn<DirectoryPickerRunner>().mockResolvedValueOnce({ stdout: 'folder\n', stderr: '' }).mockResolvedValueOnce({ stdout: '/photos\n', stderr: '' })
     await expect(pickNativeReferences(signal(), labels, { platform: 'linux', run })).resolves.toEqual(['/photos'])
     expect(run.mock.calls[1]?.[1]).toContain('--directory')
+  })
+})
+
+describe('native multi-folder picker', () => {
+  it('passes through Win32 folders and does not open another chooser on cancel', async () => {
+    const pickWin32FoldersDialog = vi.fn<(signal: AbortSignal, title: string) => Promise<string[] | null>>()
+      .mockResolvedValueOnce(['C:\\图库\\第一批', 'C:\\图库\\第二批']).mockResolvedValueOnce(null)
+    const internals = { platform: 'win32' as const, pickWin32FoldersDialog }
+    await expect(pickNativeDirectories(signal(), '选择文件夹', internals)).resolves.toEqual(['C:\\图库\\第一批', 'C:\\图库\\第二批'])
+    await expect(pickNativeDirectories(signal(), '选择文件夹', internals)).resolves.toBeNull()
+    expect(pickWin32FoldersDialog).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the macOS multi-folder panel mode and preserves Unicode paths', async () => {
+    const run = vi.fn<DirectoryPickerRunner>(async () => ({ stdout: '["/Photos/第一批","/Photos/第二批"]', stderr: '' }))
+    await expect(pickNativeDirectories(signal(), '选择文件夹', { platform: 'darwin', run })).resolves.toEqual(['/Photos/第一批', '/Photos/第二批'])
+    expect(run.mock.calls[0]?.[1].slice(-2)).toEqual(['选择文件夹', 'folders'])
+  })
+
+  it('uses Linux directory multiselect and treats native dismissal as cancellation', async () => {
+    const run = vi.fn<DirectoryPickerRunner>().mockResolvedValueOnce({ stdout: '/photos/one\n/photos/two\n', stderr: '' }).mockRejectedValueOnce(failure(1))
+    const internals = { platform: 'linux' as const, run }
+    await expect(pickNativeDirectories(signal(), 'Folders', internals)).resolves.toEqual(['/photos/one', '/photos/two'])
+    expect(run).toHaveBeenNthCalledWith(1, 'zenity', ['--file-selection', '--directory', '--multiple', '--separator=\n', '--title=Folders'], expect.any(AbortSignal), 'hidden')
+    await expect(pickNativeDirectories(signal(), 'Folders', internals)).resolves.toBeNull()
   })
 })
 

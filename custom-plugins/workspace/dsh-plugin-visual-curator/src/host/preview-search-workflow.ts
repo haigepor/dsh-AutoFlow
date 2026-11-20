@@ -16,6 +16,7 @@ import { chooseSearchQuery } from './search-query-plan.ts'
 import { searchExclusionsSchema, searchExclusionReasonSchema, sourceExclusion, exclusionCounts } from './search-exclusions.ts'
 import { createScreenedSearchWorker } from './search-screening.ts'
 import { createSearchCheckpointWriter, removeUncommittedSearchImports } from './search-checkpoint.ts'
+import { createSearchPreviewPixels } from './search-preview-pixels.ts'
 
 const stateSchema = z.strictObject({
   nextQuery: z.number().int().nonnegative(),
@@ -32,6 +33,7 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
     const input = z.object({ queries: z.array(z.string().min(1)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)
     const standard = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
     const source = await deps.source(ctx.spec.config), vision = await deps.vision(ctx.spec.config), owner = sourceIdentity(ctx.spec.config), actor = runActor(ctx)
+    const previewPixels = ctx.spec.fixed.previewPixelIdentity === 1 ? createSearchPreviewPixels(deps, ctx) : undefined
     const state = stateSchema.parse(dataOf(ctx.current()).checkpoint.previewSearch ?? { nextQuery: 0, pages: input.queries.map(() => ({ cursor: null, seenCursors: [], ids: [], offset: 0, exhausted: false })), seenIds: [], importedImages: {}, issues: [], failedQueries: 0 })
     const exclusions = ctx.spec.fixed.searchExclusions === undefined ? undefined : searchExclusionsSchema.parse(ctx.spec.fixed.searchExclusions)
     if (exclusions && !state.excluded) state.excluded = {}
@@ -107,14 +109,18 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
           }
           const image = deps.domain.authorizedImage(imageId, actor).image
           const previous = deps.domain.repository.list('assessment').find(item => item.runId === ctx.runId && item.imageVersionId === image.id && item.stage === 'final')
-          const assessment = previous ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, image, standard, 'final')).assessment
+          const subject = previous ? undefined : await previewPixels?.subject(image)
+          if (!previous && previewPixels && !subject) return
+          const assessment = previous ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision, ...(subject ? { subject } : {}) }, ctx, image, standard, 'final')).assessment
           if (!previous) await save([assessment])
           return { imageId: image.id, assessment }
         } catch (error) {
-          if (ctx.signal.aborted || error instanceof CuratorError && ['budget-exhausted', 'storage-commit-failed', 'owner-denied'].includes(error.code)) throw error
-          const issue: SearchIssue = { candidateId: photoId, stage: imageId ? 'final' : 'lookup', category: 'technical', code: safeFailure(error).code, ...(imageId ? { imageVersionId: imageId } : {}) }
+          const failure = safeFailure(error)
+          const fatal = ['budget-exhausted', 'storage-commit-failed', 'owner-denied'].includes(failure.code)
+          if (ctx.signal.aborted || (previewPixels || error instanceof CuratorError) && fatal || previewPixels && failure.code === 'reference-unavailable') throw error
+          const issue: SearchIssue = { candidateId: photoId, stage: imageId ? 'final' : 'lookup', category: 'technical', code: failure.code, ...(imageId ? { imageVersionId: imageId } : {}) }
           state.issues.push(issue)
-          if (imageId) await save([assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: imageId, runId: ctx.runId, stage: 'final', standard: { kind: standard.kind, id: standard.id, contentDigest: standard.contentDigest }, recipeId: standard.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: {}, data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })])
+          if (imageId) await save([assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: imageId, runId: ctx.runId, stage: 'final', standard: { kind: standard.kind, id: standard.id, contentDigest: standard.contentDigest }, recipeId: standard.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: {}, data: toJson({ error: failure, reviewQueueReasons: ['technical-failure'] }) })])
         }
       }))
       ctx.signal.throwIfAborted()
@@ -125,6 +131,7 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
         if (result.status !== 'fulfilled' || !result.value) continue
         const { assessment, imageId } = result.value
         if (assessment.verdict !== 'pass' || assessment.technicalStatus !== 'completed' || selected.has(imageId)) continue
+        if (previewPixels && !previewPixels.admit(imageId)) continue
         selected.add(imageId)
         records.push(selectionSchema.parse({ schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString(), kind: 'selection', id: `selection-${contentDigest({ runId: ctx.runId, imageId, output: 'preview' }).slice(10, 50)}`, runId: ctx.runId, imageVersionId: imageId, assessmentId: assessment.id, qualification: 'auto-qualified', rank: rank++, warnings: [] }))
       }

@@ -50,6 +50,44 @@ test('last shared vision reservation cannot be spent twice; retries spend again'
   assert.equal(attempts.filter(a => a.status === 'fulfilled').length, 1)
   assert.equal(ledger.snapshot().vision, 1)
 })
+
+test('local crop batches start in order after a slot opens and start their budget at dispatch', async context => {
+  const f = progressFixture(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), tail = Promise.withResolvers<void>()
+  const config = resolveConfig({ limits: { deadlineMs: 10_000 } })
+  let now = Date.now()
+  context.mock.method(Date, 'now', () => now)
+  const spec = (operationId: string): ExecutionSpec => ({
+    kind: 'crop', config, input: { workflow: 'wallpaper-direct-v1', sourceRunId: f.engine.operationRunId(operationId, f.actor) },
+    fixed: { directCrop: { version: 'direct-crop-v1', name: operationId, origin: 'local', inputDigest: operationId } },
+    specDigest: contentDigest(operationId),
+  })
+  const started: string[] = []
+  try {
+    const first = await f.engine.create(spec('first'), f.actor, async () => {
+      started.push('first'); entered.resolve(); await release.promise; return 'source-exhausted'
+    }, 'first')
+    await entered.promise
+    const second = await f.engine.create(spec('second'), f.actor, async ctx => {
+      started.push('second')
+      assert.equal(ctx.ledger.remainingTimeMs(), config.limits.deadlineMs)
+      return 'target-met'
+    }, 'second')
+    const third = await f.engine.create(spec('third'), f.actor, async () => {
+      started.push('third'); tail.resolve(); return 'target-met'
+    }, 'third')
+    assert.deepEqual([first.status, second.status, third.status], ['running', 'created', 'created'])
+    await f.engine.create({ ...f.spec, kind: 'analyze' }, f.actor, async () => { started.push('analysis'); return 'target-met' }, 'independent-analysis')
+    await f.completions[1]
+    assert.deepEqual(started, ['first', 'analysis'])
+    now += config.limits.deadlineMs + 1
+    assert.deepEqual(runContinuation({ ...second, status: 'interrupted' }, [], now), { allowed: true, reason: 'ready' })
+    release.resolve()
+    await tail.promise
+    await Promise.all(f.completions)
+    assert.deepEqual(started, ['first', 'analysis', 'second', 'third'])
+    assert.equal(f.engine.get(second.id, f.actor).outcome, 'target-met')
+  } finally { release.resolve(); await f.engine.dispose() }
+})
 test('required failures and unknown cannot be averaged away by preferred scores', () => {
   assert.equal(decideAssessment([{ strength: 'required', result: 'violated' }]), 'reject')
   assert.equal(decideAssessment([{ strength: 'required', result: 'unknown' }]), 'needs-review')

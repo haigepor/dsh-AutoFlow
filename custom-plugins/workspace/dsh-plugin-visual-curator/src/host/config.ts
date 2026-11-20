@@ -3,7 +3,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { wallpaperPromptPreparationPolicySchema } from '../shared/wallpaper-generation-brief.ts'
 import { serverQueueSettingsSchema } from '../shared/server-queue.ts'
-import { applyWallpaperEspcn, applyWallpaperRecoveryLimits, wallpaperSettingsSchema } from '../shared/wallpaper.ts'
+import { applyWallpaperEspcn, applyWallpaperRecoveryLimits, wallpaperSettingsSchema, type WallpaperSettings } from '../shared/wallpaper.ts'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
 import { defaultPreviewConcurrency, galleryCacheDefaults, previewCacheDefaults } from '../shared/gallery-cache.ts'
@@ -91,6 +91,15 @@ export const visionSettingsSchema = z.strictObject({
 export const imageSourcesSchema = z.strictObject({ apiKeys: z.array(z.strictObject({ id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/), label: z.string().trim().min(1).max(80), credentialRef: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/) })).max(20).default([]) })
 export const settingsSchema = z.strictObject({ serverQueue: serverQueueSettingsSchema.optional(), source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), imageSources: imageSourcesSchema.default(() => imageSourcesSchema.parse({})), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
 export type CuratorConfig = z.infer<typeof settingsSchema>
+
+/** @param config Saved deployment budget. @param settings Frozen edit allowance. @param images Images admitted to this wallpaper run. @returns A review budget sized for the admitted inputs and their permitted retries. */
+export function withWallpaperBatchVisionBudget(config: CuratorConfig, settings: Pick<WallpaperSettings, 'maxEditsPerImage'>, images: number): CuratorConfig {
+  if (images < 2) return config
+  // Budget a plan and source check, then native and final reviews with one boundary check each per edit.
+  const requestsPerImage = 2 + 4 * Math.max(1, settings.maxEditsPerImage)
+  const capacity = images * requestsPerImage * (1 + config.limits.maxRetryAttempts)
+  return { ...config, limits: { ...config.limits, maxVisionCalls: Math.max(config.limits.maxVisionCalls, capacity) } }
+}
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
 export const Config = Schema.object({ serverQueue: Schema.any(), source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), imageSources: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })

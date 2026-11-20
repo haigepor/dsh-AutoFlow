@@ -4,7 +4,9 @@ import { test } from 'node:test'
 import sharp from 'sharp'
 import { CompatibleVisionProvider, MediaError } from '../src/media/index.ts'
 import type { HttpClient, HttpRequest, HttpResponse, VisionConfig, VisionImage, VisionInput } from '../src/media/index.ts'
+import { decodeVisionScreening } from '../src/media/vision.ts'
 import { wallpaperSourceReviewSchema } from '../src/shared/wallpaper.ts'
+import { wallpaperPracticalReviewOutputSchema } from '../src/shared/wallpaper-practical.ts'
 
 const config: VisionConfig = { endpoint: 'https://vision.example.test/v1/chat/completions', model: 'fixture-vision', supportsMultiImage: true, maxImages: 5, maxImageBytes: 65536, maxRequestBytes: 1024 * 1024, maxOutputTokens: 2048, temperature: 0 }
 const bounds = { maxBytes: 65536, timeoutMs: 5000, maxRedirects: 0 }
@@ -113,6 +115,42 @@ test('review repair instructions retain exact fields and cannot turn malformed o
   assert.deepEqual(metadata, [{ outputRepair: input.outputRepair, inputText: descriptor.inputText, instructions: descriptor.instructions }])
 })
 
+test('an empty completed compatible wallpaper review remains uncommitted and is eligible for the saved review retry', async () => {
+  const input: VisionInput = { ...await bundle(), rules: [], images: [await image('original-pixels', 'wallpaper-original'), await image('final-pixels', 'actual-wallpaper')], wallpaperPrompt: { version: 'wallpaper-review-source-v4', text: 'Review the supplied pixels.' } }
+  for (const content of [null, undefined, '  ']) {
+    const fixture = new VisionFixture(content, true)
+    await assert.rejects(new CompatibleVisionProvider(config, fixture).wallpaper(input, 'wallpaper-review', bounds), { code: 'vision-invalid-output', retryable: true, diagnostics: { modelOutput: { rawText: content ?? '' }, issues: ['empty-model-output'] } })
+    assert.equal(fixture.requests.length, 1)
+  }
+  await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(null, true, 'content_filter')).wallpaper(input, 'wallpaper-review', bounds), { code: 'vision-invalid-output', retryable: false })
+  await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(null, true, 'length')).wallpaper(input, 'wallpaper-review', bounds), { code: 'vision-output-truncated', retryable: false })
+})
+
+test('compact repair guides exact frozen coverage without turning a missing entity into an accepted rectangle', async () => {
+  const primary = { entityId: 'arch', name: 'Stone arch', role: 'primary' as const }
+  const schema = wallpaperPracticalReviewOutputSchema('original-pixels', 'final-pixels', [primary], 'single', true)
+  const input: VisionInput = { ...await bundle(), rules: [], images: [await image('original-pixels', 'wallpaper-original'), await image('final-pixels', 'actual-wallpaper')], wallpaperPrompt: { version: 'wallpaper-review-source-v4', text: 'Review the supplied pixels.' }, wallpaperReviewProtocol: 'practical-v2', wallpaperOutputSchema: schema }
+  const observed = { result: 'satisfied', reason: 'Preserved.' }
+  const raw = { reviewVersion: 'wallpaper-review-source-v4', protocol: 'practical-v2', sourceImageVersionId: 'original-pixels', outputImageVersionId: 'final-pixels', mode: 'single', subject: 'Stone arch', actualLayout: { regions: [] }, defects: [], uncertainties: [], sourcePreservation: [], sourceStyle: observed }
+  let issues: readonly string[] = []
+  const provider = new CompatibleVisionProvider(config, new VisionFixture(raw))
+  await assert.rejects(provider.wallpaper(input, 'wallpaper-review', bounds), error => {
+    assert.ok(error instanceof MediaError)
+    assert.equal(error.retryable, true)
+    assert.deepEqual(error.diagnostics?.modelOutput, raw)
+    issues = error.diagnostics?.issues ?? []
+    assert.ok(issues.some(issue => issue.includes('sourcePreservation')))
+    return true
+  })
+  const retry = { ...input, outputRepair: { requestId: 'prior-review', issues } }
+  const descriptor = JSON.parse(provider.describeRequest(retry, 'wallpaper-review').inputText)
+  assert.deepEqual(descriptor.outputRepair.issues, issues)
+  assert.match(descriptor.outputRepair.instruction, /visible frozen primary exactly once as subject\/core/)
+  assert.match(descriptor.outputRepair.instruction, /absent:true and no output rectangle/)
+  assert.match(descriptor.outputRepair.instruction, /do not omit an entity or invent measurements/)
+  await assert.rejects(provider.wallpaper(retry, 'wallpaper-review', bounds), hasCode('vision-invalid-output'))
+})
+
 test('screening requires exactly one conservative decision per candidate and never accepts final qualification fields', async () => {
   const input = await bundle(), images = input.images.map(image => ({ ...image, role: 'screening-candidate' }))
   const rows = images.map(image => ({ imageVersionId: image.imageVersionId, decision: 'uncertain', reason: 'The thumbnail does not resolve this detail.' }))
@@ -126,6 +164,47 @@ test('screening requires exactly one conservative decision per candidate and nev
   for (const invalid of [{ items: rows.slice(0, 1) }, { items: [rows[0], rows[0]] }, { items: [rows[0], { ...rows[1], imageVersionId: 'foreign' }] }, { items: rows.map(row => ({ ...row, decision: 'pass' })) }, { items: rows, qualified: true }]) {
     await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(invalid)).screen({ ...input, images }, bounds), hasCode('vision-invalid-output'))
   }
+})
+
+test('versioned screening requires visible candidate evidence of a shared violation or a violation in every enabled alternative', async () => {
+  const original = await bundle()
+  const images = original.images.map(image => ({ ...image, role: 'screening-candidate' }))
+  const policy = { sharedRequiredRuleIds: ['subject'], alternativeGroups: [{ groupId: 'road', requiredRuleIds: ['road-scene'] }, { groupId: 'forest', requiredRuleIds: ['forest-scene'] }] }
+  const input: VisionInput = { ...original, images, rules: [...original.rules, ...['road-scene', 'forest-scene'].map(ruleId => ({ ruleId, statement: 'The specified scene is visible.', dimension: 'composition', strength: 'required' as const, stage: 'source' as const })), { ruleId: 'lighting', statement: 'Prefer soft light.', dimension: 'lighting', strength: 'preferred', stage: 'source' }], screeningPolicy: policy }
+  const candidate = { imageVersionId: 'subject-1', decision: 'obvious-reject', reason: 'The thumbnail violates a rule.' }
+  const next = { imageVersionId: 'reference-1', decision: 'deep-review', reason: 'More detail is needed.', requiredViolations: [] }
+  const evidence = (ruleId: string) => ({ ruleId, evidenceImageVersionId: candidate.imageVersionId, visibility: 'visible', observation: 'The building fills the frame, with no discernible intended subject.' })
+  const ids = [candidate.imageVersionId, next.imageVersionId]
+
+  const accepted = { items: [next, { ...candidate, requiredViolations: [evidence('subject')] }] }
+  const provider = new CompatibleVisionProvider(config, new VisionFixture(accepted))
+  const descriptor = provider.describeRequest(input, 'screen')
+  assert.equal(descriptor.promptVersion, 'visual-curator-screening-v2')
+  const payload = JSON.parse(descriptor.inputText)
+  assert.deepEqual(payload.input.screeningPolicy, policy)
+  assert.ok(payload.outputSchema.properties.items.items.required.includes('requiredViolations'))
+  assert.match(descriptor.instructions, /defer its other requirements/)
+  const output = await provider.screen(input, bounds)
+  assert.deepEqual(output.items, [accepted.items[1], next])
+  assert.deepEqual(decodeVisionScreening(output, ids, policy), output)
+
+  const alternative = { items: [{ ...candidate, requiredViolations: [evidence('road-scene'), evidence('forest-scene')] }, next] }
+  assert.equal(decodeVisionScreening(alternative, ids, policy).items[0]?.decision, 'obvious-reject')
+  const incompleteAlternatives = { ...policy, alternativeGroups: [...policy.alternativeGroups, { groupId: 'soft-only', requiredRuleIds: [] }] }
+  assert.equal(decodeVisionScreening(alternative, ids, incompleteAlternatives).items[0]?.decision, 'deep-review')
+
+  for (const unsupported of [
+    candidate,
+    { ...candidate, requiredViolations: [evidence('lighting')] },
+    { ...candidate, requiredViolations: [evidence('space')] },
+    { ...candidate, requiredViolations: [evidence('road-scene')] },
+    { ...candidate, requiredViolations: [{ ...evidence('subject'), evidenceImageVersionId: next.imageVersionId }] },
+    { ...candidate, requiredViolations: [{ ...evidence('subject'), visibility: 'unknown' }] },
+  ]) {
+    const reviewed = await new CompatibleVisionProvider(config, new VisionFixture({ items: [unsupported, next] })).screen(input, bounds)
+    assert.equal(reviewed.items[0]?.decision, 'deep-review')
+  }
+  assert.equal(decodeVisionScreening({ items: [candidate, { imageVersionId: next.imageVersionId, decision: next.decision, reason: next.reason }] }, ids).items[0]?.decision, 'obvious-reject')
 })
 
 test('v3 requires candidate-grounded subject evidence while frozen legacy review schemas remain unchanged', async () => {

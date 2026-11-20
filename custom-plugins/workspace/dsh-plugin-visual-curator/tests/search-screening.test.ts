@@ -27,22 +27,24 @@ const profile = modelProfileSchema.parse({ ...base, id: 'profile', kind: 'modelP
 const requestSchema = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ type: z.string(), text: z.string().optional(), image_url: z.object({ url: z.string() }).optional() }))]) })) })
 const payloadSchema = z.object({ input: z.object({ operation: z.string(), stage: z.string().optional(), requestId: z.string(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
 
-async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; overlapScreening?: boolean; restrictedOriginals?: boolean; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null }; media?(id: string, signal: AbortSignal | undefined): Promise<void> } = {}) {
+async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; defaultLimits?: boolean; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; pauseReview?: boolean; overlapScreening?: boolean; restrictedOriginals?: boolean; originalUrl?(id: string): string; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null }; media?(id: string, signal: AbortSignal | undefined): Promise<void>; previews?: ReadonlyMap<string, Buffer>; violations?(index: number, imageVersionId: string): { ruleId: string; evidenceImageVersionId: string; visibility: 'visible' | 'unknown'; observation: string }[] } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'visual-screening-'))
   const repository = new DomainRepository(base.profileId, new MemoryDomainAdapter()), domain = new CuratorDomain(base.profileId, repository)
   const jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
-  const config = resolveConfig({ source: { provider: 'unsplash' }, limits: { maxConcurrentRequests: 3, maxSearchPages: 12, maxCandidates: 300, maxVisionCalls: options.maxVisionCalls ?? 60, maxDownloadBytes: 50_000_000, maxRetryAttempts: options.retryAttempts ?? 0, retryDelayMs: 0, pageSize: 30 } })
+  const config = resolveConfig({ source: { provider: 'unsplash' }, ...(options.defaultLimits ? {} : {
+    limits: { maxConcurrentRequests: 3, maxSearchPages: 12, maxCandidates: 300, maxVisionCalls: options.maxVisionCalls ?? 60, maxDownloadBytes: 50_000_000, maxRetryAttempts: options.retryAttempts ?? 0, retryDelayMs: 0, pageSize: 30 },
+  }) })
   const files = new AssetFiles(root, { maxFileBytes: 1_000_000, maxPixels: 3_000_000, maxDimension: 2000, previewMaxDimension: 200, maxStorageBytes: 10_000_000 })
   const count = options.count ?? 12, ids = Array.from({ length: count }, (_, index) => `photo-${index}`)
   const green = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#00dd00' } }).png().toBuffer()
   const red = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#dd0000' } }).png().toBuffer()
   const blue = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#0000dd' } }).png().toBuffer()
   const pixels = (id: string) => ({ green, red, blue })[options.color?.(id) ?? (!options.allReject && id === ids.at(-1) ? 'green' : !options.allReject && id === ids.at(-2) ? 'blue' : 'red')]
-  const item = (id: string) => ({ providerAssetId: id, width: 1200, height: 800, previewUrl: `https://images.unsplash.com/${id}/regular`, thumbnailUrl: `https://images.unsplash.com/${id}/small`, ...(options.restrictedOriginals ? { originalUnavailable: 'restricted' as const } : { originalUrl: `https://images.unsplash.com/${id}/original` }) })
+  const item = (id: string) => ({ providerAssetId: id, width: 1200, height: 800, previewUrl: `https://images.unsplash.com/${id}/regular`, thumbnailUrl: `https://images.unsplash.com/${id}/small`, ...(options.restrictedOriginals ? { originalUnavailable: 'restricted' as const } : { originalUrl: options.originalUrl?.(id) ?? `https://images.unsplash.com/${id}/original` }) })
   const sourcePages: number[] = [], mediaRequests: string[] = [], calls: { operation: string; imageIds: string[]; requestId: string; screeningDecisions?: string[] }[] = []
-  const sourceQueries: { query: string; page: number }[] = []
-  let active = 0, peak = 0, failCheckpoint = false, pauseScreen = options.pauseScreen === true
-  const screeningEntered = Promise.withResolvers<void>()
+  const sourceQueries: { query: string; page: number }[] = [], sourceLookups: string[] = []
+  let active = 0, peak = 0, failCheckpoint = false, pauseScreen = options.pauseScreen === true, pauseReview = options.pauseReview === true
+  const screeningEntered = Promise.withResolvers<void>(), reviewEntered = Promise.withResolvers<void>()
   const screeningOverlap = Promise.withResolvers<void>()
   let screeningArrivals = 0, overlapDeadline: ReturnType<typeof setTimeout> | undefined
   const originalCommit = repository.commit.bind(repository)
@@ -60,7 +62,7 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
       const id = new URL(url).pathname.split('/')[1]!
       await options.media?.(id, request.signal)
       request.signal?.throwIfAborted()
-      return { status: 200, headers: { 'content-type': 'image/png' }, bytes: pixels(id) }
+      return { status: 200, headers: { 'content-type': 'image/png' }, bytes: (url.endsWith('/regular') ? options.previews?.get(id) : undefined) ?? pixels(id) }
     }
     const messages = requestSchema.parse(JSON.parse(Buffer.from(request.body ?? []).toString('utf8'))).messages
     const content = messages.find(message => message.role === 'user')!.content
@@ -91,10 +93,15 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
           return stats.channels[0]!.mean > 150 ? 'obvious-reject' : stats.channels[2]!.mean > 150 ? 'uncertain' : 'deep-review'
         }))
         call.screeningDecisions = colors
-        result = { items: input.images.map((image, index) => ({ imageVersionId: image.imageVersionId, decision: colors[index], reason: 'Decision from the candidate thumbnail pixels.' })) }
+        result = { items: input.images.map((image, index) => ({ imageVersionId: image.imageVersionId, decision: colors[index], reason: 'Decision from the candidate thumbnail pixels.', ...(options.violations ? { requiredViolations: options.violations(index, image.imageVersionId) } : {}) })) }
         if (options.malformed) result = { items: [] }
       } finally { active-- }
     } else {
+      reviewEntered.resolve()
+      if (pauseReview) await new Promise<void>((_resolve, reject) => {
+        if (request.signal?.aborted) reject(request.signal.reason)
+        else request.signal?.addEventListener('abort', () => reject(request.signal!.reason), { once: true })
+      })
       const sourceUrl = imageUrls[0]!
       const bytes = sourceUrl.startsWith('data:') ? Buffer.from(sourceUrl.split(',')[1]!, 'base64') : pixels(new URL(sourceUrl).pathname.split('/')[1]!)
       const stats = await sharp(bytes).stats(), good = !options.rejectFinal && stats.channels[1]!.mean > 150
@@ -103,17 +110,94 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] })) }
   } }
   const vision = new CompatibleVisionProvider({ endpoint: 'https://vision.example.test/chat', model: 'fixture', supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 3000, temperature: 0 }, http)
-  const source = { config: { lookup: { endpoint: 'https://source.example.test/lookup', method: 'GET' as const, idField: 'id', response: { id: '/id', previewUrl: '/preview' } } }, async lookup(id: string) { return item(id) }, async search(query: SourceQuery, cursor: string | null) {
+  const source = { config: { lookup: { endpoint: 'https://source.example.test/lookup', method: 'GET' as const, idField: 'id', response: { id: '/id', previewUrl: '/preview' } } }, async lookup(id: string) { sourceLookups.push(id); return item(id) }, async search(query: SourceQuery, cursor: string | null) {
     const page = Number(cursor ?? 0); sourcePages.push(page); sourceQueries.push({ query: query.query, page })
-    const found = options.page?.(query.query, page) ?? { ids: ids.slice(page * 30, page * 30 + 30), nextCursor: (page + 1) * 30 < ids.length ? String(page + 1) : null }
+    const end = (page + 1) * query.pageSize
+    const found = options.page?.(query.query, page) ?? { ids: ids.slice(page * query.pageSize, end), nextCursor: end < ids.length ? String(page + 1) : null }
     return { items: [...(options.duplicatePages && page > 0 ? [item(ids[0]!)] : []), ...found.ids.map(item)], nextCursor: found.nextCursor }
   } }
   const worker = createSearchWorker({ domain, files, source: async () => source, media: () => http, vision: async () => vision, crop: async () => { throw new Error('This fixture does not crop') } })
   const actor = { kind: 'human' as const, id: 'owner', profileId: base.profileId }
   await repository.commit({ aggregateId: 'fixture', expectedRevision: 0, operationId: 'seed', request: {}, records: [styleSchema.parse({ ...base, id: 'style', kind: 'style', name: 'Green', archived: false, draftId: 'draft', revision: 1, committedReleaseIds: [], defaultReleaseId: null, nextReleaseNumber: 1 }), draftSchema.parse({ ...base, id: 'draft', kind: 'draft', styleId: 'style', revision: 1, status: 'editing', rules: [], referenceIds: [], feedbackIds: [], conflicts: [] }), profile], state: {} })
   const spec: ExecutionSpec = { kind: 'search', config, input: { taskBrief: 'Find green color samples.', queries: options.queries ?? ['color samples'], targetCount: options.target ?? 1 }, fixed: { release: toJson(profile), output: { kind: options.output ?? 'preview' }, executionRecipe: toJson(recipe), searchScreening: { version: 1, candidatePoolSize: options.pool ?? 50, batchSize: 6, maxScreeningImageEdge: 384 } }, specDigest: 'fixture' }
-  return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, mediaRequests, screeningEntered: screeningEntered.promise, allowScreening() { pauseScreen = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { clearTimeout(overlapDeadline); screeningOverlap.resolve(); await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
+  return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, sourceLookups, mediaRequests, screeningEntered: screeningEntered.promise, reviewEntered: reviewEntered.promise, allowScreening() { pauseScreen = false }, allowReview() { pauseReview = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { clearTimeout(overlapDeadline); screeningOverlap.resolve(); await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
+
+for (const screening of [true, false]) test(`preview keeps one representative per exact pixel image ${screening ? 'with' : 'without'} screening`, async () => {
+  const rgba = Buffer.from(Array.from({ length: 12 * 8 }, () => [0, 221, 0, 255]).flat())
+  const options = { raw: { width: 12, height: 8, channels: 4 as const } }
+  const first = await sharp(rgba, options).png().toBuffer()
+  const alias = await sharp(rgba, options).removeAlpha().png({ compressionLevel: 0 }).toBuffer()
+  const changed = Buffer.from(rgba)
+  changed[0] = 1
+  const near = await sharp(changed, options).png().toBuffer()
+  assert.notDeepEqual(alias, first)
+  const f = await fixture({ count: 3, target: 3, defaultLimits: true, previews: new Map([['photo-0', first], ['photo-1', alias], ['photo-2', near]]) })
+  try {
+    f.spec.fixed.previewPixelIdentity = 1
+    if (screening) Object.assign(f.spec.fixed, { searchHardScreening: 1, searchScreeningSchedule: 1 })
+    else delete f.spec.fixed.searchScreening
+    const run = await f.run()
+    assert.equal(run.outcome, 'source-exhausted')
+    const picks = f.repository.list('selection').filter(row => row.runId === run.id).sort((a, b) => a.rank - b.rank)
+    const selected = picks.map(pick => f.domain.authorizedImage(pick.imageVersionId, f.actor).image.blob.remoteSource!.photoId)
+    assert.deepEqual(selected, ['photo-0', 'photo-2'])
+    assert.equal(dataOf(run).counts.qualified, 2)
+    assert.deepEqual(f.mediaRequests.map(url => new URL(url).pathname).sort(), ['/photo-0/regular', '/photo-1/regular', '/photo-2/regular'])
+    assert.ok(f.calls.every(call => call.operation === 'review'), 'A profile with only preferences has no usable thumbnail exclusions')
+  } finally { await f.cleanup() }
+})
+
+test('only visible evidence for an applicable hard rule can exclude a thumbnail from deep preview review', async () => {
+  const green = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#00dd00' } }).png().toBuffer()
+  const lighter = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#00de00' } }).png().toBuffer()
+  const f = await fixture({ count: 3, target: 2, defaultLimits: true, color: () => 'red', previews: new Map([['photo-1', green], ['photo-2', lighter]]),
+    violations: (index, evidenceImageVersionId) => [{ ruleId: index === 1 ? 'green' : 'hard-green', evidenceImageVersionId, visibility: index === 2 ? 'unknown' : 'visible', observation: 'Visible red area contradicts the required color.' }],
+  })
+  try {
+    const hard = { ...profile.rules[0]!, ruleId: 'hard-green', strength: 'required' as const }
+    Object.assign(f.spec.fixed, { previewPixelIdentity: 1, searchHardScreening: 1, searchScreeningSchedule: 1,
+      release: toJson(modelProfileSchema.parse({ ...profile, rules: [...profile.rules, hard], options: [...profile.options, { ...profile.options[0]!, rule: hard }] })) })
+    const run = await f.run()
+    assert.equal(run.outcome, 'target-met')
+    const decisions = searchScreeningSummary(run)!.screenedSources
+    assert.deepEqual(decisions.map(({ providerAssetId, decision }) => [providerAssetId, decision]), [['photo-0', 'obvious-reject'], ['photo-1', 'deep-review'], ['photo-2', 'deep-review']])
+    assert.equal(dataOf(run).counts.deepReviewed, 2)
+    assert.equal(dataOf(run).counts.qualified, 2)
+    assert.deepEqual(f.mediaRequests.filter(url => url.endsWith('/regular')).sort(), ['https://images.unsplash.com/photo-1/regular', 'https://images.unsplash.com/photo-2/regular'])
+  } finally { await f.cleanup() }
+})
+
+test('resumes preview review from the committed pixels without fetching the URL again', async () => {
+  const f = await fixture({ count: 1, defaultLimits: true, pauseReview: true })
+  try {
+    Object.assign(f.spec.fixed, { previewPixelIdentity: 1, searchHardScreening: 1, searchScreeningSchedule: 1 })
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'pause-preview-pixels')
+    await f.reviewEntered
+    await f.engine.control(started.id, 'pause', f.actor)
+    assert.equal(f.domain.require('run', started.id).status, 'paused')
+    f.allowReview()
+    await f.engine.control(started.id, 'resume', f.actor, f.worker); await f.jobs.drain()
+    const result = f.domain.require('run', started.id)
+    assert.equal(result.outcome, 'target-met')
+    assert.deepEqual(f.mediaRequests, ['https://images.unsplash.com/photo-0/regular'])
+    assert.equal(f.calls[0]!.requestId, f.calls[1]!.requestId)
+  } finally { f.allowReview(); await f.cleanup() }
+})
+
+test('competing preview downloads wait for the return of unused byte reservations', async () => {
+  const green = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#00dd00' } }).png().toBuffer()
+  const lighter = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#00de00' } }).png().toBuffer()
+  const f = await fixture({ count: 2, target: 2, defaultLimits: true, previews: new Map([['photo-0', green], ['photo-1', lighter]]) })
+  try {
+    Object.assign(f.spec.fixed, { previewPixelIdentity: 1, searchHardScreening: 1, searchScreeningSchedule: 1 })
+    f.spec.config.limits.maxDownloadBytes = green.length + lighter.length
+    const run = await f.run()
+    assert.equal(run.outcome, 'target-met')
+    assert.equal(dataOf(run).counts.qualified, 2)
+    assert.equal(dataOf(run).budget.downloadBytes, green.length + lighter.length)
+  } finally { await f.cleanup() }
+})
 
 test('wallpaper searches exclude restricted originals while ordinary preview searches retain their preview-only behavior', async () => {
   const f = await fixture({ count: 6, restrictedOriginals: true })
@@ -267,7 +351,7 @@ test('coarse rejections retain only source positions and never masquerade as fin
     assert.equal(f.repository.list('assessment').length, 0)
     assert.equal(f.repository.list('imageVersion').length, 0)
     assert.ok(!JSON.stringify(dataOf(run).checkpoint.searchScreening).includes('https://'))
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, [], String(f.spec.input.taskBrief))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, [], f.spec)
     assert.equal(Object.keys(policy.sources).length, 0)
     assert.equal(searchScreeningSummary({ ...run, data: {} }), undefined)
   } finally { await f.cleanup() }
@@ -305,6 +389,106 @@ test('pausing an in-flight batch preserves its pool and spent quota, then resume
     assert.equal(f.calls.filter(call => call.operation === 'screen').length, 2)
     assert.deepEqual(f.sourcePages, [0], 'The durable candidate pool is not retrieved again')
     assert.equal(f.repository.list('selection').length, 1)
+  } finally { f.allowScreening(); await f.cleanup() }
+})
+
+test('a new Unsplash search can qualify the first result before fetching another page', async () => {
+  const f = await fixture({ count: 50, defaultLimits: true, color: id => id === 'photo-0' ? 'green' : 'red' })
+  try {
+    f.spec.fixed.searchScreeningSchedule = 1
+    const run = await f.run('early-first-result')
+    assert.equal(run.outcome, 'target-met')
+    assert.deepEqual(f.sourcePages, [0])
+    assert.deepEqual(f.calls.map(call => call.operation), ['screen', 'review'])
+    assert.equal(dataOf(run).counts.screeningReviewed, 6)
+    assert.equal(dataOf(run).counts.qualified, 1)
+  } finally { await f.cleanup() }
+})
+
+test('resumes the first Unsplash batch and finishes filling its pool when more results are needed', async () => {
+  const f = await fixture({ count: 50, target: 2, defaultLimits: true, pauseScreen: true, color: id => id === 'photo-0' || id === 'photo-49' ? 'green' : 'red' })
+  try {
+    f.spec.fixed.searchScreeningSchedule = 1
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'pause-first-batch')
+    await f.screeningEntered
+    await f.engine.control(started.id, 'pause', f.actor)
+    const paused = f.domain.require('run', started.id)
+    assert.equal(paused.status, 'paused')
+    assert.equal(searchScreeningSummary(paused)!.pendingSourceIds.length, 6)
+    assert.deepEqual(dataOf(paused).checkpoint.searchSourceYields, [{ examinedPages: 0, eligibleCandidates: 0, lastPageEligible: 0, pendingEligible: 6 }])
+
+    f.allowScreening()
+    await f.engine.control(started.id, 'resume', f.actor, f.worker); await f.jobs.drain()
+    const run = f.domain.require('run', started.id)
+    assert.equal(run.outcome, 'target-met')
+    assert.deepEqual(f.sourcePages, [0, 1, 2])
+    assert.deepEqual(f.sourceLookups, [])
+    assert.equal(f.calls[0]!.requestId, f.calls[1]!.requestId)
+    assert.deepEqual(f.calls.slice(0, 3).map(call => call.operation), ['screen', 'screen', 'review'])
+    assert.equal(dataOf(run).counts.screeningReviewed, 50)
+    assert.equal(dataOf(run).counts.qualified, 2)
+    assert.deepEqual(dataOf(run).checkpoint.searchSourceYields, [{ examinedPages: 3, eligibleCandidates: 50, lastPageEligible: 10, pendingEligible: 0 }])
+  } finally { f.allowScreening(); await f.cleanup() }
+})
+
+test('a duplicate-only Unsplash page loses priority to pages with newly admitted candidates', async () => {
+  const queries = ['green subject', 'green setting']
+  const ids = Array.from({ length: 50 }, (_, index) => `photo-${index}`)
+  const f = await fixture({ count: 50, defaultLimits: true, queries, page(query, page) {
+    if (query === queries[1]) return { ids: ids.slice(0, 20), nextCursor: page === 0 ? '1' : null }
+    return { ids: ids.slice(page * 20, (page + 1) * 20), nextCursor: page < 2 ? String(page + 1) : null }
+  } })
+  try {
+    f.spec.fixed.searchScreeningSchedule = 1
+    const run = await f.run('productive-pages')
+    assert.equal(run.outcome, 'target-met')
+    assert.deepEqual(f.sourceQueries, [
+      { query: queries[0], page: 0 }, { query: queries[1], page: 0 }, { query: queries[0], page: 1 }, { query: queries[0], page: 2 },
+    ])
+    assert.deepEqual(dataOf(run).checkpoint.searchSourceYields, [
+      { examinedPages: 3, eligibleCandidates: 50, lastPageEligible: 10, pendingEligible: 0 },
+      { examinedPages: 1, eligibleCandidates: 0, lastPageEligible: 0, pendingEligible: 0 },
+    ])
+  } finally { await f.cleanup() }
+})
+
+for (const legacy of [false, true]) test(`resumes a 50-candidate Unsplash pool under default budgets ${legacy ? 'from an older checkpoint' : 'using saved public addresses'}`, async () => {
+  const f = await fixture({ count: 50, defaultLimits: true, pauseScreen: true, originalUrl: id => `https://delivery.unsplash.com/${id}?expires=2147483647&s=fixture` })
+  try {
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'pause-default-pool')
+    await f.screeningEntered
+    await f.engine.control(started.id, 'pause', f.actor)
+    const paused = f.domain.require('run', started.id)
+    assert.equal(paused.status, 'paused')
+    assert.equal(searchScreeningSummary(paused)!.pendingSourceIds.length, 50)
+    const before = dataOf(paused)
+    assert.equal(before.budget.search, 3)
+    assert.equal(f.spec.config.limits.maxSearchPages, 10)
+    const { searchUnsplashLocations, ...checkpoint } = before.checkpoint
+    assert.equal(Object.keys(z.record(z.string(), z.json()).parse(searchUnsplashLocations)).length, 50)
+    const addresses = JSON.stringify(searchUnsplashLocations)
+    assert.match(addresses, /https:\/\/images\.unsplash\.com\/photo-0\/small/)
+    assert.doesNotMatch(addresses, /delivery\.unsplash\.com|expires|fixture/)
+    if (legacy) {
+      const revision = f.repository.manifest(`run:${started.id}`)!.revision
+      await f.repository.commit({ aggregateId: `run:${started.id}`, expectedRevision: revision, operationId: 'legacy-screening-checkpoint', request: {}, records: [
+        { ...paused, revision: revision + 1, data: toJson({ ...before, checkpoint }) },
+      ], state: { runId: started.id } })
+    }
+
+    f.allowScreening()
+    await f.engine.control(started.id, 'resume', f.actor, f.worker); await f.jobs.drain()
+    const completed = f.domain.require('run', started.id)
+    assert.equal(completed.status, 'completed')
+    assert.equal(completed.outcome, 'target-met')
+    assert.equal(dataOf(completed).counts.screeningReviewed, 50)
+    assert.equal(dataOf(completed).counts.deepReviewed, 2)
+    assert.equal(dataOf(completed).counts.qualified, 1)
+    assert.equal(dataOf(completed).budget.search, legacy ? 6 : 3)
+    assert.equal(dataOf(completed).checkpoint.searchUnsplashLocations, undefined)
+    assert.deepEqual(f.sourcePages.slice(0, 3), [0, 1, 2])
+    assert.deepEqual(f.sourcePages.slice(3).sort(), legacy ? [0, 1, 2] : [])
+    assert.deepEqual(f.sourceLookups, [])
   } finally { f.allowScreening(); await f.cleanup() }
 })
 
